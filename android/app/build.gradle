@@ -1,0 +1,118 @@
+plugins { id 'com.android.application' }
+
+def gameInfo = new groovy.json.JsonSlurper().parse(rootProject.file('../game-info.json'))
+def gameVersion = gameInfo.version.toString()
+// Stable across rebuilds; each major/minor/patch increase raises the code.
+// Reserve three decimal digits each for minor and patch.
+if (!(gameVersion ==~ /(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)/)) {
+    throw new GradleException('game-info.json version must be numeric MAJOR.MINOR.PATCH (for example 1.0.1).')
+}
+def versionParts = gameVersion.tokenize('.').collect { new BigInteger(it) }
+def androidVersionCode = versionParts[0] * 1000000 + versionParts[1] * 1000 + versionParts[2]
+if (versionParts[1] > 999 || versionParts[2] > 999 ||
+        androidVersionCode < 1 || androidVersionCode > 2100000000) {
+    throw new GradleException('Game version exceeds Android versionCode limits: minor and patch must be 0..999, and the derived code must be 1..2100000000.')
+}
+
+def releasePropertiesFile = file(System.getenv('ZENKAI_SIGNING_PROPERTIES') ?:
+        "${System.properties['user.home']}/.android/zenkaipower-release.properties")
+def releaseProperties = new Properties()
+if (releasePropertiesFile.isFile()) releasePropertiesFile.withInputStream { releaseProperties.load(it) }
+
+android {
+    namespace 'com.zenkaipower.android'
+    sourceSets.main.java.srcDir 'src/main/virtualjava'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.zenkaipower.android'
+        minSdk 29
+        targetSdk 35
+        versionCode androidVersionCode.intValue()
+        versionName gameVersion
+        resValue 'string', 'app_name', gameInfo.subtitle.toString()
+        resValue 'string', 'release_url', gameInfo.source.toString().replaceAll('/+$', '') + '/releases'
+        resValue 'string', 'release_api_url', 'https://api.github.com/repos/' + gameInfo.source.toString().replaceFirst('https://github.com/', '').replaceAll('/+$', '') + '/releases/latest'
+        resValue 'string', 'project_page_url', (gameInfo.page ?: gameInfo.source).toString()
+        resValue 'string', 'original_project_url', gameInfo.original_source.toString()
+        testInstrumentationRunner 'com.zenkaipower.android.InstallerChecks'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    signingConfigs {
+        if (!releaseProperties.isEmpty()) {
+            release {
+                storeFile file(System.getenv('ZENKAI_KEYSTORE') ?: releaseProperties['storeFile'])
+                storePassword releaseProperties['storePassword']
+                keyAlias releaseProperties['keyAlias']
+                keyPassword releaseProperties['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            debuggable false
+            minifyEnabled false
+            if (!releaseProperties.isEmpty()) signingConfig signingConfigs.release
+        }
+    }
+    packaging {
+        jniLibs {
+            useLegacyPackaging true
+            keepDebugSymbols += ['**/libzenkaipower.so']
+        }
+    }
+}
+
+tasks.register('checkEngine') {
+    doLast {
+        ['libzenkaipower.so', 'libmain.so', 'libSDL3.so', 'libinstaller.so', 'libstorage.so'].each {
+            if (!file("src/main/jniLibs/arm64-v8a/$it").isFile())
+                throw new GradleException('Build the engine first: python3 port/tools/android.py')
+        }
+        ['fonts.pak', 'translations.pak', 'game-info.pak', 'setup.pak', 'dragon-net-battle.pak', 'setup/engine.pak'].each {
+            if (!file("src/main/assets/engine/$it").isFile())
+                throw new GradleException('Packed engine assets are missing; run port/tools/android_resources.py.')
+        }
+    }
+}
+
+// Repackaging pre-adapter native libraries would bypass the tree grant and fail
+// now that broad storage permissions have been removed. Compilation/lint can
+// still run independently while the engine toolchain is unavailable.
+tasks.register('checkStorageAdapter') {
+    doLast {
+        ['libzenkaipower.so', 'libmain.so', 'libinstaller.so'].each { name ->
+            def library = file("src/main/jniLibs/arm64-v8a/$name")
+            def adapted = library.isFile() && library.withInputStream { input ->
+                byte[] buffer = new byte[65536]
+                String tail = ''
+                boolean wrapped = false, linked = false
+                int count
+                while ((count = input.read(buffer)) != -1) {
+                    String chunk = tail + new String(buffer, 0, count, 'ISO-8859-1')
+                    wrapped |= chunk.contains('__wrap_fopen')
+                    linked |= chunk.contains('libstorage.so')
+                    if (wrapped && linked) return true
+                    tail = chunk.substring(Math.max(0, chunk.length() - 32))
+                }
+                return false
+            }
+            if (!adapted) throw new GradleException("$name predates folder-scoped storage. Rebuild native libraries with android/build.ps1 (without -ApkOnly) or android/build.sh.")
+        }
+    }
+}
+tasks.configureEach {
+    if (name.startsWith('merge') && name.endsWith('NativeLibs')) dependsOn('checkStorageAdapter')
+}
+tasks.named('preBuild').configure { dependsOn 'checkEngine' }
+
+tasks.register('checkReleaseSigning') {
+    doLast {
+        if (releaseProperties.isEmpty())
+            throw new GradleException('Release signing is not configured. Run android/create-release-key.ps1 or set ZENKAI_SIGNING_PROPERTIES.')
+    }
+}
+tasks.matching { it.name == 'preReleaseBuild' }.configureEach { dependsOn 'checkReleaseSigning' }

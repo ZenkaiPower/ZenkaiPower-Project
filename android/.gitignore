@@ -1,0 +1,14 @@
+.gradle/
+local.properties
+**/build/
+app/src/main/jniLibs/
+app/src/main/assets/
+app/src/main/java/org/
+app/src/androidTest/jniLibs/
+app/src/androidTest/assets/
+*.log
+write-check.txt
+adapt.py
+*.jks
+*.keystore
+*signing*.properties

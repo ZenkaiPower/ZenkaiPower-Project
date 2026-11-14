@@ -1,0 +1,3 @@
+# The image uses only the Dockerfile; never send game assets to the builder.
+**
+!Dockerfile

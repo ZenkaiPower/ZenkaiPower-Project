@@ -1,0 +1,59 @@
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'README.md'
+      - 'figs/**'
+      - 'assets/zp.png'
+      - '.github/workflows/pages.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'README.md'
+      - 'figs/**'
+      - 'assets/zp.png'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage public website files
+        run: python3 web/prepare.py .pages-source
+      - name: Build Jekyll site
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: .pages-source
+          destination: .pages-output
+      - name: Check website links and images
+        run: python3 web/check.py .pages-output
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .pages-output
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

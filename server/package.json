@@ -1,0 +1,18 @@
+{
+  "name": "zenkaipower-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.local.json",
+    "deploy": "wrangler deploy --config wrangler.local.json"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0"
+  },
+  "devDependencies": {
+    "wrangler": "4.153.0"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

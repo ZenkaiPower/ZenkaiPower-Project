@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "zenkaipower-server",
+  "main": "src/worker.js",
+  "compatibility_date": "2025-10-11",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "COORDINATOR",
+        "class_name": "MatchCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "MatchCoordinator"
+      ]
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "zenkaipower-transfer",
+      "database_id": "REPLACE_WITH_DATABASE_UUID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ALLOW_GUESTS": "false"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "keep_vars": true
+}

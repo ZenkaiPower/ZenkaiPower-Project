@@ -1,0 +1,1675 @@
+{
+  "schema_version": 1,
+  "labels_version": 2,
+  "translation_version": 4,
+  "labels_count": 416,
+  "locale": "es",
+  "name": "Español",
+  "order": 3,
+  "labels": {
+    "quit/confirm": {
+      "original": "Close the game?\n\nUnsaved progress will be lost.",
+      "text": "¿Cerrar el juego?\n\nSe perderá el progreso no guardado."
+    },
+    "net/rival_here": {
+      "original": "Your rival \"{name}\" is here! The match begins.",
+      "text": "¡Tu rival «{name}» está aquí! Empieza el combate."
+    },
+    "net/player_left": {
+      "original": "The other player left the match.",
+      "text": "El otro jugador abandonó el combate."
+    },
+    "net/synchronization_lost": {
+      "original": "Synchronization lost.",
+      "text": "Se perdió la sincronización."
+    },
+    "net/connection_lost": {
+      "original": "Connection lost.",
+      "text": "Se perdió la conexión."
+    },
+    "dragon-net/home/title": {
+      "original": "Dragon Net Battle",
+      "text": "Batalla Dragon Net"
+    },
+    "dragon-net/home/battle": {
+      "original": "Nintendo WFC Battle",
+      "text": "Nintendo WFC"
+    },
+    "dragon-net/home/dragon-net-battle": {
+      "original": "Dragon Net Battle",
+      "text": "Batalla Dragon Net"
+    },
+    "dragon-net/home/friends": {
+      "original": "Manage Friends",
+      "text": "Administrar amigos"
+    },
+    "dragon-net/home/settings": {
+      "original": "User Settings",
+      "text": "Ajustes del usuario"
+    },
+    "dragon-net/battle/title": {
+      "original": "Nintendo WFC Battle",
+      "text": "Nintendo WFC"
+    },
+    "dragon-net/battle/custom": {
+      "original": "Custom Battle",
+      "text": "Batalla pers."
+    },
+    "dragon-net/battle/normal": {
+      "original": "Normal Battle",
+      "text": "Batalla normal"
+    },
+    "dragon-net/battle/friend": {
+      "original": "Friend Battle",
+      "text": "Batalla de amigos"
+    },
+    "dragon-net/battle/ranking": {
+      "original": "Ranking Battle",
+      "text": "Batalla de clasificación"
+    },
+    "dragon-net/battle/view-ranking": {
+      "original": "View Ranking",
+      "text": "Ver clasificación"
+    },
+    "dragon-net/battle/record": {
+      "original": "Battle Record",
+      "text": "Registro de batalla"
+    },
+    "dragon-net/normal/title": {
+      "original": "Normal Battle",
+      "text": "Batalla normal"
+    },
+    "dragon-net/custom/title": {
+      "original": "Custom Battle",
+      "text": "Batalla pers."
+    },
+    "dragon-net/custom/one-v-one": {
+      "original": "1 VS 1 Battle",
+      "text": "Combate 1 contra 1"
+    },
+    "dragon-net/custom/team": {
+      "original": "Team Battle",
+      "text": "Combate por equipos"
+    },
+    "dragon-net/custom/team-10-dp": {
+      "original": "10 DP Team Battle",
+      "text": "Combate por equipos (10 DP)"
+    },
+    "dragon-net/custom/team-15-dp": {
+      "original": "15 DP Team Battle",
+      "text": "Combate por equipos (15 DP)"
+    },
+    "dragon-net/custom/team-20-dp": {
+      "original": "20 DP Team Battle",
+      "text": "Combate por equipos (20 DP)"
+    },
+    "dragon-net/friend/host": {
+      "original": "Host Battle",
+      "text": "Crear combate"
+    },
+    "dragon-net/friend/join": {
+      "original": "Join Battle",
+      "text": "Unirse al combate"
+    },
+    "dragon-net/friends/title": {
+      "original": "Manage Friends",
+      "text": "Administrar amigos"
+    },
+    "dragon-net/friends/list": {
+      "original": "Friend List",
+      "text": "Lista de amigos"
+    },
+    "dragon-net/friends/add": {
+      "original": "Add Friend",
+      "text": "Añadir amigo"
+    },
+    "dragon-net/friends/code": {
+      "original": "My Friend Code",
+      "text": "Verificar código amigo"
+    },
+    "dragon-net/settings/title": {
+      "original": "User Settings",
+      "text": "Ajustes del usuario"
+    },
+    "dragon-net/settings/name": {
+      "original": "Create Player Name",
+      "text": "Crear apodo"
+    },
+    "dragon-net/settings/initialize": {
+      "original": "Initialize Wi-Fi Data",
+      "text": "Inicializar datos Wi-Fi"
+    },
+    "dragon-net/settings/player-name": {
+      "original": "Player Name",
+      "text": "Nombre del jugador"
+    },
+    "dragon-net/settings/initialize-net-battle": {
+      "original": "Initialize Data",
+      "text": "Inicializar datos"
+    },
+    "dragon-net/ranking/title": {
+      "original": "View Ranking",
+      "text": "Ver clasificación"
+    },
+    "dragon-net/ranking/global": {
+      "original": "Global",
+      "text": "Global"
+    },
+    "dragon-net/ranking/area": {
+      "original": "My Area",
+      "text": "Mi zona"
+    },
+    "dragon-net/ranking/top-10": {
+      "original": "Top 10",
+      "text": "Top 10"
+    },
+    "dragon-net/name/title": {
+      "original": "Create Player Name",
+      "text": "Crear apodo"
+    },
+    "dragon-net/results/rematch": {
+      "original": "Rematch Request",
+      "text": "Solicitar revancha"
+    },
+    "dragon-net/results/end": {
+      "original": "End Battle",
+      "text": "Terminar combate"
+    },
+    "account/code-title": {
+      "original": "Access Code",
+      "text": "Código de acceso"
+    },
+    "account/code-help": {
+      "original": "Enter the six-character access code for this player name.",
+      "text": "Introduce el código de acceso de seis caracteres de este nombre de jugador."
+    },
+    "account/code-length": {
+      "original": "An access code has six letters and numbers.",
+      "text": "El código de acceso tiene seis letras y números."
+    },
+    "account/save-code": {
+      "original": "Your access code:\n%s\nKeep this code safe. Losing it and your saved\nlogin means losing access to your player data.\nHave you saved your code?",
+      "text": "Tu código de acceso:\n%s\nGuárdalo en un lugar seguro. Si lo pierdes junto\ncon tus datos de inicio de sesión, perderás el\nacceso a tus datos de jugador.\n¿Has guardado el código?"
+    },
+    "account/save-error": {
+      "original": "Could not save your login.\nSave your code and try Yes again.",
+      "text": "No se pudo guardar el inicio de sesión.\nGuarda el código y vuelve a elegir Sí."
+    },
+    "account/success": {
+      "original": "Your player data is initialized.",
+      "text": "Tus datos de jugador están listos."
+    },
+    "account/unavailable": {
+      "original": "The account service could not be reached.\nCheck the local matchmaking server.",
+      "text": "No se pudo contactar con el servicio de cuentas.\nComprueba el servidor local de emparejamiento."
+    },
+    "account/login-error": {
+      "original": "Login failed. Check your player name\nand access code, or account status.",
+      "text": "Error al iniciar sesión. Comprueba el nombre\ndel jugador, el código o el estado de la cuenta."
+    },
+    "account/inactive": {
+      "original": "This player account is inactive.",
+      "text": "Esta cuenta de jugador está inactiva."
+    },
+    "account/throttled": {
+      "original": "Too many account attempts.\nPlease try again in 15 minutes.",
+      "text": "Demasiados intentos de acceso.\nVuelve a intentarlo dentro de 15 minutos."
+    },
+    "account/invalid-name": {
+      "original": "Invalid name, please chose another one.",
+      "text": "Nombre no válido. Elige otro."
+    },
+    "account/working": {
+      "original": "Connecting to the account service...",
+      "text": "Conectando con el servicio de cuentas…"
+    },
+    "music/meteor/00": {
+      "original": "CHA-LA HEAD-CHA-LA(Variations)",
+      "text": "CHA-LA HEAD-CHA-LA"
+    },
+    "music/meteor/01": {
+      "original": "ニューヒーロー登場",
+      "text": "A New Hero Appears"
+    },
+    "music/meteor/02": {
+      "original": "カリン塔のカリン様",
+      "text": "Korin of Korin Tower"
+    },
+    "music/meteor/03": {
+      "original": "正義を愛する者！",
+      "text": "The One Who Loves Justice!"
+    },
+    "music/meteor/04": {
+      "original": "孫悟飯とピッコロ大魔王",
+      "text": "Gohan and Demon King Piccolo"
+    },
+    "music/meteor/05": {
+      "original": "極限バトル!!三大超サイヤ人",
+      "text": "Ultimate Battle! 3 Super Saiyans"
+    },
+    "music/meteor/06": {
+      "original": "プロローグ&サブタイトルI",
+      "text": "Prologue & Subtitle I"
+    },
+    "music/meteor/07": {
+      "original": "ロマンティックあげるよ",
+      "text": "I'll Give You Romance"
+    },
+    "music/meteor/08": {
+      "original": "DAN DAN 心魅かれてく(プロローグver.)",
+      "text": "DAN DAN I'm Falling for You"
+    },
+    "music/meteor/09": {
+      "original": "ドラゴンボールZ(映画)",
+      "text": "Dragon Ball Z (Movie)"
+    },
+    "music/meteor/10": {
+      "original": "恐怖のギニュー特戦隊",
+      "text": "The Terrifying Ginyu Force"
+    },
+    "music/meteor/11": {
+      "original": "とびっきりの最強対最強",
+      "text": "Strongest vs. Strongest"
+    },
+    "music/meteor/12": {
+      "original": "天下分け目の超決戦!!",
+      "text": "The Decisive Super Battle!!"
+    },
+    "music/meteor/13": {
+      "original": "人造人間 街へ…",
+      "text": "The Androids Head to Town..."
+    },
+    "music/meteor/14": {
+      "original": "死を呼ぶセルゲーム",
+      "text": "The Deadly Cell Games"
+    },
+    "music/meteor/15": {
+      "original": "悪魔のブロリー",
+      "text": "Broly the Devil"
+    },
+    "music/meteor/16": {
+      "original": "ソリッドステート・スカウター",
+      "text": "Solid State Scouter"
+    },
+    "music/meteor/17": {
+      "original": "最強のフュージョン",
+      "text": "The Ultimate Fusion"
+    },
+    "music/meteor/18": {
+      "original": "摩訶不思議アドベンチャー",
+      "text": "Mystical Adventure!"
+    },
+    "music/meteor/19": {
+      "original": "めざせ天下一",
+      "text": "Aim to Be Number One"
+    },
+    "music/meteor/20": {
+      "original": "Super Survivor(Vocal Full ver.)",
+      "text": "Super Survivor (Vocal Full ver.)"
+    },
+    "music/meteor/21": {
+      "original": "Super Survivor(Instrumental Full ver.)",
+      "text": "Super Survivor (Instrumental Full ver.)"
+    },
+    "music/meteor/22": {
+      "original": "Super Survivor(Vocal OP ver.)",
+      "text": "Super Survivor (Vocal OP ver.)"
+    },
+    "music/meteor/23": {
+      "original": "Super Survivor(Instrumental OP ver.)",
+      "text": "Super Survivor (Instrumental OP ver.)"
+    },
+    "options/category/video": {
+      "original": "Video Settings",
+      "text": "Ajustes de vídeo"
+    },
+    "options/category/battle-effects": {
+      "original": "Battle Effects",
+      "text": "Efectos de combate"
+    },
+    "options/category/visual": {
+      "original": "Visual Settings",
+      "text": "Ajustes visuales"
+    },
+    "options/category/general": {
+      "original": "General Settings",
+      "text": "Ajustes generales"
+    },
+    "options/more/title": {
+      "original": "More Options",
+      "text": "Más opciones"
+    },
+    "options/setting/resolution": {
+      "original": "Resolution",
+      "text": "Resolución"
+    },
+    "options/setting/aspect-ratio": {
+      "original": "Aspect Ratio",
+      "text": "Relación de aspecto"
+    },
+    "options/setting/2d-filtering": {
+      "original": "2D Filtering",
+      "text": "Filtrado 2D"
+    },
+    "options/setting/fullscreen": {
+      "original": "Fullscreen",
+      "text": "Pantalla completa"
+    },
+    "options/setting/vsync": {
+      "original": "VSync",
+      "text": "VSync"
+    },
+    "options/setting/frame-skipping": {
+      "original": "Frame Skipping",
+      "text": "Salto de fotogramas"
+    },
+    "options/setting/graphics-api": {
+      "original": "Graphics API",
+      "text": "API gráfica"
+    },
+    "options/setting/frame-rate": {
+      "original": "Frame Rate (FPS)",
+      "text": "Frecuencia de fotogramas (FPS)"
+    },
+    "options/setting/character-outlines": {
+      "original": "Character Outlines",
+      "text": "Contornos de personajes"
+    },
+    "options/setting/occlusion-tint": {
+      "original": "Occlusion Tint",
+      "text": "Tinte de oclusión"
+    },
+    "options/setting/depth-haze": {
+      "original": "Depth Haze",
+      "text": "Bruma de profundidad"
+    },
+    "options/setting/bloom": {
+      "original": "Bloom",
+      "text": "Resplandor"
+    },
+    "options/setting/depth-of-field": {
+      "original": "Depth of Field",
+      "text": "Profundidad de campo"
+    },
+    "options/setting/motion-blur": {
+      "original": "Motion Blur",
+      "text": "Desenfoque de movimiento"
+    },
+    "options/setting/sharp-stage-blur": {
+      "original": "Sharp Stage Blur",
+      "text": "Desenfoque nítido del escenario"
+    },
+    "options/setting/weather": {
+      "original": "Weather",
+      "text": "Clima"
+    },
+    "options/setting/startup-logos": {
+      "original": "Startup Logos",
+      "text": "Logotipos iniciales"
+    },
+    "options/setting/intro-movie": {
+      "original": "Intro Movie",
+      "text": "Vídeo de introducción"
+    },
+    "options/setting/language-selection": {
+      "original": "Language Selection",
+      "text": "Selección de idioma"
+    },
+    "options/setting/game-edition": {
+      "original": "Game Edition",
+      "text": "Edición del juego"
+    },
+    "options/setting/network-mode": {
+      "original": "Network Mode",
+      "text": "Modo de red"
+    },
+    "options/setting/autosave": {
+      "original": "Autosave",
+      "text": "Guardado automático"
+    },
+    "options/help/resolution": {
+      "original": "Set the internal rendering resolution.",
+      "text": "Establece la resolución de renderizado interna."
+    },
+    "options/help/aspect-ratio": {
+      "original": "Change the screen aspect ratio.",
+      "text": "Cambia la relación de aspecto de la pantalla."
+    },
+    "options/help/2d-filtering": {
+      "original": "Choose sharp pixels or smooth filtering for 2D artwork.",
+      "text": "Elige píxeles nítidos o filtrado suave para gráficos 2D."
+    },
+    "options/help/fullscreen": {
+      "original": "Switch between windowed and fullscreen display.",
+      "text": "Alterna entre modo ventana y pantalla completa."
+    },
+    "options/help/vsync": {
+      "original": "Synchronize frames with the display to reduce tearing.",
+      "text": "Sincroniza los fotogramas con la pantalla para reducir el desgarro."
+    },
+    "options/help/frame-skipping": {
+      "original": "Skip rendering frames when needed to maintain game speed.",
+      "text": "Omite fotogramas cuando sea necesario para mantener la velocidad del juego."
+    },
+    "options/help/graphics-api": {
+      "original": "Choose Vulkan or OpenGL. Takes effect after restarting the game.",
+      "text": "Elige Vulkan u OpenGL. Se aplica al reiniciar el juego."
+    },
+    "options/help/frame-rate": {
+      "original": "Use frame interpolation for smoother motion.",
+      "text": "Usa interpolación de fotogramas para suavizar el movimiento."
+    },
+    "options/help/character-outlines": {
+      "original": "Show the dark outlines around fighters.",
+      "text": "Muestra los contornos oscuros de los luchadores."
+    },
+    "options/help/occlusion-tint": {
+      "original": "Show the tint that keeps fighters visible behind scenery.",
+      "text": "Muestra el tinte que mantiene visibles a los luchadores detrás del escenario."
+    },
+    "options/help/depth-haze": {
+      "original": "Apply distance-based color tinting to scenery.",
+      "text": "Aplica un tinte de color al escenario según la distancia."
+    },
+    "options/help/bloom": {
+      "original": "Show glare and glow around bright objects and the sky.",
+      "text": "Muestra brillo alrededor de objetos luminosos y del cielo."
+    },
+    "options/help/depth-of-field": {
+      "original": "Soften distant scenery with the game's depth blur.",
+      "text": "Suaviza el escenario lejano con el desenfoque de profundidad del juego."
+    },
+    "options/help/motion-blur": {
+      "original": "Blur scenery during camera movement.",
+      "text": "Desenfoca el escenario cuando se mueve la cámara."
+    },
+    "options/help/sharp-stage-blur": {
+      "original": "Keep stage blur crisp at higher internal resolutions.",
+      "text": "Mantiene nítido el desenfoque del escenario con resoluciones internas altas."
+    },
+    "options/help/weather": {
+      "original": "Show weather haze, dust and mist on supported stages.",
+      "text": "Muestra bruma, polvo y niebla en los escenarios compatibles."
+    },
+    "options/help/startup-logos": {
+      "original": "Show startup logos on game launch.",
+      "text": "Muestra los logotipos al iniciar el juego."
+    },
+    "options/help/intro-movie": {
+      "original": "Play the opening movie on game launch.",
+      "text": "Reproduce el vídeo inicial al iniciar el juego."
+    },
+    "options/help/language-selection": {
+      "original": "Show the language selector at startup.",
+      "text": "Muestra el selector de idioma al iniciar."
+    },
+    "options/help/game-edition": {
+      "original": "Choose Sparking! METEOR or Budokai Tenkaichi 3.",
+      "text": "Elige Sparking! METEOR o Budokai Tenkaichi 3."
+    },
+    "options/help/network-mode": {
+      "original": "Choose online or LAN play.",
+      "text": "Elige juego en línea o por LAN."
+    },
+    "options/help/autosave": {
+      "original": "Automatically save game progress.",
+      "text": "Guarda automáticamente el progreso del juego."
+    },
+    "options/help/category-video": {
+      "original": "Adjust resolution and display settings.",
+      "text": "Ajusta la resolución y la pantalla."
+    },
+    "options/help/category-battle-effects": {
+      "original": "Configure battle visuals and stage effects.",
+      "text": "Configura los efectos visuales de combate y del escenario."
+    },
+    "options/help/category-visual": {
+      "original": "Configure startup screens and the game edition.",
+      "text": "Configura las pantallas iniciales y la edición del juego."
+    },
+    "options/help/category-general": {
+      "original": "Configure network mode and automatic saving.",
+      "text": "Configura el modo de red y el guardado automático."
+    },
+    "options/help/return": {
+      "original": "Return to Options.",
+      "text": "Volver a Opciones."
+    },
+    "options/help/network-files": {
+      "original": "Extract the Wii game files to enable Network Mode.",
+      "text": "Extrae los archivos del juego de Wii para activar el modo de red."
+    },
+    "options/help/default": {
+      "original": "Restore the defaults for this category.",
+      "text": "Restablece los valores predeterminados de esta categoría."
+    },
+    "options/help/more": {
+      "original": "View additional game options.",
+      "text": "Muestra más opciones del juego."
+    },
+    "options/footer/default": {
+      "original": "Default",
+      "text": "Predeterminado"
+    },
+    "options/value/auto": {
+      "original": "Auto",
+      "text": "Automático"
+    },
+    "options/value/0-5x": {
+      "original": "0.5x",
+      "text": "0.5x"
+    },
+    "options/value/1-5x": {
+      "original": "1.5x",
+      "text": "1.5x"
+    },
+    "options/value/2-5x": {
+      "original": "2.5x",
+      "text": "2.5x"
+    },
+    "options/value/1x": {
+      "original": "1x",
+      "text": "1x"
+    },
+    "options/value/2x": {
+      "original": "2x",
+      "text": "2x"
+    },
+    "options/value/3x": {
+      "original": "3x",
+      "text": "3x"
+    },
+    "options/value/4x": {
+      "original": "4x",
+      "text": "4x"
+    },
+    "options/value/5x": {
+      "original": "5x",
+      "text": "5x"
+    },
+    "options/value/6x": {
+      "original": "6x",
+      "text": "6x"
+    },
+    "options/value/7x": {
+      "original": "7x",
+      "text": "7x"
+    },
+    "options/value/8x": {
+      "original": "8x",
+      "text": "8x"
+    },
+    "options/value/4-3": {
+      "original": "4:3",
+      "text": "4:3"
+    },
+    "options/value/16-9": {
+      "original": "16:9",
+      "text": "16:9"
+    },
+    "options/value/16-10": {
+      "original": "16:10",
+      "text": "16:10"
+    },
+    "options/value/21-9": {
+      "original": "21:9",
+      "text": "21:9"
+    },
+    "options/value/32-9": {
+      "original": "32:9",
+      "text": "32:9"
+    },
+    "options/value/off": {
+      "original": "Off",
+      "text": "Desactivado"
+    },
+    "options/value/on": {
+      "original": "On",
+      "text": "Activado"
+    },
+    "options/value/nearest": {
+      "original": "Nearest",
+      "text": "Más cercano"
+    },
+    "options/value/bilinear": {
+      "original": "Bilinear",
+      "text": "Bilineal"
+    },
+    "options/value/vulkan": {
+      "original": "Vulkan",
+      "text": "Vulkan"
+    },
+    "options/value/opengl": {
+      "original": "OpenGL",
+      "text": "OpenGL"
+    },
+    "options/value/30": {
+      "original": "30",
+      "text": "30"
+    },
+    "options/value/60": {
+      "original": "60",
+      "text": "60"
+    },
+    "options/value/120": {
+      "original": "120",
+      "text": "120"
+    },
+    "options/value/240": {
+      "original": "240",
+      "text": "240"
+    },
+    "options/value/sparking-meteor": {
+      "original": "Sparking! METEOR",
+      "text": "Sparking! METEOR"
+    },
+    "options/value/budokai-tenkaichi-3": {
+      "original": "Budokai Tenkaichi 3",
+      "text": "Budokai Tenkaichi 3"
+    },
+    "options/value/online": {
+      "original": "Online",
+      "text": "En línea"
+    },
+    "options/value/lan": {
+      "original": "LAN",
+      "text": "LAN"
+    },
+    "options/dialog/language-restart": {
+      "original": "Language saved. It will apply on the next launch.",
+      "text": "Idioma guardado. Se aplicará la próxima vez que inicies el juego."
+    },
+    "options/category/controller": {
+      "original": "Controller",
+      "text": "Mando"
+    },
+    "options/category/cheats": {
+      "original": "Cheats",
+      "text": "Trucos"
+    },
+    "controls/section/mouse-keyboard": {
+      "original": "Mouse/Keyboard",
+      "text": "Ratón/teclado"
+    },
+    "controls/section/gamepad": {
+      "original": "Gamepad",
+      "text": "Mando"
+    },
+    "controls/virtual-gamepad/help": {
+      "original": "Show or hide the virtual gamepad during battle.",
+      "text": "Mostrar u ocultar el mando virtual durante el combate."
+    },
+    "controls/player/1": {
+      "original": "Player 1",
+      "text": "Jugador 1"
+    },
+    "controls/player/2": {
+      "original": "Player 2",
+      "text": "Jugador 2"
+    },
+    "controls/device/controller": {
+      "original": "Controller",
+      "text": "Mando"
+    },
+    "controls/device/none": {
+      "original": "None",
+      "text": "Ninguno"
+    },
+    "controls/device/not-connected": {
+      "original": "Controller %d (not connected)",
+      "text": "Mando %d (no conectado)"
+    },
+    "controls/reset-defaults": {
+      "original": "Reset to defaults",
+      "text": "Restablecer valores predeterminados"
+    },
+    "controls/sticks-header": {
+      "original": "Sticks, triggers and vibration",
+      "text": "Sticks, gatillos y vibración"
+    },
+    "controls/no-controller": {
+      "original": "No controller",
+      "text": "No hay ningún mando"
+    },
+    "controls/deadzone": {
+      "original": "Deadzone",
+      "text": "Zona muerta"
+    },
+    "controls/deadzone/original": {
+      "original": "Original",
+      "text": "Original"
+    },
+    "controls/trigger/pressed": {
+      "original": "pressed",
+      "text": "pulsado"
+    },
+    "controls/vibration": {
+      "original": "Vibration",
+      "text": "Vibración"
+    },
+    "controls/strength": {
+      "original": "Strength",
+      "text": "Intensidad"
+    },
+    "controls/test": {
+      "original": "Test",
+      "text": "Probar"
+    },
+    "controls/no-vibration": {
+      "original": "(this controller has none)",
+      "text": "(este mando no admite vibración)"
+    },
+    "controls/instructions/keyboard": {
+      "original": "Choose a binding, then press the new key or button. Esc keeps it, Delete clears it;",
+      "text": "Elige una asignación y pulsa la nueva tecla o botón. Esc la conserva; Supr la borra;"
+    },
+    "controls/instructions/gamepad": {
+      "original": "with a controller, press nothing for five seconds to keep it.",
+      "text": "con un mando, no pulses nada durante cinco segundos para conservarla."
+    },
+    "controls/column/action": {
+      "original": "Action",
+      "text": "Acción"
+    },
+    "controls/column/mouse-keyboard": {
+      "original": "Mouse/Keyboard",
+      "text": "Ratón/teclado"
+    },
+    "controls/column/gamepad": {
+      "original": "Gamepad",
+      "text": "Mando"
+    },
+    "controls/clash-mode/title": {
+      "original": "Clash Input",
+      "text": "Control del choque"
+    },
+    "controls/clash-mode/analogic": {
+      "original": "Rotate Stick",
+      "text": "Girar stick"
+    },
+    "controls/clash-mode/strike": {
+      "original": "Tap Strike",
+      "text": "Pulsar ataque"
+    },
+    "controls/action/open-settings": {
+      "original": "Open this window",
+      "text": "Abrir esta ventana"
+    },
+    "controls/action/open-chat": {
+      "original": "Open online chat",
+      "text": "Abrir chat en línea"
+    },
+    "controls/capture/keyboard": {
+      "original": "press a key...",
+      "text": "Pulsa una tecla..."
+    },
+    "controls/capture/gamepad": {
+      "original": "press a button...",
+      "text": "Pulsa un botón..."
+    },
+    "controls/capture/start-select": {
+      "original": "START + SELECT",
+      "text": "START + SELECT"
+    },
+    "controls/stick/left": {
+      "original": "Left stick",
+      "text": "Stick izquierdo"
+    },
+    "controls/stick/right": {
+      "original": "Right stick",
+      "text": "Stick derecho"
+    },
+    "controls/trigger/left": {
+      "original": "Left trigger",
+      "text": "Gatillo izquierdo"
+    },
+    "controls/trigger/right": {
+      "original": "Right trigger",
+      "text": "Gatillo derecho"
+    },
+    "controls/action/up": {
+      "original": "D-pad up",
+      "text": "Cruceta arriba"
+    },
+    "controls/action/down": {
+      "original": "D-pad down",
+      "text": "Cruceta abajo"
+    },
+    "controls/action/left": {
+      "original": "D-pad left",
+      "text": "Cruceta izquierda"
+    },
+    "controls/action/right": {
+      "original": "D-pad right",
+      "text": "Cruceta derecha"
+    },
+    "controls/action/cross": {
+      "original": "Cross",
+      "text": "Cruz"
+    },
+    "controls/action/circle": {
+      "original": "Circle",
+      "text": "Círculo"
+    },
+    "controls/action/square": {
+      "original": "Square",
+      "text": "Cuadrado"
+    },
+    "controls/action/triangle": {
+      "original": "Triangle",
+      "text": "Triángulo"
+    },
+    "controls/action/l1": {
+      "original": "L1",
+      "text": "L1"
+    },
+    "controls/action/r1": {
+      "original": "R1",
+      "text": "R1"
+    },
+    "controls/action/l2": {
+      "original": "L2",
+      "text": "L2"
+    },
+    "controls/action/r2": {
+      "original": "R2",
+      "text": "R2"
+    },
+    "controls/action/l3": {
+      "original": "L3",
+      "text": "L3"
+    },
+    "controls/action/r3": {
+      "original": "R3",
+      "text": "R3"
+    },
+    "controls/action/start": {
+      "original": "START",
+      "text": "START"
+    },
+    "controls/action/select": {
+      "original": "SELECT",
+      "text": "SELECT"
+    },
+    "controls/action/left-stick-up": {
+      "original": "Left stick up",
+      "text": "Stick izquierdo arriba"
+    },
+    "controls/action/left-stick-down": {
+      "original": "Left stick down",
+      "text": "Stick izquierdo abajo"
+    },
+    "controls/action/left-stick-left": {
+      "original": "Left stick left",
+      "text": "Stick izquierdo a la izquierda"
+    },
+    "controls/action/left-stick-right": {
+      "original": "Left stick right",
+      "text": "Stick izquierdo a la derecha"
+    },
+    "controls/action/right-stick-up": {
+      "original": "Right stick up",
+      "text": "Stick derecho arriba"
+    },
+    "controls/action/right-stick-down": {
+      "original": "Right stick down",
+      "text": "Stick derecho abajo"
+    },
+    "controls/action/right-stick-left": {
+      "original": "Right stick left",
+      "text": "Stick derecho a la izquierda"
+    },
+    "controls/action/right-stick-right": {
+      "original": "Right stick right",
+      "text": "Stick derecho a la derecha"
+    },
+    "quit/action/exit": {
+      "original": "Exit",
+      "text": "Salir"
+    },
+    "quit/action/cancel": {
+      "original": "Cancel",
+      "text": "Cancelar"
+    },
+    "controls/help/keyboard": {
+      "original": "Select an action, then press a key or mouse input.",
+      "text": "Elige una acción y pulsa una tecla o un botón del ratón."
+    },
+    "controls/help/keyboard/waiting": {
+      "original": "Press a key or mouse input. Esc cancels. Delete clears the binding.",
+      "text": "Pulsa una tecla o un botón del ratón. Esc cancela; Supr borra la asignación."
+    },
+    "controls/help/gamepad": {
+      "original": "Select an action and press a gamepad input.",
+      "text": "Elige una acción y pulsa un botón del mando."
+    },
+    "controls/help/gamepad/clash-mode": {
+      "original": "Choose how to struggle in a clash when using a gamepad.",
+      "text": "Elige cómo forcejear en un choque con el mando."
+    },
+    "controls/help/gamepad/waiting": {
+      "original": "Press one or more gamepad inputs. Delete clears the binding.",
+      "text": "Pulsa uno o varios botones del mando. Supr borra la asignación."
+    },
+    "controls/help/controller/keyboard": {
+      "original": "Map battle actions, movement and camera controls to keyboard and mouse inputs.",
+      "text": "Asigna acciones de combate, movimiento y cámara al teclado y al ratón."
+    },
+    "controls/help/controller/gamepad": {
+      "original": "Map battle actions, movement and camera controls to gamepad inputs.",
+      "text": "Asigna acciones de combate, movimiento y cámara a los botones del mando."
+    },
+    "controls/pc-action/ki-charge": {
+      "original": "Ki Charge",
+      "text": "Cargar ki"
+    },
+    "controls/pc-action/blaster-wave": {
+      "original": "Blaster Wave",
+      "text": "Onda bláster"
+    },
+    "controls/pc-action/ki-blast": {
+      "original": "Ki Blast",
+      "text": "Ráfaga de ki"
+    },
+    "controls/pc-action/fight": {
+      "original": "Fight",
+      "text": "Luchar"
+    },
+    "controls/pc-action/descend": {
+      "original": "Descend",
+      "text": "Descender"
+    },
+    "controls/pc-action/ascend": {
+      "original": "Ascend",
+      "text": "Ascender"
+    },
+    "controls/pc-action/guard": {
+      "original": "Guard",
+      "text": "Defender"
+    },
+    "controls/pc-action/dash": {
+      "original": "Dash",
+      "text": "Impulso"
+    },
+    "controls/pc-action/move-forward": {
+      "original": "Move Forward",
+      "text": "Avanzar"
+    },
+    "controls/pc-action/move-backward": {
+      "original": "Move Backward",
+      "text": "Retroceder"
+    },
+    "controls/pc-action/move-left": {
+      "original": "Move Left",
+      "text": "Mover a la izquierda"
+    },
+    "controls/pc-action/move-right": {
+      "original": "Move Right",
+      "text": "Mover a la derecha"
+    },
+    "controls/pc-action/camera-left": {
+      "original": "Camera Left",
+      "text": "Cámara izquierda"
+    },
+    "controls/pc-action/camera-right": {
+      "original": "Camera Right",
+      "text": "Cámara derecha"
+    },
+    "controls/pc-action/change-camera": {
+      "original": "Change Camera",
+      "text": "Cambiar cámara"
+    },
+    "controls/pc-action/switch-character": {
+      "original": "Switch Character",
+      "text": "Cambiar personaje"
+    },
+    "controls/pc-action/transform-progress": {
+      "original": "Transform/Progress",
+      "text": "Transformar/Avanzar"
+    },
+    "character-reference/voice/000": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/001": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/002": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/003": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/004": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/005": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/006": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/007": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/008": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/009": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/010": {
+      "original": "Masako Nozawa (JP)\nSean Schemmel (US)",
+      "text": "Masako Nozawa (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/011": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/012": {
+      "original": "Yashuhiko Kawazu (JP)\nShane Ray (US)",
+      "text": "Yashuhiko Kawazu (JP)\nShane Ray (US)"
+    },
+    "character-reference/voice/013": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/014": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/015": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/016": {
+      "original": "Masako Nozawa (JP)\nStephanie Nadolny (US)",
+      "text": "Masako Nozawa (JP)\nStephanie Nadolny (US)"
+    },
+    "character-reference/voice/017": {
+      "original": "Masako Nozawa (JP)\nKyle Hebert (US)",
+      "text": "Masako Nozawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/018": {
+      "original": "Masako Nozawa (JP)\nKyle Hebert (US)",
+      "text": "Masako Nozawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/019": {
+      "original": "Masako Nozawa (JP)\nKyle Hebert (US)",
+      "text": "Masako Nozawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/020": {
+      "original": "Masako Nozawa (JP)\nKyle Hebert (US)",
+      "text": "Masako Nozawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/021": {
+      "original": "Masako Nozawa (JP)\nKyle Hebert (US)",
+      "text": "Masako Nozawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/022": {
+      "original": "Toshio Furukawa (JP)\nChristopher Sabat (US)",
+      "text": "Toshio Furukawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/023": {
+      "original": "Toshio Furukawa (JP)\nChristopher Sabat (US)",
+      "text": "Toshio Furukawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/024": {
+      "original": "Katsuji Mori (JP)\nSean Schemmel (US)",
+      "text": "Katsuji Mori (JP)\nSean Schemmel (US)"
+    },
+    "character-reference/voice/025": {
+      "original": "Mayumi Tanaka (JP)\nSonny Strait (US)",
+      "text": "Mayumi Tanaka (JP)\nSonny Strait (US)"
+    },
+    "character-reference/voice/026": {
+      "original": "Toru Furuya (JP)\nChristopher Sabat (US)",
+      "text": "Toru Furuya (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/027": {
+      "original": "Hirotaka Suzuoki (JP)\nJohn Burgmeier (US)",
+      "text": "Hirotaka Suzuoki (JP)\nJohn Burgmeier (US)"
+    },
+    "character-reference/voice/028": {
+      "original": "Hiroko Emori (JP)\nBrina Palencia (US)",
+      "text": "Hiroko Emori (JP)\nBrina Palencia (US)"
+    },
+    "character-reference/voice/029": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/030": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/031": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/032": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/033": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/034": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/035": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/036": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/037": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/038": {
+      "original": "Ryo Horikawa (JP)\nChristopher Sabat (US)",
+      "text": "Ryo Horikawa (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/039": {
+      "original": "Takeshi Kusao (JP)\nEric Vale (US)",
+      "text": "Takeshi Kusao (JP)\nEric Vale (US)"
+    },
+    "character-reference/voice/040": {
+      "original": "Takeshi Kusao (JP)\nEric Vale (US)",
+      "text": "Takeshi Kusao (JP)\nEric Vale (US)"
+    },
+    "character-reference/voice/041": {
+      "original": "Takeshi Kusao (JP)\nEric Vale (US)",
+      "text": "Takeshi Kusao (JP)\nEric Vale (US)"
+    },
+    "character-reference/voice/042": {
+      "original": "Takeshi Kusao (JP)\nEric Vale (US)",
+      "text": "Takeshi Kusao (JP)\nEric Vale (US)"
+    },
+    "character-reference/voice/043": {
+      "original": "Takeshi Kusao (JP)\nEric Vale (US)",
+      "text": "Takeshi Kusao (JP)\nEric Vale (US)"
+    },
+    "character-reference/voice/044": {
+      "original": "Takeshi Kusao (JP)\nLaura Bailey (US)",
+      "text": "Takeshi Kusao (JP)\nLaura Bailey (US)"
+    },
+    "character-reference/voice/045": {
+      "original": "Takeshi Kusao (JP)\nLaura Bailey (US)",
+      "text": "Takeshi Kusao (JP)\nLaura Bailey (US)"
+    },
+    "character-reference/voice/046": {
+      "original": "Masako Nozawa (JP)\nKara Edwards (US)",
+      "text": "Masako Nozawa (JP)\nKara Edwards (US)"
+    },
+    "character-reference/voice/047": {
+      "original": "Masako Nozawa (JP)\nKara Edwards (US)",
+      "text": "Masako Nozawa (JP)\nKara Edwards (US)"
+    },
+    "character-reference/voice/048": {
+      "original": "Takeshi Kusao and Masako Nozawa (JP)\nLaura Bailey and Kara Edwards (US)",
+      "text": "Takeshi Kusao and Masako Nozawa (JP)\nLaura Bailey and Kara Edwards (US)"
+    },
+    "character-reference/voice/049": {
+      "original": "Takeshi Kusao and Masako Nozawa (JP)\nLaura Bailey and Kara Edwards (US)",
+      "text": "Takeshi Kusao and Masako Nozawa (JP)\nLaura Bailey and Kara Edwards (US)"
+    },
+    "character-reference/voice/050": {
+      "original": "Takeshi Kusao and Masako Nozawa (JP)\nLaura Bailey and Kara Edwards (US)",
+      "text": "Takeshi Kusao and Masako Nozawa (JP)\nLaura Bailey and Kara Edwards (US)"
+    },
+    "character-reference/voice/051": {
+      "original": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)",
+      "text": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)"
+    },
+    "character-reference/voice/052": {
+      "original": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)",
+      "text": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)"
+    },
+    "character-reference/voice/053": {
+      "original": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)",
+      "text": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)"
+    },
+    "character-reference/voice/054": {
+      "original": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)",
+      "text": "Ryo Horikawa and Masako Nozawa (JP)\nChristopher Sabat and Sean Schemmel (US)"
+    },
+    "character-reference/voice/055": {
+      "original": "Daisuke Gori (JP)\nChris Rager (US)",
+      "text": "Daisuke Gori (JP)\nChris Rager (US)"
+    },
+    "character-reference/voice/056": {
+      "original": "Yuko Minaguchi (JP)\nKara Edwards (US)",
+      "text": "Yuko Minaguchi (JP)\nKara Edwards (US)"
+    },
+    "character-reference/voice/057": {
+      "original": "Yuko Minaguchi (JP)\nKara Edwards (US)",
+      "text": "Yuko Minaguchi (JP)\nKara Edwards (US)"
+    },
+    "character-reference/voice/058": {
+      "original": "Yuji Mitsuya (JP)\nKent Williams (US)",
+      "text": "Yuji Mitsuya (JP)\nKent Williams (US)"
+    },
+    "character-reference/voice/059": {
+      "original": "Yuji Mitsuya (JP)\nKent Williams (US)",
+      "text": "Yuji Mitsuya (JP)\nKent Williams (US)"
+    },
+    "character-reference/voice/060": {
+      "original": "Mayumi Tanaka (JP)\nMike McFarland (US)",
+      "text": "Mayumi Tanaka (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/061": {
+      "original": "Hikaru Midorikawa (JP)\nKyle Hebert (US)",
+      "text": "Hikaru Midorikawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/062": {
+      "original": "Hiro Yuki (JP)\nJason Liebrecht (US)",
+      "text": "Hiro Yuki (JP)\nJason Liebrecht (US)"
+    },
+    "character-reference/voice/063": {
+      "original": "Yuko Minaguchi (JP)\nElise Baughman (US)",
+      "text": "Yuko Minaguchi (JP)\nElise Baughman (US)"
+    },
+    "character-reference/voice/064": {
+      "original": "Atsushi Kisaichi (JP)\nSean Teague (US)",
+      "text": "Atsushi Kisaichi (JP)\nSean Teague (US)"
+    },
+    "character-reference/voice/065": {
+      "original": "Atsushi Kisaichi (JP)\nSean Teague (US)",
+      "text": "Atsushi Kisaichi (JP)\nSean Teague (US)"
+    },
+    "character-reference/voice/066": {
+      "original": "Hiroshi Masuoka (JP)\nMike McFarland (US)",
+      "text": "Hiroshi Masuoka (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/067": {
+      "original": "Hiroshi Masuoka (JP)\nMike McFarland (US)",
+      "text": "Hiroshi Masuoka (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/068": {
+      "original": "Osamu Saka (JP)\nChristopher Sabat (US)",
+      "text": "Osamu Saka (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/069": {
+      "original": "Eiji Takemoto (JP)\nJerry Jewel (US)",
+      "text": "Eiji Takemoto (JP)\nJerry Jewel (US)"
+    },
+    "character-reference/voice/070": {
+      "original": "Shozo Iizuka (JP)\nMike McFarland (US)",
+      "text": "Shozo Iizuka (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/071": {
+      "original": "Banjo Ginga (JP)\nChristopher Sabat (US)",
+      "text": "Banjo Ginga (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/072": {
+      "original": "Banjo Ginga (JP)\nChristopher Sabat (US)",
+      "text": "Banjo Ginga (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/073": {
+      "original": "Masako Nozawa (JP)\nSonny Strait (US)",
+      "text": "Masako Nozawa (JP)\nSonny Strait (US)"
+    },
+    "character-reference/voice/074": {
+      "original": "Yasuhiko Kawazu (JP)\nSonny Strait (US)",
+      "text": "Yasuhiko Kawazu (JP)\nSonny Strait (US)"
+    },
+    "character-reference/voice/075": {
+      "original": "Yuko Mita (JP)\nLinda Young (US)",
+      "text": "Yuko Mita (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/076": {
+      "original": "Yuko Mita (JP)\nLinda Young (US)",
+      "text": "Yuko Mita (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/077": {
+      "original": "Shigeru Chiba (JP)\nJustin Cook (US)",
+      "text": "Shigeru Chiba (JP)\nJustin Cook (US)"
+    },
+    "character-reference/voice/078": {
+      "original": "Yasuhiko Kawazu (JP)\nJustin Cook (US)",
+      "text": "Yasuhiko Kawazu (JP)\nJustin Cook (US)"
+    },
+    "character-reference/voice/079": {
+      "original": "Yusuke Numata (JP)\nJohn Burgmeier (US)",
+      "text": "Yusuke Numata (JP)\nJohn Burgmeier (US)"
+    },
+    "character-reference/voice/080": {
+      "original": "Shozo Iizuka (JP)\nPhil Parsons (US)",
+      "text": "Shozo Iizuka (JP)\nPhil Parsons (US)"
+    },
+    "character-reference/voice/081": {
+      "original": "Shozo Iizuka (JP)\nPhil Parsons (US)",
+      "text": "Shozo Iizuka (JP)\nPhil Parsons (US)"
+    },
+    "character-reference/voice/082": {
+      "original": "Sho Hayami (JP)\nChristopher Sabat (US)",
+      "text": "Sho Hayami (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/083": {
+      "original": "Sho Hayami (JP)\nChristopher Sabat (US)",
+      "text": "Sho Hayami (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/084": {
+      "original": "Yukitoshi Hori (JP)\nChris Forbis (US)",
+      "text": "Yukitoshi Hori (JP)\nChris Forbis (US)"
+    },
+    "character-reference/voice/085": {
+      "original": "Yuji Machi (JP)\nKyle Hebert (US)",
+      "text": "Yuji Machi (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/086": {
+      "original": "Hideyuki Hori (JP)\nBrice Armstrong (US)",
+      "text": "Hideyuki Hori (JP)\nBrice Armstrong (US)"
+    },
+    "character-reference/voice/087": {
+      "original": "Kenji Utsumi (JP)\nChristopher Sabat (US)",
+      "text": "Kenji Utsumi (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/088": {
+      "original": "Yukimasa Kishino (JP)\nChristopher Sabat (US)",
+      "text": "Yukimasa Kishino (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/089": {
+      "original": "Kazumi Tanaka (JP)\nChristopher Sabat (US)",
+      "text": "Kazumi Tanaka (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/090": {
+      "original": "Kozo Shioya (JP)\nBill Townsley (US)",
+      "text": "Kozo Shioya (JP)\nBill Townsley (US)"
+    },
+    "character-reference/voice/091": {
+      "original": "Ryusei Nakao (JP)\nLinda Young (US)",
+      "text": "Ryusei Nakao (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/092": {
+      "original": "Ryusei Nakao (JP)\nLinda Young (US)",
+      "text": "Ryusei Nakao (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/093": {
+      "original": "Ryusei Nakao (JP)\nLinda Young (US)",
+      "text": "Ryusei Nakao (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/094": {
+      "original": "Ryusei Nakao (JP)\nLinda Young (US)",
+      "text": "Ryusei Nakao (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/095": {
+      "original": "Ryusei Nakao (JP)\nLinda Young (US)",
+      "text": "Ryusei Nakao (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/096": {
+      "original": "Ryusei Nakao (JP)\nLinda Young (US)",
+      "text": "Ryusei Nakao (JP)\nLinda Young (US)"
+    },
+    "character-reference/voice/097": {
+      "original": "Daisuke Gori (JP)\nBrad Jackson (US)",
+      "text": "Daisuke Gori (JP)\nBrad Jackson (US)"
+    },
+    "character-reference/voice/098": {
+      "original": "Naoki Imamura (JP)\nJohn Burgmeier (US)",
+      "text": "Naoki Imamura (JP)\nJohn Burgmeier (US)"
+    },
+    "character-reference/voice/099": {
+      "original": "Naoki Imamura (JP)\nBill Townsley (US)",
+      "text": "Naoki Imamura (JP)\nBill Townsley (US)"
+    },
+    "character-reference/voice/100": {
+      "original": "Hikaru Midorikawa (JP)\nJeremy Inman (US)",
+      "text": "Hikaru Midorikawa (JP)\nJeremy Inman (US)"
+    },
+    "character-reference/voice/101": {
+      "original": "Shigeru Nakahara (JP)\nChuck Huber (US)",
+      "text": "Shigeru Nakahara (JP)\nChuck Huber (US)"
+    },
+    "character-reference/voice/102": {
+      "original": "Miki Ito (JP)\nMeredith McCoy (US)",
+      "text": "Miki Ito (JP)\nMeredith McCoy (US)"
+    },
+    "character-reference/voice/103": {
+      "original": "Yukitoshi Hori (JP)\nPhillip Wilburn (US)",
+      "text": "Yukitoshi Hori (JP)\nPhillip Wilburn (US)"
+    },
+    "character-reference/voice/104": {
+      "original": "Koji Yada (JP)\nKent Williams (US)",
+      "text": "Koji Yada (JP)\nKent Williams (US)"
+    },
+    "character-reference/voice/105": {
+      "original": "Norio Wakamoto (JP)\nDameon Clarke (US)",
+      "text": "Norio Wakamoto (JP)\nDameon Clarke (US)"
+    },
+    "character-reference/voice/106": {
+      "original": "Norio Wakamoto (JP)\nDameon Clarke (US)",
+      "text": "Norio Wakamoto (JP)\nDameon Clarke (US)"
+    },
+    "character-reference/voice/107": {
+      "original": "Norio Wakamoto (JP)\nDameon Clarke (US)",
+      "text": "Norio Wakamoto (JP)\nDameon Clarke (US)"
+    },
+    "character-reference/voice/108": {
+      "original": "Norio Wakamoto (JP)\nDameon Clarke (US)",
+      "text": "Norio Wakamoto (JP)\nDameon Clarke (US)"
+    },
+    "character-reference/voice/109": {
+      "original": "Hirotaka Suzuoki (JP)\nJustin Cook (US)",
+      "text": "Hirotaka Suzuoki (JP)\nJustin Cook (US)"
+    },
+    "character-reference/voice/110": {
+      "original": "Joji Yanami (JP)\nBill Townsley (US)",
+      "text": "Joji Yanami (JP)\nBill Townsley (US)"
+    },
+    "character-reference/voice/111": {
+      "original": "Ryuzaburo Otomo (JP)\nRick Robertson (US)",
+      "text": "Ryuzaburo Otomo (JP)\nRick Robertson (US)"
+    },
+    "character-reference/voice/112": {
+      "original": "Kozo Shioya (JP)\nJosh Martin (US)",
+      "text": "Kozo Shioya (JP)\nJosh Martin (US)"
+    },
+    "character-reference/voice/113": {
+      "original": "Kozo Shioya (JP)\nJustin Cook (US)",
+      "text": "Kozo Shioya (JP)\nJustin Cook (US)"
+    },
+    "character-reference/voice/114": {
+      "original": "Kozo Shioya (JP)\nJosh Martin (US)",
+      "text": "Kozo Shioya (JP)\nJosh Martin (US)"
+    },
+    "character-reference/voice/115": {
+      "original": "Kozo Shioya (JP)\nJosh Martin (US)",
+      "text": "Kozo Shioya (JP)\nJosh Martin (US)"
+    },
+    "character-reference/voice/116": {
+      "original": "Kozo Shioya (JP)\nJosh Martin (US)",
+      "text": "Kozo Shioya (JP)\nJosh Martin (US)"
+    },
+    "character-reference/voice/117": {
+      "original": "Kozo Shioya (JP)\nJosh Martin (US)",
+      "text": "Kozo Shioya (JP)\nJosh Martin (US)"
+    },
+    "character-reference/voice/118": {
+      "original": "Shigeru Chiba (JP)\nChuck Huber (US)",
+      "text": "Shigeru Chiba (JP)\nChuck Huber (US)"
+    },
+    "character-reference/voice/119": {
+      "original": "Shigeru Chiba (JP)\nChuck Huber (US)",
+      "text": "Shigeru Chiba (JP)\nChuck Huber (US)"
+    },
+    "character-reference/voice/120": {
+      "original": "Koji Nakata (JP)\nR. Bruce Elliot (US)",
+      "text": "Koji Nakata (JP)\nR. Bruce Elliot (US)"
+    },
+    "character-reference/voice/121": {
+      "original": "Masako Nozawa (JP)\nChris Patton (US)",
+      "text": "Masako Nozawa (JP)\nChris Patton (US)"
+    },
+    "character-reference/voice/122": {
+      "original": "Yasuhiko Kawazu (JP)\nChris Patton (US)",
+      "text": "Yasuhiko Kawazu (JP)\nChris Patton (US)"
+    },
+    "character-reference/voice/123": {
+      "original": "Yusaku Yara (JP)\nBrice Armstrong (US)",
+      "text": "Yusaku Yara (JP)\nBrice Armstrong (US)"
+    },
+    "character-reference/voice/124": {
+      "original": "Yusaku Yara (JP)\nBrice Armstrong (US)",
+      "text": "Yusaku Yara (JP)\nBrice Armstrong (US)"
+    },
+    "character-reference/voice/125": {
+      "original": "Sho Hayami (JP)\nChristopher Sabat (US)",
+      "text": "Sho Hayami (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/126": {
+      "original": "Ryusei Nakao (JP)\nAndrew Chandler (US)",
+      "text": "Ryusei Nakao (JP)\nAndrew Chandler (US)"
+    },
+    "character-reference/voice/127": {
+      "original": "Ryusei Nakao (JP)\nAndrew Chandler (US)",
+      "text": "Ryusei Nakao (JP)\nAndrew Chandler (US)"
+    },
+    "character-reference/voice/128": {
+      "original": "Ryusei Nakao (JP)\nAndrew Chandler (US)",
+      "text": "Ryusei Nakao (JP)\nAndrew Chandler (US)"
+    },
+    "character-reference/voice/129": {
+      "original": "Moriya Endo (JP) Chuck Huber (US)",
+      "text": "Moriya Endo (JP) Chuck Huber (US)"
+    },
+    "character-reference/voice/130": {
+      "original": "Moriya Endo (JP) Chuck Huber (US)",
+      "text": "Moriya Endo (JP) Chuck Huber (US)"
+    },
+    "character-reference/voice/131": {
+      "original": "Bin Shimada (JP)\nVic Mignogna (US)",
+      "text": "Bin Shimada (JP)\nVic Mignogna (US)"
+    },
+    "character-reference/voice/132": {
+      "original": "Bin Shimada (JP)\nVic Mignogna (US)",
+      "text": "Bin Shimada (JP)\nVic Mignogna (US)"
+    },
+    "character-reference/voice/133": {
+      "original": "Bin Shimada (JP)\nVic Mignogna (US)",
+      "text": "Bin Shimada (JP)\nVic Mignogna (US)"
+    },
+    "character-reference/voice/134": {
+      "original": "Tomoko Maruo (JP)\nColleen Clinkenbeard (US)",
+      "text": "Tomoko Maruo (JP)\nColleen Clinkenbeard (US)"
+    },
+    "character-reference/voice/135": {
+      "original": "Tessho Genda (JP)\nBob Carter (US)",
+      "text": "Tessho Genda (JP)\nBob Carter (US)"
+    },
+    "character-reference/voice/136": {
+      "original": "Tessho Genda (JP)\nBob Carter (US)",
+      "text": "Tessho Genda (JP)\nBob Carter (US)"
+    },
+    "character-reference/voice/137": {
+      "original": "Tessho Genda (JP)\nJim Foronda (US)",
+      "text": "Tessho Genda (JP)\nJim Foronda (US)"
+    },
+    "character-reference/voice/138": {
+      "original": "Tessho Genda (JP)\nKent Williams (US)",
+      "text": "Tessho Genda (JP)\nKent Williams (US)"
+    },
+    "character-reference/voice/139": {
+      "original": "Shin Aomori (JP)\nRobert McCollum (US)",
+      "text": "Shin Aomori (JP)\nRobert McCollum (US)"
+    },
+    "character-reference/voice/140": {
+      "original": "Yusuke Numata (JP)\nMike McFarland (US)",
+      "text": "Yusuke Numata (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/141": {
+      "original": "Yusuke Numata (JP)\nMike McFarland (US)",
+      "text": "Yusuke Numata (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/142": {
+      "original": "Yusuke Numata (JP)\nMike McFarland (US)",
+      "text": "Yusuke Numata (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/143": {
+      "original": "Yusuke Numata (JP)\nMike McFarland (US)",
+      "text": "Yusuke Numata (JP)\nMike McFarland (US)"
+    },
+    "character-reference/voice/144": {
+      "original": "Shigeru Nakahara (JP)\nChuck Huber (US)",
+      "text": "Shigeru Nakahara (JP)\nChuck Huber (US)"
+    },
+    "character-reference/voice/145": {
+      "original": "Ken Yamaguchi (JP)\nJohn Burgmeier (US)",
+      "text": "Ken Yamaguchi (JP)\nJohn Burgmeier (US)"
+    },
+    "character-reference/voice/146": {
+      "original": "Hidekatsu Shibata (JP)\nBob Carter (US)",
+      "text": "Hidekatsu Shibata (JP)\nBob Carter (US)"
+    },
+    "character-reference/voice/147": {
+      "original": "Hidekatsu Shibata (JP)\nChristopher Sabat (US)",
+      "text": "Hidekatsu Shibata (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/148": {
+      "original": "Chikao Otsuka (JP)\nKent Williams (US)",
+      "text": "Chikao Otsuka (JP)\nKent Williams (US)"
+    },
+    "character-reference/voice/149": {
+      "original": "Chikao Otsuka (JP)\nKent Williams (US)",
+      "text": "Chikao Otsuka (JP)\nKent Williams (US)"
+    },
+    "character-reference/voice/150": {
+      "original": "Toshio Furukawa (JP)\nSonny Strait (US)",
+      "text": "Toshio Furukawa (JP)\nSonny Strait (US)"
+    },
+    "character-reference/voice/151": {
+      "original": "Michihiro Ikemizu (JP)\nJustin Cook (US)",
+      "text": "Michihiro Ikemizu (JP)\nJustin Cook (US)"
+    },
+    "character-reference/voice/152": {
+      "original": "Shigeru Chiba (JP)\nChuck Huber (US)",
+      "text": "Shigeru Chiba (JP)\nChuck Huber (US)"
+    },
+    "character-reference/voice/153": {
+      "original": "Shigeru Chiba\nTessho Genda\nEiko Yamada (JP); Chuck Huber\nChris Cason\nColleen Clinkenbeard (US)",
+      "text": "Shigeru Chiba\nTessho Genda\nEiko Yamada (JP); Chuck Huber\nChris Cason\nColleen Clinkenbeard (US)"
+    },
+    "character-reference/voice/154": {
+      "original": "Ryusei Nakao (JP)\nDameon Clarke (US)",
+      "text": "Ryusei Nakao (JP)\nDameon Clarke (US)"
+    },
+    "character-reference/voice/155": {
+      "original": "Takeshi Aono (JP)\nChristopher Sabat (US)",
+      "text": "Takeshi Aono (JP)\nChristopher Sabat (US)"
+    },
+    "character-reference/voice/156": {
+      "original": "Mami Koyama (JP)\nBrina Palencia (US)",
+      "text": "Mami Koyama (JP)\nBrina Palencia (US)"
+    },
+    "character-reference/voice/157": {
+      "original": "Nakao Watanabe (JP)\nLaura Bailey (US)",
+      "text": "Nakao Watanabe (JP)\nLaura Bailey (US)"
+    },
+    "character-reference/voice/158": {
+      "original": "Hisao Egawa (JP)\nAndy Chandler (US)",
+      "text": "Hisao Egawa (JP)\nAndy Chandler (US)"
+    },
+    "character-reference/voice/159": {
+      "original": "Masako Nozawa (JP)\nKyle Hebert (US)",
+      "text": "Masako Nozawa (JP)\nKyle Hebert (US)"
+    },
+    "character-reference/voice/160": {
+      "original": "Kyle Hebert",
+      "text": "Kyle Hebert"
+    }
+  }
+}

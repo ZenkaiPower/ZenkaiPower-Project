@@ -1,0 +1,2878 @@
+#include "../port_save.h"
+#include "../zenkai_crypto.h"
+/*
+ * Online play, first step: two copies of the game kept in step by exchanging the pads' input (branch netplay).
+ *
+ * Both copies run the same game from the first vertical blank on. Each has ONE local player (the host is player 1,
+ * and does not go on before it has the other's input for it ("lockstep"). The game then reads the two pads from
+ * here on both machines, so both simulate the same thing. Nothing is predicted and nothing is rewound yet: a slow
+ * connection makes both games wait. Rewinding (port/src/gs/state.c) comes on top of this.
+ *
+ *   ZENKAIPOWER_NET_HOST=<port>             wait for the other copy on this UDP port, be player 1
+ *   ZENKAIPOWER_NET_JOIN=<address>:<port>   connect to a host, be player 2
+ *   ZENKAIPOWER_NET_DELAY=<n>               a player's input takes effect n blanks after it was made (default 2): the time
+ *                                   the other side has to receive it without the game having to wait
+ *   ZENKAIPOWER_NET_SCRIPT=<file>           testing: the local player's input comes from a table (36 bytes per blank: pad
+ *                                   1, pad 2; written by ZENKAIPOWER_PAD_TABLE=<file> during an ordinary run), not from
+ *                                   the keyboard or a controller
+ *   ZENKAIPOWER_NET_LOSS=<percent>, ZENKAIPOWER_NET_LAG=<ms>   testing: drop that share of the packets sent / hold each one back
+ *   ZENKAIPOWER_VIEW=0|1                    testing: show that player's view full screen in a two-player battle (what a
+ *                                   connected copy does with its own player's)
+ *
+ * A packet carries the sender's input for the last 16 blanks, so a lost packet is covered by the next ones; while
+ * a copy waits it sends its own latest packet again every few milliseconds.
+ */
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <SDL3/SDL.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+typedef int socklen_t;
+#else
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#define closesocket close
+#endif
+#include "gs_internal.h"
+#include "../../include/port_account.h"
+#include "../../../include/menu/port_pc_bindings.h"
+/* SaveData is game memory: its pointer remains 32 bits in 64-bit builds. */
+#if (defined(__x86_64__) || defined(__aarch64__)) && defined(__clang__)
+#undef __ptr32
+#undef __uptr
+#define GAME_PTR *__ptr32 __uptr
+#else
+#define GAME_PTR *
+#endif
+extern unsigned char GAME_PTR gSaveData;
+/* BtlSeq.state is its first word; the game clears this pointer on battle teardown. */
+extern struct { int state; } GAME_PTR gBtlSeq;
+
+extern int Port_PadRead(int socket, unsigned char *data); /* gs_input.c: the keyboard and the controllers */
+extern void PortInput_PcGet(int *bindings);
+extern void PortInput_GamepadGet(int *bindings);
+void Port_NetLeave(void);
+const char *Port_NetNameGet(void);
+
+enum { PAD = 18, RING = 4096, REDUNDANT = 16, NET_UNLOCK_WORDS = 9, MAGIC = 0x4E335442 /* "BT3N" */ };
+enum { T_HELLO = 1, T_HELLO_ACK = 2, T_INPUT = 3, T_BYE = 4, T_PING = 5, T_PONG = 6, T_CONFIG = 7, T_CONFIG_ACK = 8,
+       T_PUNCH = 9 /* nothing to read: sent so that the sender's router lets the other side's packets in (room codes) */,
+       T_CHAT = 10 /* a line of text between the players (net_chat.c): its number, its length, its bytes. Not part of
+                      the game: a copy without the chat ignores it, so NET_VERSION stays */,
+       T_FPRINT = 12 /* the sender's gameplay fingerprint (fprint_send, below); a copy without it ignores it */,
+       T_CUSTOM = 13, T_CUSTOM_ACK = 14 };
+/* The version of what goes over the line. The greeting and its answer carry it, and two copies that differ do not
+   start a match (the input packets changed with version 2: times for the ping were added; a copy that read them
+   the old way took them for input). 1 was releases 0.1.8 and 0.1.9, which said no version. */
+enum { NET_VERSION = 11, IN_HEAD = 44 }; /* 3 (0.1.15): the host's battle rules travel with its choices.
+   4 (0.1.34): a session's start-up no longer follows the player's "Skip logos" / "Skip intro video" (0.1.32 and
+   0.1.33 with either on computed another start-up than the other side and the two never agreed again: such a copy
+   must not be let into a match); the input packets carry the sender's check value (sync_*, below), 12 bytes more
+   in their head; the goodbye can say why.
+   5: a session's start-up is run with nothing pressed and without waiting for the other side, which then is not
+   sent the start-up's input; the two meet at the character select (T_ARRIVED). A copy of 4 would wait for input
+   that does not come.
+   6: a joining bot announces CPU control; both games then select its character and run the same battle AI.
+   7: the bot also sends its CPU difficulty so both copies use the same AI state.
+    9: synchronized selection deadline, timeout choices and random bot costumes.
+    10: session greetings carry each player's character, stage and music unlock bits.
+    11: acknowledged customization chunks carry personal presets and saved characters. */
+static int sVersionBad; /* the other side answered with another version */
+static const uint32_t kVersion = NET_VERSION;
+#include "net_match.h"
+#include "net_relay.h"
+#include "net_chat.h"
+static int sLobbyOther;
+
+/* What the meter shows (ui.cpp): the round trip time, and per second how often the game went back, how far, and
+   how often and for how long it waited for the other player. */
+static uint32_t sEchoTs, sEchoAtMs;     /* the other side's last send time and when it arrived here */
+static int sPingMs = -1;
+/* Battle-scoped diagnostics, outside rollback state; count actual network work. */
+static struct {
+    int active, lastRtt, minRtt, maxRtt;
+    uint32_t lastEcho;
+    uint64_t began, samples, rttSum, jitterSum;
+    uint64_t sent, received, sentBytes, receivedBytes, waits, waitNs, rolls, rollFrames;
+} sConnection;
+
+static void connection_rtt(int rtt, uint32_t echo) {
+    if (!sConnection.active ||
+        (sConnection.samples && (int32_t)(echo - sConnection.lastEcho) <= 0)) return;
+    sConnection.lastEcho = echo;
+    if (!sConnection.samples) sConnection.minRtt = sConnection.maxRtt = rtt;
+    else {
+        sConnection.jitterSum += (uint64_t)abs(rtt - sConnection.lastRtt);
+        if (rtt < sConnection.minRtt) sConnection.minRtt = rtt;
+        if (rtt > sConnection.maxRtt) sConnection.maxRtt = rtt;
+    }
+    sConnection.lastRtt = rtt;
+    sConnection.rttSum += rtt;
+    sConnection.samples++;
+}
+
+static unsigned sSecRoll, sSecRollTicks, sSecWaits, sSecWaitMs, sSecTicks;
+static int sShown[6] = {0, 0, 0, 0, 0, 0}; /* ping, rollbacks, depth x 10, waits, ms waited, why (wait_why): of the last second */
+
+static uint32_t now_ms(void) {
+    return (uint32_t)(SDL_GetTicksNS() / 1000000ull) | 1u; /* (never 0: 0 means "no time yet") */
+}
+
+/* What the host chose in the Dragon Net Battle window (-1: not said; the environment or the defaults decide).
+   The host's answer to the greeting carries its input delay and rollback limit, and the joining side takes them:
+   the delay has to be the same on both sides. (The rollback limit is each side's own business, the two ways of
+   playing work against each other; the host's is only the other side's starting value.) */
+static int sOptRoll = -1, sOptDelay = -1;
+static int sCfgGot, sCfgDelay, sCfgRoll;
+static int sGone; /* goodbye: 1 disconnected, 2 desync, 3 normal End Battle */
+extern void Port_UiNotice(const char *text); /* ui.cpp: a line over the picture for a few seconds */
+extern void Gs_HoldFrame(void);                      /* gs_draw.c: the last picture again, with that line on it */
+extern const char *MenuTranslation_PortText(const char *id);
+static void session_hold(void);
+static void ended(const char *why, unsigned tick);
+static void gone(unsigned tick);
+
+static int sAutoDelay;
+static int sOptAuto;      /* the host asked for the input delay to be chosen from the line's ping */
+static int sSetupRtt = -1; /* the smallest round trip measured while setting up, ms */
+static int sCfgAcked;
+
+void Port_TestSlow(int what, int amount);
+
+void Port_NetOptions(int rollback, int delay) {
+    sOptRoll = rollback;
+    sOptAuto = delay == -2; /* -2: automatic; -1: not said; else the delay in blanks */
+    sOptDelay = delay >= 0 ? delay : -1;
+}
+
+#define NAME_LEN 20
+static char sNames[2][NAME_LEN], sMyName[NAME_LEN] = "Player";
+int Port_NetActive(void);
+static int sBotSide = -1; /* -1: human peers; 0: host bot; 1: joining bot. */
+static int sBotSetting = 2; /* Game difficulty setting 0..4; default is Normal. */
+int Port_NetBotSide(void) { return Port_NetActive() ? sBotSide : -1; }
+int Port_NetBotLevel(void) {
+    static const int levels[5] = {0, 6, 13, 21, 29};
+    return levels[sBotSetting];
+}
+
+static int bot_setting_env(void) {
+    const char *value = getenv("ZENKAIPOWER_NET_BOT_LEVEL");
+    int setting = value != NULL ? atoi(value) : 2;
+    return setting >= 0 && setting <= 4 ? setting : 2;
+}
+
+void Port_NetNameSet(const char *name) {
+    /* (through a copy: the menus pass the buffer of Port_NetNameGet(), this one, and snprintf into its own source is
+       undefined: glibc left it empty, the name gone from a quick match on Linux until the next start) */
+    char copy[NAME_LEN];
+    snprintf(copy, sizeof(copy), "%s", name != NULL && name[0] != '\0' ? name : "Player");
+    memcpy(sMyName, copy, sizeof(sMyName));
+}
+
+/* A match found with a room code (the lobby, below): the local port the lobby's socket had, which the session's
+   socket takes again, and for the host the address the other player's greeting came from. */
+static int sCodeLocalPort, sCodePunchSet;
+/* The lobby's socket, handed to the session that follows (a match found with a room code, begun without a restart).
+   It is not closed and opened again on the same port: while it is closed, packets from the other side meet a
+   closed port, the system answers "unreachable", and a relay stops passing that player's packets on (seen with
+   Cloudflare's: the match's greeting never arrived). It also keeps the routers' view of the conversation whole. */
+static int sHandSock = -1, sFromLobby;
+int Port_LobbyRelayed(void);
+static struct sockaddr_in sCodePunch;
+
+/* The match's rules, chosen by the host in the lobby window (the game's own versus menu is not shown in a session):
+   the battle type as the versus menu leaves it (0 single, 1 team, 2 DP battle), the row of the DP limit list
+   (0..2: 10, 15, 20) and the time limit as the battle settings keep it (save rule 0: 0..4 = 60, 90, 180, 240
+   seconds, none). One word: type | dp << 4 | time << 8. The host's travels with its other choices (T_HELLO_ACK,
+   T_CONFIG); headless.c applies it on both sides when the session enters the versus mode. */
+static uint32_t sRules = 3u << 8; /* single battle, 240 seconds: the game's defaults */
+
+/* The match's seed. A session is a fresh start of the program on both sides with the same fixed seed (plat_sys.c),
+   so the game's random numbers were the same in every session: "Random" at the character select gave the same
+   fighters in the same order every time (reported: Yajirobe, then Cooler). The host draws a number when it starts,
+   it travels behind the host's other choices (T_HELLO_ACK, T_CONFIG), and both copies seed the game's generator
+   with it at the same point, where the session enters the versus mode (headless.c). 0 = leave the generator as it
+   is. ZENKAIPOWER_NET_SEED=<n> on the host: that number (tests; 0 for the sequence every session had before). */
+static uint32_t sSeed;
+
+unsigned Port_NetSeed(void) {
+    return sSeed;
+}
+
+static void seed_draw(void) {
+    const char *e = getenv("ZENKAIPOWER_NET_SEED");
+    if (e != NULL) {
+        sSeed = (uint32_t)strtoul(e, NULL, 0);
+    } else {
+        do {
+            sSeed = SDL_rand_bits() ^ (uint32_t)SDL_GetTicksNS() ^ (uint32_t)(SDL_GetPerformanceCounter() >> 7);
+        } while (sSeed == 0);
+    }
+}
+
+/* Each player's own two battle options of the game's option menu (save 0x1694: the camera type; 0x1698: the
+   screen shake; they become BattleOption.optA / optB of the player's side, battle_load.c). A session starts from
+   an empty save on both sides, so both sides had the defaults. Each copy now reads its player's own from his save
+   and tells the other; both then set side 0 to the host's and side 1 to the joiner's, the same on both copies
+   (the cameras are part of the game's state). Sent behind the name in the greeting and in its answers, with a
+   mark: a copy of 0.1.25 or earlier does not send them and does not read them, and then neither side uses them.
+   OPT_MARK | camera | shake << 8. */
+int Port_NetActive(void);
+#define OPT_MARK 0x4F500000u
+static uint32_t sOpts[2]; /* by player: 0 = not known */
+
+static uint32_t own_options(void) {
+    const char *carried = getenv("ZENKAIPOWER_NET_OPTS"); /* (across the restart into the session: the save folder is the session's by then) */
+    char path[600];
+    unsigned char w[8];
+    uint32_t a = 0, b = 0;
+    FILE *fp;
+
+    if (carried != NULL) {
+        return OPT_MARK | ((uint32_t)strtoul(carried, NULL, 0) & 0xFFFFu);
+    }
+    Port_SaveCardPath(path, sizeof(path), "BASLUS-21678DBZT3/BASLUS-21678DBZT3");
+    fp = Port_ZenkaiSelected() ? Port_ZenkaiOpen(path, 1) : fopen(path, "rb");
+    if (fp != NULL) {
+        if (fseek(fp, 0x1694, SEEK_SET) == 0 && fread(w, 1, 8, fp) == 8) {
+            a = w[0] | (uint32_t)w[1] << 8 | (uint32_t)w[2] << 16 | (uint32_t)w[3] << 24;
+            b = w[4] | (uint32_t)w[5] << 8 | (uint32_t)w[6] << 16 | (uint32_t)w[7] << 24;
+        }
+        fclose(fp);
+    }
+    return OPT_MARK | (a > 15 ? 0 : a) | (b > 15 ? 0 : b) << 8; /* (anything else: the defaults) */
+}
+
+static void opts_take(int player, const uint8_t *at) {
+    uint32_t v;
+    memcpy(&v, at, 4);
+    if ((v & 0xFFFF0000u) == OPT_MARK) {
+        sOpts[player] = v;
+    }
+}
+
+/* For the game (BattleSetup_DefaultOptions): the two sides' options of an online match. 0 = not both known. */
+int Port_NetSideOptions(int *camera, int *shake) {
+    int i;
+    if (!Port_NetActive() || sOpts[0] == 0 || sOpts[1] == 0) {
+        return 0;
+    }
+    for (i = 0; i < 2; i++) {
+        /* (the other side's word is whatever its program sent: only the values the options menu can set go into
+           the game, the camera distance 0..2 and the shake on or off; anything else is the default) */
+        camera[i] = (int)(sOpts[i] & 0xFF) > 2 ? 0 : (int)(sOpts[i] & 0xFF);
+        shake[i] = (int)(sOpts[i] >> 8 & 0xFF) > 1 ? 0 : (int)(sOpts[i] >> 8 & 0xFF);
+    }
+    {
+        static int said;
+        if (!said) {
+            said = 1;
+            fprintf(stderr, "zenkaipower: net: a battle is set up with each side's own camera type and screen shake\n");
+        }
+    }
+    return 1;
+}
+
+/* The match's speed, a percentage of the game's own (100 to 200). It is the vertical blanks' pace (plat_stub.c)
+   and nothing of the game's state: every step is computed as always, there are just more of them a second; the
+   sound keeps its pitch (snd_adx.c). The host's choice, like the other rules, in the rules word:
+     bits 16..23  the percentage (0 = not said)
+     bit 12       "120%", which is all 0.1.29 knows of this; set beside the number when the number is 120
+   What the one who joins knows is in the capability word of its greeting (CAP_MARK | 1: bit 12; | 2: the number;
+   0.1.28 and earlier send none). The host takes back what the other does not know before it answers, so the two
+   never run at different paces: a 0.1.29 gets 120% or 100%, anything older 100%.
+   NET_SPEED_STANDARD is what a quick match runs at and what the Host tab starts from. Competitive play of this
+   game is "120% on the PAL version in Dolphin"; on this (the USA) version's scale the players settled on 114%
+   after trying the sliders of 0.1.30 (told by the maintainer, 2026-10-12). */
+#define RULE_FAST 0x1000u
+#define RULE_SPEED_SHIFT 16
+#define CAP_MARK 0x43410000u
+#define NET_SPEED_STANDARD 114
+static int sWantSpeed = NET_SPEED_STANDARD;
+
+static uint32_t speed_bits(int percent) {
+    return (uint32_t)percent << RULE_SPEED_SHIFT | (percent == 120 ? RULE_FAST : 0);
+}
+
+void Port_NetRulesSet(int type, int dp, int time) {
+    sRules = (uint32_t)(type < 0 || type > 2 ? 0 : type) | (uint32_t)(dp < 0 || dp > 2 ? 0 : dp) << 4 | (uint32_t)(time < 0 || time > 4 ? 3 : time) << 8 |
+             speed_bits(sWantSpeed);
+}
+
+void Port_NetSpeedSet(int percent) {
+    sWantSpeed = percent < 100 ? 100 : percent > 200 ? 200 : percent;
+    sRules = (sRules & ~(RULE_FAST | 0xFFu << RULE_SPEED_SHIFT)) | speed_bits(sWantSpeed);
+}
+
+int Port_NetSpeedStandard(void) {
+    return NET_SPEED_STANDARD;
+}
+
+static int rules_speed(void) {
+    int percent = (int)(sRules >> RULE_SPEED_SHIFT & 0xFF);
+    return percent >= 100 && percent <= 200 ? percent : (sRules & RULE_FAST) != 0 ? 120 : 100;
+}
+
+int Port_NetSession(void);
+/* 1000 = the game's own pace; only ever the match's, never the player's own setting. */
+int Port_NetSpeedMilli(void) {
+    if (!Port_NetSession() && !Port_NetActive()) return 1000;
+    /* Only ranked fighting (BTL_SEQ_FIGHT = 3) uses the negotiated speed.
+       Casual matches, menus, intros and endings always run at 100%. */
+    if (!Port_NetStatsRanked() || gBtlSeq == NULL || gBtlSeq->state != 3) return 1000;
+    return rules_speed() * 10;
+}
+
+void Port_NetRules(int *type, int *dp, int *time) {
+    *type = (int)(sRules & 15) > 2 ? 0 : (int)(sRules & 15);
+    *dp = (int)(sRules >> 4 & 15) > 2 ? 0 : (int)(sRules >> 4 & 15);
+    *time = (int)(sRules >> 8 & 15) > 4 ? 3 : (int)(sRules >> 8 & 15);
+}
+
+/* The input delay for a line with this round trip. A blank is 16.7 ms; the other side's input for a blank is
+   entered `delay` blanks ahead and takes half the round trip plus up to a blank (it waits for the next look at
+   the socket) to arrive, so the game runs about ceil(trip / 2 / 16.7 + 1) - delay blanks on guesses. The delay
+   is what keeps that at 4 or under: 1 on a good line (up to about 130 ms), more beyond, 6 at most. */
+static int auto_delay(int rttMs) {
+    int ticks, delay;
+    if (rttMs < 0) {
+        return 2;
+    }
+    {
+        int blankUs = 16683 * 1000 / Port_NetSpeedMilli(); /* (a blank is shorter at 120%) */
+        ticks = (rttMs * 1000 / 2 + blankUs - 1) / blankUs + 1; /* ceil(one way in blanks) + 1 */
+    }
+    delay = ticks - 4;
+    return delay < 1 ? 1 : delay > 6 ? 6 : delay;
+}
+
+static int sMode = -1; /* 0 off, 1 host, 2 join */
+static int sSock = -1, sMe, sDelay = 2, sConnected, sLoss, sLagMs;
+static int sSession; /* A session started from Dragon Net Battle (below), not a plain connected run. */
+/* Six 32-bit character words, two stage words and one music word; exchanged before the session's shared boot. */
+static uint32_t sUnlocks[2][NET_UNLOCK_WORDS];
+
+/* Fixed game-save layout: customization slots, saved fighters and inventory.
+   Capacity is separate from this contiguous range. Never copy money or settings. */
+enum {
+    NET_CUSTOM_OFFSET = 0x1808, NET_CUSTOM_SAVE_BYTES = 0x3028 - 0x1808,
+    NET_CUSTOM_BYTES = NET_CUSTOM_SAVE_BYTES + 4, NET_CUSTOM_CHUNK = 768,
+    NET_CUSTOM_CHUNKS = (NET_CUSTOM_BYTES + NET_CUSTOM_CHUNK - 1) / NET_CUSTOM_CHUNK,
+    NET_CUSTOM_ALL = (1u << NET_CUSTOM_CHUNKS) - 1
+};
+static uint8_t sCustom[2][NET_CUSTOM_BYTES];
+static uint32_t sCustomReceived, sCustomAcked;
+static int sCustomReady[2];
+
+static void custom_sanitize(uint8_t *data) {
+    int slot, set, item;
+    int32_t capacity;
+    memcpy(&capacity, data, 4);
+    if (capacity < 5 || capacity > 20) { capacity = 5; memcpy(data, &capacity, 4); }
+    for (slot = 0; slot < 97 + 14; slot++) {
+        int record = slot >= 97;
+        uint8_t *row = record ? data + 4 + 97 * 0x38 + (slot - 97) * 0x1C
+                              : data + 4 + slot * 0x38;
+        uint16_t level;
+        for (set = 0; set < (record ? 1 : 3); set++) for (item = 0; item < 8; item++) {
+            uint16_t id;
+            uint8_t *at = row + set * 16 + item * 2;
+            memcpy(&id, at, 2);
+            if (id > 350 || item == 7) { id = 0; memcpy(at, &id, 2); }
+        }
+        memcpy(&level, row + (record ? 0x14 : 0x34), 2);
+        if (level > 6) { level = 6; memcpy(row + (record ? 0x14 : 0x34), &level, 2); }
+        if (record) {
+            int32_t chara;
+            memcpy(&chara, row + 0x18, 4);
+            if (chara < -1 || chara >= 161) { chara = -1; memcpy(row + 0x18, &chara, 4); }
+        }
+    }
+    for (item = 0; item < 350; item++) data[4 + 0x2EC8 - NET_CUSTOM_OFFSET + item] &= 3;
+}
+
+static void capture_custom(int player) {
+    int i;
+    int32_t empty = -1;
+    memset(sCustom, 0, sizeof(sCustom));
+    memset(sCustomReady, 0, sizeof(sCustomReady));
+    for (i = 0; i < 14; i++) memcpy(sCustom[player] + 4 + 97 * 0x38 + i * 0x1C + 0x18, &empty, 4);
+    if (gSaveData != NULL) {
+        memcpy(sCustom[player], gSaveData + 0x20C, 4);
+        memcpy(sCustom[player] + 4, gSaveData + NET_CUSTOM_OFFSET, NET_CUSTOM_SAVE_BYTES);
+    }
+    custom_sanitize(sCustom[player]);
+    if (getenv("ZENKAIPOWER_NET_BOT") != NULL) {
+        /* Session-only bot inventory. Never write these unlocks to a save file. */
+        for (i = 0; i < 350; i++) sCustom[player][4 + 0x2EC8 - NET_CUSTOM_OFFSET + i] = 3;
+    }
+    sCustomReady[player] = 1;
+}
+
+void Port_NetCustomApply(int player) {
+    if (!sSession || player < 0 || player > 1 || !sCustomReady[player] || gSaveData == NULL) return;
+    memcpy(gSaveData + 0x20C, sCustom[player], 4);
+    memcpy(gSaveData + NET_CUSTOM_OFFSET, sCustom[player] + 4, NET_CUSTOM_SAVE_BYTES);
+}
+
+/* Immutable chunks: duplicates only repeat acknowledgments, never replace a profile. */
+static int custom_store_chunk(uint32_t chunk, const uint8_t *data, uint32_t bytes) {
+    unsigned offset, expected;
+    if (chunk >= NET_CUSTOM_CHUNKS) return 0;
+    offset = chunk * NET_CUSTOM_CHUNK;
+    expected = NET_CUSTOM_BYTES - offset;
+    if (expected > NET_CUSTOM_CHUNK) expected = NET_CUSTOM_CHUNK;
+    if (bytes != expected) return 0;
+    if (!(sCustomReceived & (1u << chunk))) {
+        memcpy(sCustom[!sMe] + offset, data, bytes);
+        sCustomReceived |= 1u << chunk;
+        if (sCustomReceived == NET_CUSTOM_ALL) {
+            custom_sanitize(sCustom[!sMe]);
+            sCustomReady[!sMe] = 1;
+        }
+    }
+    return 1;
+}
+
+static void restore_custom(int player) {
+    const char *value = getenv("ZENKAIPOWER_NET_CUSTOM");
+    unsigned i;
+    uint8_t data[NET_CUSTOM_BYTES];
+    if (!value || strlen(value) != NET_CUSTOM_BYTES * 2) return;
+    for (i = 0; i < NET_CUSTOM_BYTES; i++) {
+        unsigned high, low;
+        char a = value[i * 2], b = value[i * 2 + 1];
+        if (!((a >= '0' && a <= '9') || (a >= 'a' && a <= 'f')) ||
+            !((b >= '0' && b <= '9') || (b >= 'a' && b <= 'f'))) return;
+        high = a <= '9' ? a - '0' : a - 'a' + 10;
+        low = b <= '9' ? b - '0' : b - 'a' + 10;
+        data[i] = (uint8_t)(high * 16 + low);
+    }
+    custom_sanitize(data);
+    memcpy(sCustom[player], data, sizeof(data));
+    sCustomReady[player] = 1;
+}
+
+/* SaveData offsets 0xC10..0xC33: characters (24), stages (8), music (4).
+   Copy bytes rather than importing game headers with host-sized pointer types. */
+/* The loaded save before ZENKAIPOWER_SAVES switches to the isolated online folder. */
+static int sSourceZenkai;
+/* The online game uses a separate temporary save. Capture the player's own
+ * authenticated metadata BEFORE switching ZENKAIPOWER_SAVES, and retain it across
+ * both in-process sessions and process-relaunch sessions. */
+static char sSourceSaveId[33], sSourceSaveHash[65];
+
+static int source_hex(const char *text, size_t count) {
+    size_t i;
+    if (!text || strlen(text) != count) return 0;
+    for (i = 0; i < count; i++)
+        if (!((text[i] >= '0' && text[i] <= '9') || (text[i] >= 'a' && text[i] <= 'f'))) return 0;
+    return 1;
+}
+
+static void capture_source_metadata(void) {
+    char path[600];
+    sSourceSaveId[0] = sSourceSaveHash[0] = 0;
+    if (!sSourceZenkai) return;
+    Port_SaveCardPath(path, sizeof(path), "BASLUS-21678DBZT3/BASLUS-21678DBZT3");
+    Port_ZenkaiMetadata(path, sSourceSaveId, sSourceSaveHash);
+}
+
+static void restore_source_metadata(void) {
+    const char *id = getenv("ZENKAIPOWER_NET_SAVE_ID");
+    const char *hash = getenv("ZENKAIPOWER_NET_SAVE_HASH");
+    sSourceSaveId[0] = sSourceSaveHash[0] = 0;
+    if (sSourceZenkai && source_hex(id, 32) && source_hex(hash, 64)) {
+        memcpy(sSourceSaveId, id, sizeof(sSourceSaveId));
+        memcpy(sSourceSaveHash, hash, sizeof(sSourceSaveHash));
+    }
+}
+
+static void capture_unlocks(int player) {
+    sSourceZenkai = Port_ZenkaiEnabled();
+    capture_source_metadata();
+    memset(sUnlocks, 0, sizeof(sUnlocks));
+    capture_custom(player);
+    if (getenv("ZENKAIPOWER_NET_BOT") != NULL) {
+        /* All 161 characters, 35 stages and 20 music tracks (Save_UnlockAll).
+           Advertise these as the bot's unlocks without changing a human save. */
+        static const uint32_t all[NET_UNLOCK_WORDS] = {
+            0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 1u,
+            0xFFFFFFFFu, 7u, 0xFFFFFu
+        };
+        memcpy(sUnlocks[player], all, sizeof(all));
+    } else if (gSaveData != NULL) {
+        memcpy(sUnlocks[player], gSaveData + 0xC10, sizeof(sUnlocks[player]));
+    }
+}
+
+static void restore_unlocks(int player) {
+    const char *mode = getenv("ZENKAIPOWER_NET_SAVE_MODE");
+    const char *value = getenv("ZENKAIPOWER_NET_UNLOCKS");
+    uint32_t words[NET_UNLOCK_WORDS];
+    int i;
+    sSourceZenkai = mode != NULL && strcmp(mode, "zenkai") == 0;
+    restore_source_metadata();
+    if (getenv("ZENKAIPOWER_NET_BOT") != NULL) {
+        capture_unlocks(player);
+        return;
+    }
+    if (value == NULL || strlen(value) != NET_UNLOCK_WORDS * 8) return;
+    for (i = 0; i < NET_UNLOCK_WORDS; ++i) {
+        char word[9], *end;
+        unsigned long parsed;
+        memcpy(word, value + i * 8, 8);
+        word[8] = 0;
+        if (strspn(word, "0123456789abcdefABCDEF") != 8) return;
+        parsed = strtoul(word, &end, 16);
+        if (*end != 0) return;
+        words[i] = (uint32_t)parsed;
+    }
+    memcpy(sUnlocks[player], words, sizeof(words));
+}
+
+void Port_NetUnlocksApply(int player) {
+    if (!sSession || player < 0 || player > 1 || gSaveData == NULL) {
+        return;
+    }
+    memcpy(gSaveData + 0xC10, sUnlocks[player], sizeof(sUnlocks[player]));
+    Port_NetCustomApply(player);
+}
+
+void Port_NetSharedUnlocksApply(void) {
+    uint64_t stageBits[2];
+    if (!sSession || gSaveData == NULL) {
+        return;
+    }
+    memcpy(&stageBits[0], &sUnlocks[0][6], sizeof(stageBits[0]));
+    memcpy(&stageBits[1], &sUnlocks[1][6], sizeof(stageBits[1]));
+    stageBits[0] &= stageBits[1];
+    memcpy(gSaveData + 0xC28, stageBits, sizeof(stageBits[0]));
+    {
+        uint32_t music = sUnlocks[0][8] & sUnlocks[1][8];
+        memcpy(gSaveData + 0xC30, &music, sizeof(music));
+    }
+}
+static struct sockaddr_in sPeer;
+static uint8_t sIn[2][RING][PAD]; /* [player][blank % RING] */
+static uint32_t sHave[2];         /* inputs known for blanks below this */
+static uint32_t sTick;            /* the blank the game is in */
+static FILE *sScript;
+static uint64_t sWaitNs, sWaits;
+
+static const uint8_t kIdle[PAD] = {0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80};
+
+/* rollback (roll_tick) */
+extern int Port_RollCan(void), Port_RollSave(void); /* gs/state.c */
+extern void Port_RollBack(int k);
+extern int gPortResim;
+int Port_NetWarp(void);
+static int sRollMax, sResim, sRollBegun;
+static int sResultScreen, sResultSolo;
+
+void Port_NetResultScreen(int on) {
+    sResultScreen = on;
+    sResultSolo = 0;
+}
+
+void Port_NetResultDetach(void) {
+    sResultSolo = 1;
+    sResim = 0;
+    gPortResim = 0;
+}
+
+int Port_NetResultSolo(void) { return sResultSolo; }
+static uint8_t sUsed[RING][PAD]; /* what the other player's pad read in each blank */
+static uint32_t sChecked;        /* blanks below this were given the other player's real input */
+static uint32_t sLive;           /* during a re-run: the blank that was the present when it began */
+static uint32_t sResimFrom;      /* and the first blank it runs again */
+static unsigned sRollbacks, sRollTicks, sStalls;
+/* Keeping the two copies together in time: each says in its packets how many blanks it is beyond the input it
+   has from the other (sTheirAhead). On an even line both numbers are the same; the copy whose clock is ahead has
+   the larger one, by twice the difference of the clocks. That copy lets its blanks come a little later until the
+   two agree (plat_stub.c's pacing grid is moved), so that neither does all the guessing and going back. */
+static int32_t sTheirAhead, sMyAhead;
+static int sBalance;  /* (mine - theirs), smoothed, in 1/16 blank */
+static unsigned sSlowed;
+extern unsigned gPortPaceShiftNs;
+
+/* ZENKAIPOWER_NET_LATENCY=<ms>: testing, a line that takes that long one way. What is sent waits in a queue. */
+static int sLatencyMs;
+static struct { uint64_t due; int n; uint8_t data[IN_HEAD + 16 * PAD]; } sQueue[256];
+static unsigned sQueueHead, sQueueTail;
+
+/* Every packet of a match goes out and comes in through these two: the host of a match found with a room code may
+   hold a relay address (net_relay.c), and then the other player's packets can arrive wrapped by the relay and must
+   go back the same way. Without a relay they are plain sendto / recvfrom. */
+static int sStatOut, sStatIn, sStatInVia, sStatOutVia, sStatErr, sStatOther, sStatBytes;
+static void net_stat(void) { /* ZENKAIPOWER_RELAY_LOG: packets out and in, a line a second */
+    static uint64_t last;
+    uint64_t now = SDL_GetTicks();
+    if (now - last >= 1000 && getenv("ZENKAIPOWER_RELAY_LOG") != NULL) {
+        if (sStatOut + sStatIn > 0) {
+            fprintf(stderr, "zenkaipower: net: packets out %d (%d through the relay, %d failed, %d bytes), in %d (%d through the relay, %d of the relay's own)\n", sStatOut,
+                    sStatOutVia, sStatErr, sStatBytes, sStatIn, sStatInVia, sStatOther);
+        }
+        sStatOut = sStatIn = sStatInVia = sStatOutVia = sStatErr = sStatOther = sStatBytes = 0;
+        last = now;
+    }
+}
+
+static void net_send(const void *buf, int n, const struct sockaddr_in *to) {
+    sStatOut++;
+    sStatBytes += n;
+    if (Relay_IsPeer(to)) {
+        sStatOutVia++;
+        Relay_Send(sSock, buf, n, to);
+    } else if (sendto(sSock, (const char *)buf, n, 0, (const struct sockaddr *)to, sizeof(*to)) != n) {
+        sStatErr++;
+    }
+}
+
+/* The gameplay fingerprint (plat_fprint.c: one number for the data a fight is computed from) goes to the other side
+   with the greetings, in a packet of its own: {MAGIC, T_FPRINT, FP_MARK, low half, high half}. Two games whose data
+   differ (a modified disc image on one side, or another one on each) compute two different fights: the match ended
+   as a desync at the fight's first moments. Compared only when both sides know theirs, so a copy that does not send
+   it (0.1.37 and older) is let in as before. ZENKAIPOWER_TEST_FPRINT=<hex>: testing, this copy claims that value. */
+enum { FP_MARK = 0x46505231 };
+extern int Port_DataFingerprint(unsigned long long *out); /* plat_fprint.c */
+static const char kDataDiffer[] = "Your game data and the other player's are not the same (a modified disc image or mods on one side): "
+                                  "an online match needs the same on both.";
+static int sDataBad; /* the other side's fingerprint differs from this side's */
+
+static int fprint_mine(unsigned long long *fp) {
+    if (Port_DataFingerprint(fp) != 1) {
+        return 0;
+    }
+    if (getenv("ZENKAIPOWER_TEST_FPRINT") != NULL) {
+        *fp = strtoull(getenv("ZENKAIPOWER_TEST_FPRINT"), NULL, 16);
+    }
+    return 1;
+}
+
+static void fprint_send(const struct sockaddr_in *to) {
+    unsigned long long fp;
+    uint32_t pkt[5] = {MAGIC, T_FPRINT, FP_MARK, 0, 0};
+    if (fprint_mine(&fp)) {
+        pkt[3] = (uint32_t)fp;
+        pkt[4] = (uint32_t)(fp >> 32);
+        net_send(pkt, (int)sizeof(pkt), to);
+    }
+}
+
+/* 1: this T_FPRINT says that the other side's data are not this side's. */
+static int fprint_differs(const uint8_t *pkt, int n) {
+    static unsigned long long said;
+    unsigned long long mine, theirs;
+    uint32_t v[3];
+    if (n < 20 || !fprint_mine(&mine)) {
+        return 0;
+    }
+    memcpy(v, pkt + 8, 12);
+    theirs = (unsigned long long)v[1] | (unsigned long long)v[2] << 32;
+    if (v[0] != FP_MARK || theirs == mine) {
+        return 0;
+    }
+    if (theirs != said) { /* (once: the packet comes again and again) */
+        said = theirs;
+        fprintf(stderr, "zenkaipower: net: the other player's game data are not this game's (gameplay fingerprint %016llx, this one %016llx)\n", theirs, mine);
+    }
+    return 1;
+}
+
+static int net_recv(uint8_t *pkt, int size, struct sockaddr_in *from) {
+    Relay_Tick(sSock);
+    net_stat();
+    for (;;) {
+        socklen_t fromLen = sizeof(*from);
+        uint8_t *data = NULL;
+        int len = 0, n = (int)recvfrom(sSock, (char *)pkt, size, 0, (struct sockaddr *)from, &fromLen), kind;
+        if (n <= 0) {
+            return n;
+        }
+        kind = Relay_Unwrap(pkt, n, from, &data, &len);
+        if (kind == 2) {
+            Relay_SawDirect(from);
+            sStatIn++;
+            return n;
+        }
+        if (kind == 0) {
+            sStatOther++;
+        }
+        if (kind == 1) {
+            sStatIn++;
+            sStatInVia++;
+            memmove(pkt, data, (size_t)len);
+            return len;
+        }
+    }
+}
+
+static void queue_flush(void) {
+    uint64_t now = SDL_GetTicksNS();
+    while (sQueueHead != sQueueTail && sQueue[sQueueHead % 256].due <= now) {
+        net_send(sQueue[sQueueHead % 256].data, sQueue[sQueueHead % 256].n, &sPeer);
+        sQueueHead++;
+    }
+}
+
+static void send_to_peer(const void *buf, int n) {
+    if (sLoss != 0 && (rand() % 100) < sLoss) {
+        return;
+    }
+    if (sLatencyMs > 0 && n <= (int)sizeof(sQueue[0].data) && sQueueTail - sQueueHead < 256) {
+        sQueue[sQueueTail % 256].due = SDL_GetTicksNS() + (uint64_t)sLatencyMs * 1000000ull;
+        sQueue[sQueueTail % 256].n = n;
+        memcpy(sQueue[sQueueTail % 256].data, buf, (size_t)n);
+        sQueueTail++;
+        return;
+    }
+    net_send(buf, n, &sPeer);
+}
+
+/* Do the two copies still compute the same game? Only button presses are exchanged, so nothing else would say:
+   two copies that have come apart go on, each with its own fight, for good. Every SYNC_EVERY blanks each copy
+   notes a number made of what must be the same on both (Port_NetDigest, headless.c: where the game is, and in a
+   fight both fighters' health and position and the clock). A note counts once the blank is sure: every blank
+   before it was run with the other player's real input (with rollback a blank is run on a guess first and noted
+   again each time it is run again). The newest sure note travels in every input packet; a copy that has a sure
+   note of its own for the same blank compares, and when they differ the match ends on both sides with a message
+   saying so. A dozen bytes a packet and a few hundred bytes hashed twice a second. */
+enum { SYNC_EVERY = 32, SYNC_SLOTS = 64, BYE_APART = 0x41504152, BYE_END_BATTLE = 0x454E4421 };
+typedef struct { uint32_t tick; uint64_t value; } SyncNote;
+static SyncNote sSyncMine[SYNC_SLOTS], sSyncTheirs[SYNC_SLOTS];
+static uint32_t sSyncOutTick, sByeWhy;
+static unsigned sSyncCompared; /* (for the log: notes of the two copies compared since the last line) */
+static uint64_t sSyncOutValue;
+extern unsigned long long Port_NetDigest(void); /* headless.c */
+static void ended(const char *why, unsigned tick);
+
+/* A desync ends the match by default and returns to the online menu's Connection lost dialog.
+   Disabling net_desync_end (or ZENKAIPOWER_NET_DESYNC_END=0) keeps the fight running, with diagnostics in the
+   log and network meter only. No desync warning overlay is shown. */
+static uint32_t sApartAt;   /* the first blank whose notes differed (0: none in this session) */
+static unsigned sApartCount;
+
+static int desync_ends(void) {
+    extern int Port_Setting(const char *name, int def);
+    if (getenv("ZENKAIPOWER_NET_DESYNC_END") != NULL) {
+        return atoi(getenv("ZENKAIPOWER_NET_DESYNC_END")) != 0;
+    }
+    return Port_Setting("net_desync_end", 1) != 0;
+}
+
+/* The game is at the start of blank `tick` (run for the first time or again). */
+static void sync_note(uint32_t tick) {
+    if (tick % SYNC_EVERY == 0) {
+        SyncNote *m = &sSyncMine[tick / SYNC_EVERY % SYNC_SLOTS];
+        m->tick = tick;
+        m->value = Port_NetDigest();
+    }
+}
+
+/* Every blank up to `sure` is as it will stay (and the game is not being run again): what goes out next, and the
+   other copy's notes that can be compared now. */
+static void sync_check(uint32_t sure, unsigned tick) {
+    uint32_t at = sure - sure % SYNC_EVERY;
+    int k;
+
+    if (at != 0 && sSyncMine[at / SYNC_EVERY % SYNC_SLOTS].tick == at) {
+        sSyncOutTick = at;
+        sSyncOutValue = sSyncMine[at / SYNC_EVERY % SYNC_SLOTS].value;
+    }
+    if (getenv("ZENKAIPOWER_TEST_APART") != NULL && tick == (unsigned)atoi(getenv("ZENKAIPOWER_TEST_APART"))) {
+        sSyncOutValue ^= 1; /* testing: from that blank on this copy claims another game than it has, once */
+    }
+    for (k = 0; k < SYNC_SLOTS; k++) {
+        SyncNote *o = &sSyncTheirs[k];
+        if (o->tick != 0 && o->tick <= sure) {
+            const SyncNote *m = &sSyncMine[k];
+            uint32_t was = o->tick;
+            int differ = m->tick == was && m->value != o->value;
+            o->tick = 0;
+            sSyncCompared += m->tick == was;
+            if (differ) {
+                sApartCount++;
+                if (sApartAt == 0) {
+                    sApartAt = was;
+                    fprintf(stderr, "zenkaipower: net: the two games differ at blank %u (this copy %016llx, the other %016llx)\n", (unsigned)was,
+                            (unsigned long long)m->value, (unsigned long long)o->value);
+                    if (desync_ends()) {
+                        sByeWhy = BYE_APART;
+                        ended("The two games no longer agree (desync): the match has ended.", tick);
+                    }
+                }
+            }
+        }
+    }
+}
+
+static void gone(unsigned tick);
+
+/* A wait for the other player's input (roll_tick, Port_NetBeginTick) that lasted 100 ms or more goes to the log with
+   what came from the other side meanwhile: input packets that did not yet carry the blank this copy needs (the
+   other game is behind this one: its machine is slow or stood still for a moment), or nothing at all for most of
+   the wait (the line held the packets back, or the other game stood still and sent nothing). The other copy's log
+   says which of the two machines it was: its slow frames are in it (gs_core.c). The meter shows the same per second.
+   gPortNetWaitNs: the time waited, for the slow-frame report (a frame that only waited is not a slow machine). */
+enum { WAIT_NOTE_MS = 100, WAIT_NOTES = 200, WHY_BEHIND = 1, WHY_SILENT = 2 };
+static unsigned sInPkts;        /* input packets taken */
+static uint64_t sInLastNs;      /* when the last one came */
+static uint64_t sInGapNs;       /* the longest time without one since the wait began */
+static unsigned sWaitNotes;     /* lines written in this session */
+static uint64_t sSecWaitMaxNs;  /* the longest wait of this second, and why it was */
+static int sSecWaitWhy;
+uint64_t gPortNetWaitNs;
+
+typedef struct { uint64_t t0; unsigned pkts; } WaitMark;
+
+static WaitMark wait_begin(uint64_t t0) {
+    WaitMark w;
+    w.t0 = t0;
+    w.pkts = sInPkts;
+    sInGapNs = sInLastNs != 0 && t0 > sInLastNs ? t0 - sInLastNs : 0;
+    return w;
+}
+
+static void wait_end(WaitMark w, unsigned tick) {
+    uint64_t now = SDL_GetTicksNS(), took = now - w.t0, gap = sInGapNs;
+    unsigned got = sInPkts - w.pkts;
+    int why;
+
+    gPortNetWaitNs += took;
+    if (sConnection.active) { sConnection.waits++; sConnection.waitNs += took; }
+    if (now > sInLastNs && now - sInLastNs > gap) {
+        gap = now - sInLastNs;
+    }
+    why = gap * 10 >= took * 8 ? WHY_SILENT : WHY_BEHIND;
+    if (took > sSecWaitMaxNs) {
+        sSecWaitMaxNs = took;
+        sSecWaitWhy = why;
+    }
+    if (took < (uint64_t)WAIT_NOTE_MS * 1000000ull || sWaitNotes >= WAIT_NOTES) {
+        return;
+    }
+    sWaitNotes++;
+    if (why == WHY_SILENT) {
+        fprintf(stderr, "zenkaipower: net: waited %u ms at blank %u for the other player's input: nothing came from them for %u ms (the line held it back, "
+                        "or their game stood still); ping %d ms\n", (unsigned)(took / 1000000ull), tick, (unsigned)(gap / 1000000ull), sPingMs);
+    } else {
+        fprintf(stderr, "zenkaipower: net: waited %u ms at blank %u for the other player's input: %u packets came meanwhile without it (their game is "
+                        "behind this one; they say they are %d blanks ahead); ping %d ms\n", (unsigned)(took / 1000000ull), tick, got, (int)sTheirAhead, sPingMs);
+    }
+}
+
+/* The meeting at the end of a session's start-up (warp_tick, meet): the blank at which each copy reached the
+   character select. A copy that is waiting sends {MAGIC, T_ARRIVED, blank, 0}; one that has arrived answers each such
+   greeting with {..., 1}, so a lost packet costs a resend and the two never go on answering each other. */
+enum { T_ARRIVED = 11 };
+static uint32_t sMyArrival, sTheirArrival; /* (0: not yet) */
+static int sMet;
+
+static void send_inputs(void) {
+    uint8_t pkt[IN_HEAD + REDUNDANT * PAD];
+    uint32_t tsend = now_ms(), techo = sEchoTs, thold = sEchoTs != 0 ? tsend - sEchoAtMs : 0;
+    uint32_t magic = MAGIC, type = T_INPUT, n = sHave[sMe] < REDUNDANT ? sHave[sMe] : REDUNDANT, base = sHave[sMe] - n, i;
+    int32_t ahead = (int32_t)sTick - (int32_t)sHave[!sMe]; /* how far this copy is beyond the input it has from the other */
+
+    memcpy(pkt, &magic, 4);
+    memcpy(pkt + 4, &type, 4);
+    memcpy(pkt + 8, &base, 4);
+    memcpy(pkt + 12, &n, 4);
+    sMyAhead = ahead;
+    memcpy(pkt + 16, &ahead, 4);
+    memcpy(pkt + 20, &tsend, 4); /* for the ping: when this left, */
+    memcpy(pkt + 24, &techo, 4); /* the other side's last such time that arrived here, */
+    memcpy(pkt + 28, &thold, 4); /* and how long ago that was */
+    memcpy(pkt + 32, &sSyncOutTick, 4); /* the check: the newest blank this copy is sure of, */
+    memcpy(pkt + 36, &sSyncOutValue, 8); /* and what the game was at it (Port_NetDigest) */
+    for (i = 0; i < n; i++) {
+        memcpy(pkt + IN_HEAD + i * PAD, sIn[sMe][(base + i) % RING], PAD);
+    }
+    if (sConnection.active) { sConnection.sent++; sConnection.sentBytes += IN_HEAD + n * PAD; }
+    send_to_peer(pkt, (int)(IN_HEAD + n * PAD));
+}
+
+/* The lines of text that are due to go to the other player (net_chat.c: each is sent a few times). */
+static void chat_send(void) {
+    uint8_t pkt[16 + CHAT_TEXT];
+    uint32_t head[4] = {MAGIC, T_CHAT};
+    int len;
+
+    while (sConnected && (len = PortChat_Outgoing(now_ms(), &head[2], (char *)pkt + 16)) > 0) {
+        head[3] = (uint32_t)len;
+        memcpy(pkt, head, 16);
+        send_to_peer(pkt, 16 + len);
+    }
+}
+
+/* Takes in what has arrived. Returns 1 if anything did. */
+static int receive(void) {
+    uint8_t pkt[2048];
+    struct sockaddr_in from;
+    socklen_t fromLen = sizeof(from);
+    int got = 0, n;
+
+    queue_flush();
+    chat_send();
+    while ((n = net_recv(pkt, (int)sizeof(pkt), &from)) >= 8) {
+        uint32_t magic, type;
+        memcpy(&magic, pkt, 4);
+        memcpy(&type, pkt + 4, 4);
+        if (magic != MAGIC) {
+            continue;
+        }
+        if (sConnected && (from.sin_addr.s_addr != sPeer.sin_addr.s_addr || from.sin_port != sPeer.sin_port)) {
+            continue; /* a match takes packets from the other player's address only: nobody else can end it or put buttons in */
+        }
+        got = 1;
+        if (type == T_CUSTOM && sConnected && sSession && n >= 24) {
+            uint32_t header[4];
+            memcpy(header, pkt + 8, sizeof(header));
+            if (header[0] == NET_VERSION && header[1] == sSeed && header[3] == (uint32_t)n - 24 &&
+                custom_store_chunk(header[2], pkt + 24, header[3])) {
+                uint32_t ack[5] = {MAGIC, T_CUSTOM_ACK, NET_VERSION, sSeed, sCustomReceived};
+                net_send(ack, sizeof(ack), &sPeer);
+            }
+        } else if (type == T_CUSTOM_ACK && sConnected && sSession && n == 20) {
+            uint32_t ack[3];
+            memcpy(ack, pkt + 8, sizeof(ack));
+            if (ack[0] == NET_VERSION && ack[1] == sSeed) sCustomAcked |= ack[2] & NET_CUSTOM_ALL;
+        } else if (type == T_PING && n >= 12) { /* setting up: sent back as it came, for the round trip time */
+            uint32_t pong[3] = {MAGIC, T_PONG, 0};
+            memcpy(&pong[2], pkt + 8, 4);
+            send_to_peer(pong, (int)sizeof(pong)); /* (through the test line's delay, like the input) */
+        } else if (type == T_PONG && n >= 12) {
+            uint32_t ts;
+            int rtt;
+            memcpy(&ts, pkt + 8, 4);
+            rtt = (int)(now_ms() - ts);
+            if (rtt >= 0 && rtt < 5000 && (sSetupRtt < 0 || rtt < sSetupRtt)) {
+                sSetupRtt = rtt;
+            }
+        } else if (type == T_CONFIG && sMode == 2 && n >= 16) { /* the host's choices, made after it measured the line */
+            uint32_t v[2], ack[2] = {MAGIC, T_CONFIG_ACK};
+            memcpy(v, pkt + 8, 8);
+            sCfgDelay = (int)v[0];
+            sCfgRoll = (int)v[1];
+            if (n >= 24) {
+                memcpy(&sRules, pkt + 20, 4);
+            }
+            if (n >= 24 + NAME_LEN) {
+                memcpy(sNames[0], pkt + 24, NAME_LEN);
+                sNames[0][NAME_LEN - 1] = '\0';
+            }
+            if (n >= 28 + NAME_LEN) {
+                opts_take(0, pkt + 24 + NAME_LEN);
+            }
+            if (n >= 32 + NAME_LEN) {
+                memcpy(&sSeed, pkt + 28 + NAME_LEN, 4);
+            }
+            sCfgGot = 2;
+            net_send(ack, sizeof(ack), &from);
+        } else if (type == T_CONFIG_ACK && sMode == 1) {
+            sCfgAcked = 1;
+        } else if (type == T_CHAT && sConnected && n >= 16) { /* (from the other player's address only: above) */
+            uint32_t seq, len;
+            memcpy(&seq, pkt + 8, 4);
+            memcpy(&len, pkt + 12, 4);
+            if (len <= CHAT_TEXT && len <= (uint32_t)(n - 16)) {
+                PortChat_Heard(seq, (const char *)pkt + 16, (int)len);
+            }
+        } else if (type == T_BYE && sConnected) {
+            uint32_t why = 0;
+            if (n >= 12) {
+                memcpy(&why, pkt + 8, 4);
+            }
+            sGone = why == BYE_APART ? 2 : why == BYE_END_BATTLE ? 3 : 1;
+            if (sResultScreen && why == BYE_END_BATTLE) {
+                Port_NetResultDetach();
+                sGone = 0; /* Keep this player's results until their own End Battle choice. */
+            }
+        } else if (type == T_HELLO && sMode == 1 && !(n >= 12 && memcmp(pkt + 8, &kVersion, 4) == 0)) {
+            static int said;
+            if (!said++) {
+                fprintf(stderr, "zenkaipower: net: a copy of another version tried to join; both players need the same release\n");
+            }
+        } else if (type == T_HELLO && sMode == 1 && sFromLobby && n < 12 + NAME_LEN) {
+            /* a greeting of the other side's lobby, still on its way or sent again because this side's answers
+               were lost: answered as the lobby did, so that the other side starts its session too */
+            uint32_t ack[3] = {MAGIC, T_HELLO_ACK, NET_VERSION};
+            net_send(ack, sizeof(ack), &from);
+        } else if (type == T_HELLO && sMode == 1) {
+            uint32_t ack[9 + NAME_LEN / 4 + NET_UNLOCK_WORDS] = {MAGIC, T_HELLO_ACK, (uint32_t)sDelay, (uint32_t)sRollMax, NET_VERSION, sRules};
+            ack[7 + NAME_LEN / 4] = sSeed;
+            ack[8 + NAME_LEN / 4] = getenv("ZENKAIPOWER_NET_BOT") != NULL ? (4u | ((uint32_t)bot_setting_env() << 8)) : 0u;
+            memcpy(&ack[6], sMyName, NAME_LEN);
+            ack[6 + NAME_LEN / 4] = sOpts[0];
+            if (n >= (5 + NAME_LEN / 4 + NET_UNLOCK_WORDS) * 4) {
+                memcpy(sUnlocks[1], pkt + (5 + NAME_LEN / 4) * 4, sizeof(sUnlocks[1]));
+            }
+            memcpy(&ack[9 + NAME_LEN / 4], sUnlocks[0], sizeof(sUnlocks[0]));
+            if (n >= 12 + NAME_LEN) { /* the other player's name came with the greeting */
+                memcpy(sNames[1], pkt + 12, NAME_LEN);
+                sNames[1][NAME_LEN - 1] = '\0';
+            }
+            if (n >= 16 + NAME_LEN) {
+                opts_take(1, pkt + 12 + NAME_LEN);
+            }
+            {   /* (does the other copy know the 120% pace? if not, the match is at the game's own) */
+                uint32_t cap = 0;
+                if (n >= 20 + NAME_LEN) {
+                    memcpy(&cap, pkt + 16 + NAME_LEN, 4);
+                }
+                if ((cap & 0xFFFF0000u) != CAP_MARK) {
+                    cap = 0;
+                }
+                sBotSide = getenv("ZENKAIPOWER_NET_BOT") != NULL ? 0 : (cap & 4) != 0 ? 1 : -1;
+                sBotSetting = sBotSide == 0 ? bot_setting_env() :
+                              sBotSide == 1 && ((cap >> 8) & 7) <= 4 ? (int)((cap >> 8) & 7) : 2;
+                if (sBotSide >= 0)
+                    fprintf(stderr, "zenkaipower: net: CPU opponent accepted at level %d/5\n", sBotSetting + 1);
+                if (!(cap & 2)) { /* does not know the number: 120% if it knows that and it is that, else 100% */
+                    sRules &= ~(0xFFu << RULE_SPEED_SHIFT);
+                }
+                if (!(cap & 1)) {
+                    sRules &= ~RULE_FAST;
+                }
+                ack[5] = sRules;
+            }
+            memcpy(sNames[0], sMyName, NAME_LEN);
+            sPeer = from; /* the host learns the other side's address from its greeting */
+            sConnected = 1;
+            net_send(ack, sizeof(ack), &sPeer);
+        } else if (type == T_HELLO_ACK && sMode == 2 && sFromLobby && n < 20) {
+            /* an answer to the lobby's greeting, still in the socket the session took over: nothing to do */
+        } else if (type == T_HELLO_ACK && sMode == 2) {
+            if (!(n >= 20 && memcmp(pkt + 16, &kVersion, 4) == 0)) {
+                sVersionBad = 1;
+            } else if (!sConnected) {
+                uint32_t v[2];
+                memcpy(v, pkt + 8, 8);
+                sCfgDelay = (int)v[0];
+                sCfgRoll = (int)v[1];
+                if (n >= 24) {
+                    memcpy(&sRules, pkt + 20, 4);
+                }
+                if (n >= 24 + NAME_LEN) {
+                    memcpy(sNames[0], pkt + 24, NAME_LEN);
+                    sNames[0][NAME_LEN - 1] = '\0';
+                }
+                if (n >= 28 + NAME_LEN) {
+                    opts_take(0, pkt + 24 + NAME_LEN);
+                }
+                if (n >= 32 + NAME_LEN) {
+                    memcpy(&sSeed, pkt + 28 + NAME_LEN, 4);
+                }
+                if (n >= (9 + NAME_LEN / 4 + NET_UNLOCK_WORDS) * 4) {
+                    memcpy(sUnlocks[0], pkt + (9 + NAME_LEN / 4) * 4, sizeof(sUnlocks[0]));
+                }
+                memcpy(sNames[1], sMyName, NAME_LEN);
+                sBotSide = getenv("ZENKAIPOWER_NET_BOT") != NULL ? 1 : -1;
+                if (n >= 36 + NAME_LEN && sBotSide < 0) {
+                    uint32_t hostBot;
+                    memcpy(&hostBot, pkt + 32 + NAME_LEN, 4);
+                    if (hostBot & 4) sBotSide = 0;
+                    sBotSetting = ((hostBot >> 8) & 7) <= 4 ? (int)((hostBot >> 8) & 7) : 2;
+                } else {
+                    sBotSetting = bot_setting_env();
+                }
+                if (sBotSide >= 0)
+                    fprintf(stderr, "zenkaipower: net: playing as CPU at level %d/5\n", sBotSetting + 1);
+                sCfgGot = 1;
+                sConnected = 1;
+            }
+        } else if (type == T_FPRINT) {
+            sDataBad |= fprint_differs(pkt, n);
+        } else if (type == T_ARRIVED && sConnected && n >= 16) {
+            uint32_t v[2];
+            memcpy(v, pkt + 8, 8);
+            sTheirArrival = v[0];
+            if (v[1] == 0 && sMyArrival != 0) {
+                uint32_t answer[4] = {MAGIC, T_ARRIVED, sMyArrival, 1};
+                send_to_peer(answer, (int)sizeof(answer));
+            }
+        } else if (type == T_INPUT && n >= IN_HEAD && (sConnected || sMode == 1)) { /* (the joining side: not before the host's answer) */
+            uint32_t base, count, i, other = (uint32_t)!sMe;
+            if (sConnection.active) { sConnection.received++; sConnection.receivedBytes += n; }
+            {
+                uint64_t at = SDL_GetTicksNS();
+                if (sInLastNs != 0 && at - sInLastNs > sInGapNs) {
+                    sInGapNs = at - sInLastNs;
+                }
+                sInLastNs = at;
+                sInPkts++;
+            }
+            memcpy(&base, pkt + 8, 4);
+            memcpy(&count, pkt + 12, 4);
+            memcpy(&sTheirAhead, pkt + 16, 4);
+            if (sMode == 1 && !sConnected) {
+                sPeer = from;
+            }
+            {
+                uint32_t at;
+                memcpy(&at, pkt + 32, 4);
+                if (at != 0) { /* the other copy's check value for that blank: compared when this copy is sure of it too */
+                    SyncNote *o = &sSyncTheirs[at / SYNC_EVERY % SYNC_SLOTS];
+                    o->tick = at;
+                    memcpy(&o->value, pkt + 36, 8);
+                }
+            }
+            sConnected = 1; /* (an input packet says the greeting got through) */
+            {
+                uint32_t ts, echo, hold, now = now_ms();
+                memcpy(&ts, pkt + 20, 4);
+                memcpy(&echo, pkt + 24, 4);
+                memcpy(&hold, pkt + 28, 4);
+                sEchoTs = ts;
+                sEchoAtMs = now;
+                if (echo != 0 && now - echo - hold < 5000u) { /* the round trip: there and back, less their holding time */
+                    /* The smallest of the last 64: a packet waits in the socket until the next blank looks, on both
+                       sides, which adds up to two blanks to a single measurement and nothing to the best one. */
+                    static int ring[64], at, filled;
+                    int rtt = (int)(now - echo - hold), k, best;
+                    connection_rtt(rtt, echo);
+                    ring[at++ & 63] = rtt;
+                    filled = filled < 64 ? filled + 1 : 64;
+                    best = ring[0];
+                    for (k = 1; k < filled; k++) {
+                        best = ring[k] < best ? ring[k] : best;
+                    }
+                    sPingMs = best;
+                }
+            }
+            for (i = 0; i < count && IN_HEAD + (i + 1) * PAD <= (uint32_t)n; i++) {
+                if (base + i >= sHave[other]) {
+                    if (base + i > sHave[other]) {
+                        break; /* a gap: wait for a packet that covers it */
+                    }
+                    memcpy(sIn[other][(base + i) % RING], pkt + IN_HEAD + i * PAD, PAD);
+                    sHave[other] = base + i + 1;
+                }
+            }
+        }
+    }
+    return got;
+}
+
+/* Testing: this copy behaves like a weak machine (real time only; nothing of the game's state may follow from it).
+     ZENKAIPOWER_TEST_SLOW_READ=<ms>    every file read of the game takes that long more (what = 0)
+     ZENKAIPOWER_TEST_SLOW_START=<ms>   that long between the connection and the session's first blank (what = 1)
+     ZENKAIPOWER_TEST_SLOW_BLANK=<ms>   every blank of a match takes that long more (what = 2) */
+void Port_TestSlow(int what, int amount) {
+    static int ms[3] = {-1, -1, -1};
+    (void)amount;
+    if (ms[0] < 0) {
+        ms[0] = getenv("ZENKAIPOWER_TEST_SLOW_READ") != NULL ? atoi(getenv("ZENKAIPOWER_TEST_SLOW_READ")) : 0;
+        ms[1] = getenv("ZENKAIPOWER_TEST_SLOW_START") != NULL ? atoi(getenv("ZENKAIPOWER_TEST_SLOW_START")) : 0;
+        ms[2] = getenv("ZENKAIPOWER_TEST_SLOW_BLANK") != NULL ? atoi(getenv("ZENKAIPOWER_TEST_SLOW_BLANK")) : 0;
+    }
+    if (what >= 0 && what < 3 && ms[what] > 0) {
+        SDL_Delay((Uint32)ms[what]);
+    }
+}
+
+static int sLanSession; /* this session came from the direct LAN battle lobby */
+static int sCodeSession; /* this session came from a room code: the Wii VS screen already showed the rival */
+static int sArrived; /* its start-up has reached the character select */
+static uint32_t sStartedMs; /* when the two were connected (for the log) */
+
+/* Connects: role 1 hosts on `port`, role 2 joins `join` ("address:port"). Waits until the other side is there. */
+static void net_start(int role, const char *host, const char *join) {
+    struct sockaddr_in local;
+    uint64_t t0, last = 0;
+    uint32_t i;
+
+    sMode = role;
+    sConnected = 0;
+    sCustomReceived = sCustomAcked = 0;
+    sBotSide = -1;
+    sBotSetting = 2;
+    sTick = 0;
+    memset(sIn, 0, sizeof(sIn));
+    memset(sHave, 0, sizeof(sHave)); /* (a second session in one run starts as clean as the first) */
+    PortChat_Reset();
+    sWaitNs = sWaits = 0;
+    sFromLobby = sHandSock >= 0;
+    if (sFromLobby) {
+        sSock = sHandSock;
+        sHandSock = -1;
+    } else {
+#ifdef _WIN32
+        WSADATA w;
+        u_long on = 1;
+        WSAStartup(MAKEWORD(2, 2), &w);
+        sSock = (int)socket(AF_INET, SOCK_DGRAM, 0);
+        ioctlsocket(sSock, FIONBIO, &on);
+#else
+        sSock = socket(AF_INET, SOCK_DGRAM, 0);
+        fcntl(sSock, F_SETFL, fcntl(sSock, F_GETFL, 0) | O_NONBLOCK);
+#endif
+    }
+    sMe = sMode - 1;
+    if (getenv("ZENKAIPOWER_NET_LOCALPORT") != NULL && sCodeLocalPort == 0) { /* (across the restart into the session) */
+        sCodeLocalPort = atoi(getenv("ZENKAIPOWER_NET_LOCALPORT"));
+    }
+    if (getenv("ZENKAIPOWER_NET_PUNCH") != NULL && !sCodePunchSet) {
+        char text[64], *colon;
+        snprintf(text, sizeof(text), "%s", getenv("ZENKAIPOWER_NET_PUNCH"));
+        colon = strrchr(text, ':');
+        if (colon != NULL) {
+            *colon = '\0';
+            memset(&sCodePunch, 0, sizeof(sCodePunch));
+            sCodePunch.sin_family = AF_INET;
+            sCodePunch.sin_port = htons((uint16_t)atoi(colon + 1));
+            sCodePunchSet = inet_pton(AF_INET, text, &sCodePunch.sin_addr) == 1;
+        }
+    }
+    if (getenv("ZENKAIPOWER_NET_NAME") != NULL) { /* (across the restart into the session) */
+        Port_NetNameSet(getenv("ZENKAIPOWER_NET_NAME"));
+    }
+    memset(sNames, 0, sizeof(sNames));
+    memcpy(sNames[sMe], sMyName, NAME_LEN);
+    memset(sOpts, 0, sizeof(sOpts));
+    sOpts[sMe] = own_options();
+    if (getenv("ZENKAIPOWER_NET_RULES") != NULL) { /* (the host's, across the restart into the session, or for a test) */
+        sRules = (uint32_t)strtoul(getenv("ZENKAIPOWER_NET_RULES"), NULL, 0);
+    }
+    if (getenv("ZENKAIPOWER_NET_SPEED") != NULL) { /* testing: 120 or 100 */
+        Port_NetSpeedSet(atoi(getenv("ZENKAIPOWER_NET_SPEED")));
+    }
+    sAutoDelay = getenv("ZENKAIPOWER_NET_DELAY") != NULL ? strcmp(getenv("ZENKAIPOWER_NET_DELAY"), "auto") == 0 : sOptAuto;
+    sDelay = getenv("ZENKAIPOWER_NET_DELAY") != NULL && !sAutoDelay ? atoi(getenv("ZENKAIPOWER_NET_DELAY")) : sOptDelay >= 0 ? sOptDelay : 2;
+    sSetupRtt = -1;
+    sCfgAcked = 0;
+    if (sDelay < 0) { sDelay = 0; }
+    if (sDelay > 30) { sDelay = 30; }
+    sCfgGot = 0;
+    sGone = 0;
+    sResultScreen = sResultSolo = 0;
+    sVersionBad = 0;
+    sDataBad = 0;
+    sEchoTs = 0;
+    sPingMs = -1;
+    sSecRoll = sSecRollTicks = sSecWaits = sSecWaitMs = sSecTicks = 0;
+    memset(sShown, 0, sizeof(sShown));
+    sApartAt = 0;
+    sApartCount = 0;
+    sInPkts = sWaitNotes = 0;
+    sInLastNs = sInGapNs = sSecWaitMaxNs = 0;
+    sSecWaitWhy = 0;
+    sLoss = getenv("ZENKAIPOWER_NET_LOSS") != NULL ? atoi(getenv("ZENKAIPOWER_NET_LOSS")) : 0;
+    sLagMs = getenv("ZENKAIPOWER_NET_LAG") != NULL ? atoi(getenv("ZENKAIPOWER_NET_LAG")) : 0;
+    sLatencyMs = getenv("ZENKAIPOWER_NET_LATENCY") != NULL ? atoi(getenv("ZENKAIPOWER_NET_LATENCY")) : 0;
+    /* ZENKAIPOWER_NET_ROLLBACK=<n>: the game does not wait for the other player's input; it goes on with a guess (what
+       they held last) for up to n blanks and, when the real input differs, goes back and runs those blanks again
+       (roll_tick). Needs the roll ring of gs/state.c (the 64-bit programs); 0 or unset: wait, as before. */
+    sRollMax = !Port_RollCan() ? 0 : getenv("ZENKAIPOWER_NET_ROLLBACK") != NULL ? atoi(getenv("ZENKAIPOWER_NET_ROLLBACK")) : sOptRoll >= 0 ? sOptRoll : 0;
+    if (sRollMax < 0) { sRollMax = 0; }
+    if (sRollMax > 30) { sRollMax = 30; }
+    sChecked = sLive = 0;
+    sResim = sRollBegun = 0;
+    memset(sSyncMine, 0, sizeof(sSyncMine));
+    memset(sSyncTheirs, 0, sizeof(sSyncTheirs));
+    sSyncOutTick = 0;
+    sSyncOutValue = 0;
+    sByeWhy = 0;
+    sTheirAhead = 0;
+    sBalance = 0;
+    sRollbacks = sRollTicks = sStalls = 0;
+    if (getenv("ZENKAIPOWER_NET_SCRIPT") != NULL) {
+        sScript = fopen(getenv("ZENKAIPOWER_NET_SCRIPT"), "rb");
+    }
+    memset(&local, 0, sizeof(local));
+    local.sin_family = AF_INET;
+    local.sin_addr.s_addr = htonl(INADDR_ANY);
+    memset(&sPeer, 0, sizeof(sPeer));
+    sPeer.sin_family = AF_INET;
+    sSeed = 0;
+    if (sMode == 1) {
+        seed_draw();
+        local.sin_port = htons((uint16_t)atoi(host));
+        if (!sFromLobby && bind(sSock, (struct sockaddr *)&local, sizeof(local)) != 0) {
+            fprintf(stderr, "zenkaipower: net: cannot use port %s\n", host);
+            exit(2);
+        }
+        fprintf(stderr, "zenkaipower: net: hosting on port %s (player 1), waiting for the other player...\n", host);
+    } else {
+        char addr[128];
+        char *colon;
+        snprintf(addr, sizeof(addr), "%s", join);
+        colon = strrchr(addr, ':');
+        if (colon == NULL) {
+            fprintf(stderr, "zenkaipower: net: ZENKAIPOWER_NET_JOIN wants <address>:<port>\n");
+            exit(2);
+        }
+        *colon = '\0';
+        sPeer.sin_port = htons((uint16_t)atoi(colon + 1));
+        if (inet_pton(AF_INET, addr, &sPeer.sin_addr) != 1) {
+            struct hostent *he = gethostbyname(addr);
+            if (he == NULL) {
+                fprintf(stderr, "zenkaipower: net: unknown address %s\n", addr);
+                exit(2);
+            }
+            memcpy(&sPeer.sin_addr, he->h_addr_list[0], sizeof(sPeer.sin_addr));
+        }
+        if (sCodeLocalPort != 0 && !sFromLobby) {
+            /* a match found with a room code: from the port the lobby used, so that the routers on the way keep
+               taking this for the same conversation */
+            local.sin_port = htons((uint16_t)sCodeLocalPort);
+            bind(sSock, (struct sockaddr *)&local, sizeof(local));
+        }
+        /* The address is only printed when the player typed it. One that came from the matchmaking service (a
+           room code, a quick match) is the other player's, and logs get pasted into bug reports. */
+        if (sCodeLocalPort != 0) {
+            fprintf(stderr, "zenkaipower: net: joining the host found by the matchmaking service (player 2)...\n");
+        } else {
+            fprintf(stderr, "zenkaipower: net: joining %s (player 2)...\n", join);
+        }
+    }
+    t0 = SDL_GetTicksNS();
+    while (!sConnected) {
+        uint64_t now = SDL_GetTicksNS();
+        if (sMode == 1 && sCodePunchSet && now - last > 100000000ull) {
+            uint32_t punch[2] = {MAGIC, T_PUNCH}; /* (room codes: keeps this side's router open for the one who joins) */
+            net_send(punch, sizeof(punch), &sCodePunch);
+            last = now;
+        }
+        if (sMode == 2 && now - last > 100000000ull) {
+            uint32_t hello[5 + NAME_LEN / 4 + NET_UNLOCK_WORDS] = {MAGIC, T_HELLO, NET_VERSION};
+            memcpy(&hello[3], sMyName, NAME_LEN);
+            hello[3 + NAME_LEN / 4] = sOpts[1];
+            hello[4 + NAME_LEN / 4] = CAP_MARK | 3 |
+                (getenv("ZENKAIPOWER_NET_BOT") != NULL ? (4u | ((uint32_t)bot_setting_env() << 8)) : 0u);
+            memcpy(&hello[5 + NAME_LEN / 4], sUnlocks[1], sizeof(sUnlocks[1]));
+            fprint_send(&sPeer);
+            net_send(hello, sizeof(hello), &sPeer);
+            last = now;
+        }
+        receive();
+        session_hold();
+        if (sVersionBad) {
+            fprintf(stderr, "zenkaipower: net: the other player's game is another version; both need the same release\n");
+            Port_UiNotice("The other player's game is a different version.");
+            if (sSession) {
+                Port_NetLeave();
+            }
+            exit(2);
+        }
+        SDL_Delay(2);
+        if (now - t0 > (sSession ? 6000000000ull : 120000000000ull)) {
+            ended("The connection to the other player was lost during startup.", 0);
+        }
+    }
+    /* Setting up. The host measures the round trip (a dozen pings, the smallest counts), chooses the input delay
+       from it if that is automatic, and tells the other side its choices until that side has them; the other
+       side answers the pings and waits for the choices. */
+    if (sMode == 1) {
+        uint64_t start = SDL_GetTicksNS(), lastPing = 0, lastCfg = 0;
+        int pings = 0;
+        while (SDL_GetTicksNS() - start < 400000000ull) {
+            uint64_t now = SDL_GetTicksNS();
+            if (pings < 12 && now - lastPing >= 25000000ull) {
+                uint32_t ping[3] = {MAGIC, T_PING, now_ms()};
+                send_to_peer(ping, (int)sizeof(ping));
+                fprint_send(&sPeer);
+                lastPing = now;
+                pings++;
+            }
+            receive();
+            session_hold();
+            SDL_Delay(1);
+        }
+        if (sAutoDelay) {
+            sDelay = auto_delay(sSetupRtt);
+        }
+        fprintf(stderr, "zenkaipower: net: round trip %d ms%s\n", sSetupRtt, sAutoDelay ? " (the input delay is chosen from it)" : "");
+        start = SDL_GetTicksNS();
+        while (!sCfgAcked && SDL_GetTicksNS() - start < 3000000000ull) {
+            uint64_t now = SDL_GetTicksNS();
+            if (now - lastCfg >= 50000000ull) {
+                uint32_t cfg[8 + NAME_LEN / 4] = {MAGIC, T_CONFIG, (uint32_t)sDelay, (uint32_t)sRollMax, NET_VERSION, sRules};
+                cfg[7 + NAME_LEN / 4] = sSeed;
+                memcpy(&cfg[6], sMyName, NAME_LEN);
+                cfg[6 + NAME_LEN / 4] = sOpts[0];
+                net_send(cfg, sizeof(cfg), &sPeer);
+                lastCfg = now;
+            }
+            receive();
+            session_hold();
+            SDL_Delay(1);
+        }
+    } else {
+        uint64_t start = SDL_GetTicksNS(), lastFp = 0;
+        while (sCfgGot != 2 && SDL_GetTicksNS() - start < 5000000000ull) {
+            if (SDL_GetTicksNS() - lastFp >= 50000000ull) {
+                fprint_send(&sPeer);
+                lastFp = SDL_GetTicksNS();
+            }
+            receive();
+            session_hold();
+            SDL_Delay(1);
+        }
+    }
+    if (sSession && (sMode == 1 ? !sCfgAcked : sCfgGot != 2)) {
+        ended("The connection setup did not complete.", 0);
+    }
+    if (sMode == 2 && sCfgGot) { /* the host's choices, unless this side was started with its own */
+        if ((getenv("ZENKAIPOWER_NET_DELAY") == NULL || sAutoDelay) && sCfgDelay >= 0 && sCfgDelay <= 30) {
+            sDelay = sCfgDelay;
+        }
+        if (getenv("ZENKAIPOWER_NET_ROLLBACK") == NULL && sOptRoll < 0 && sCfgRoll >= 0 && sCfgRoll <= 30) {
+            sRollMax = Port_RollCan() ? sCfgRoll : 0;
+        }
+    }
+    if (sDataBad) {
+        Port_UiNotice(kDataDiffer);
+        if (sSession) {
+            Port_NetLeave();
+        }
+        exit(2);
+    }
+    if (sSession) {
+        uint64_t began = SDL_GetTicksNS(), sent = 0;
+        while (sCustomReceived != NET_CUSTOM_ALL || sCustomAcked != NET_CUSTOM_ALL) {
+            uint64_t now = SDL_GetTicksNS();
+            if (!sent || now - sent >= 100000000ull) {
+                unsigned chunk;
+                for (chunk = 0; chunk < NET_CUSTOM_CHUNKS; chunk++) if (!(sCustomAcked & (1u << chunk))) {
+                    uint8_t packet[24 + NET_CUSTOM_CHUNK];
+                    unsigned offset = chunk * NET_CUSTOM_CHUNK;
+                    unsigned bytes = NET_CUSTOM_BYTES - offset;
+                    if (bytes > NET_CUSTOM_CHUNK) bytes = NET_CUSTOM_CHUNK;
+                    uint32_t header[6] = {MAGIC, T_CUSTOM, NET_VERSION, sSeed, chunk, bytes};
+                    memcpy(packet, header, sizeof(header));
+                    memcpy(packet + 24, sCustom[sMe] + offset, bytes);
+                    net_send(packet, 24 + bytes, &sPeer);
+                }
+                sent = now;
+            }
+            receive();
+            session_hold();
+            if (sGone || now - began > 30000000000ull) {
+                ended("The customization exchange did not complete.", 0);
+            }
+            SDL_Delay(1);
+        }
+    }
+    /* the blanks before any input can have arrived (0 .. delay) are idle for both players */
+    for (i = 0; i <= (uint32_t)sDelay; i++) {
+        memcpy(sIn[0][i], kIdle, PAD);
+        memcpy(sIn[1][i], kIdle, PAD);
+    }
+    sHave[0] = sHave[1] = (uint32_t)sDelay + 1;
+    fprintf(stderr, "zenkaipower: net: connected%s; input delay %d blanks, %s\n", sFromLobby && Port_LobbyRelayed() ? " through the relay" : sFromLobby ? " directly" : "", sDelay,
+            sRollMax > 0 ? "rollback" : "waiting for each other");
+    fprintf(stderr, "zenkaipower: net: game speed %d%%\n", rules_speed());
+    if (sOpts[0] != 0 && sOpts[1] != 0) {
+        fprintf(stderr, "zenkaipower: net: each player's own options: player 1 camera %u shake %u, player 2 camera %u shake %u\n", (unsigned)(sOpts[0] & 0xFF),
+                (unsigned)(sOpts[0] >> 8 & 0xFF), (unsigned)(sOpts[1] & 0xFF), (unsigned)(sOpts[1] >> 8 & 0xFF));
+    } else {
+        fprintf(stderr, "zenkaipower: net: the other copy does not send its player's options (0.1.25 or earlier): both sides use the defaults\n");
+    }
+    if (sRollMax > 0) {
+        fprintf(stderr, "zenkaipower: net: rollback of up to %d blanks\n", sRollMax);
+    }
+    sStartedMs = now_ms();
+    Port_TestSlow(1, 0);
+}
+
+int Port_NetActive(void);
+
+/* The voice language the player chose in the game's options, read from their own save (bit 0 of the flags word at
+   0x1608: set = the first choice of the menu, which is what a new save has; clear = the second voice set). An
+   online match starts from an empty save on both sides, so both compute with the default; this choice is kept
+   aside for what this copy plays (ZENKAIPOWER_NET_VOICE=alt; snd_adx.c, snd_se.c). 1 = the second set. */
+static int own_voice_alt(void) {
+    char path[600];
+    unsigned char w[4];
+    FILE *fp;
+    int alt = 0;
+
+    Port_SaveCardPath(path, sizeof(path), "BASLUS-21678DBZT3/BASLUS-21678DBZT3");
+    fp = Port_ZenkaiSelected() ? Port_ZenkaiOpen(path, 1) : fopen(path, "rb");
+    if (fp != NULL) {
+        if (fseek(fp, 0x1608, SEEK_SET) == 0 && fread(w, 1, 4, fp) == 4) {
+            alt = !(w[0] & 1);
+        }
+        fclose(fp);
+    }
+    return alt;
+}
+
+/* Whether this copy plays the second voice set in the online match it is in (the player's own choice, above). */
+static int sVoiceAlt = -1; /* 1 the second set, 0 the default; -1 not decided (then ZENKAIPOWER_NET_VOICE says, once) */
+
+int Port_NetVoiceAlt(void) {
+    /* (Not asked of the environment every time: the port's getenv remembers its first answer at each place it is
+       called from (gs_internal.h), and a match that begins without the program starting again sets the variable
+       after that first look. Found on Windows, 2026-10-09: the choice was never seen. The match's start sets
+       sVoiceAlt itself; the variable is for the program that starts again as the session, and for tests.) */
+    if (sVoiceAlt < 0) {
+        const char *v = getenv("ZENKAIPOWER_NET_VOICE");
+        sVoiceAlt = v != NULL && strcmp(v, "alt") == 0;
+    }
+    return Port_NetActive() && sVoiceAlt == 1;
+}
+
+/* The players' names (the lobby window's "Player name"), for the line under each side's gauges: this copy's own
+   goes out with its greeting (T_HELLO, the one who joins) or its answer and choices (T_HELLO_ACK, T_CONFIG, the
+   host), 20 bytes after the words those packets had. */
+
+/* The name of the player of side 0 or 1 in the match this copy is in ("" if it is not known). */
+const char *Port_NetName(int player) {
+    return Port_NetActive() && (player == 0 || player == 1) ? sNames[player] : "";
+}
+
+/* Whether this copy shows the two sides of the fight's HUD in each other's places: the player who joined is side 1,
+   and with this their own gauges are on the left, as the host's are for the host. Setting net_hud_own (on by
+   default); ZENKAIPOWER_HUD_SWAP=1 the same without a connection, for looking at it. Only this copy's picture changes. */
+int Port_HudSwap(void) {
+    static int forced = -1, pref = -1;
+    extern int Port_Setting(const char *name, int def);
+    if (forced < 0) {
+        forced = getenv("ZENKAIPOWER_HUD_SWAP") != NULL ? atoi(getenv("ZENKAIPOWER_HUD_SWAP")) != 0 : 0;
+        pref = Port_Setting("net_hud_own", 1) != 0;
+    }
+    return forced || (pref && Port_NetActive() && sMe == 1);
+}
+
+/* Which player this copy plays in an online match (0 the host, 1 the one who joined). */
+int Port_NetMe(void) {
+    return sMe;
+}
+
+int Port_NetActive(void) {
+    if (sMode < 0) { /* first asked: connected from the start if the environment says so */
+        const char *host = getenv("ZENKAIPOWER_NET_HOST"), *join = getenv("ZENKAIPOWER_NET_JOIN");
+        extern int Port_ZenkaiEnabled(void);
+        sMode = 0;
+        if ((Port_ZenkaiEnabled() || getenv("ZENKAIPOWER_NET_BOT") != NULL) && (host != NULL || join != NULL)) {
+            sSession = getenv("ZENKAIPOWER_NET_SESSION") != NULL;
+            sLanSession = sSession && getenv("ZENKAIPOWER_NET_LAN_SESSION") != NULL;
+            sCodeSession = sSession && getenv("ZENKAIPOWER_NET_CODE_SESSION") != NULL;
+            if (sSession) {
+                restore_unlocks(host != NULL ? 0 : 1);
+                restore_custom(host != NULL ? 0 : 1);
+            }
+            net_start(host != NULL ? 1 : 2, host, join);
+        }
+    }
+    return sMode > 0;
+}
+
+/* A new vertical blank begins (Port_VBlank): this player's input made now takes effect `delay` blanks on; then
+   wait until the other player's input for THIS blank is here. */
+/* The local player's input of this blank, entered for the blank `delay` later (once per blank). */
+static void sample_local(unsigned tick) {
+    uint8_t mine[PAD];
+    uint32_t at = (uint32_t)tick + (uint32_t)sDelay;
+
+    if (at < sHave[sMe]) {
+        return;
+    }
+    memcpy(mine, kIdle, PAD);
+    if (sBotSide == sMe) {
+        /* Bot selection and battle AI run in the game state on both copies. */
+    } else if (sScript != NULL) {
+        uint8_t both[2 * PAD];
+        if (fseek(sScript, (long)tick * 2 * PAD, SEEK_SET) == 0 && fread(both, 1, sizeof(both), sScript) == sizeof(both)) {
+            memcpy(mine, both + sMe * PAD, PAD);
+        }
+    } else if (!Port_PadRead(0, mine)) {
+        memcpy(mine, kIdle, PAD);
+    }
+    if(sBotSide!=sMe && sScript==NULL) {
+        extern void PortMenuMouse_NetSample(unsigned char *pad);
+        PortMenuMouse_NetSample(mine);
+    }
+    memcpy(sIn[sMe][at % RING], mine, PAD);
+    sHave[sMe] = at + 1;
+}
+
+#define QUIET_NS 6000000000ull /* this long without the input the game is waiting for: the other player is gone */
+
+/* Kept outside the game snapshot so the restored Battle Net screen can show why a session ended. */
+static int sEndReason; /* 1: peer left; 2: connection lost or session failed; 4: desync */
+
+static void ended(const char *why, unsigned tick) {
+    fprintf(stderr, "zenkaipower: net: %s (blank %u)\n", why, tick);
+    if (sSession) {
+        sEndReason = sGone == 2 || sByeWhy == BYE_APART ? 4 :
+                     sGone == 3 ? 0 : sGone == 1 ? 1 : 2;
+        Port_NetLeave(); /* back to the game as it normally is */
+    }
+    exit(2);
+}
+
+/* The other copy said goodbye. */
+static void gone(unsigned tick) {
+    if (sGone == 3) {
+        sByeWhy = BYE_END_BATTLE;
+        ended("The battle session ended normally.", tick);
+        return;
+    }
+    ended(sGone == 2 ? "The two games no longer agree (desync): the match has ended." : "The other player left the match.", tick);
+}
+
+static void gone_quiet(unsigned tick) {
+    ended("The connection to the other player was lost.", tick);
+}
+
+/*
+ * Rollback. Each blank's state is saved before the blank reads its pads (Port_RollSave). The other player's pad
+ * for a blank whose input has not arrived reads as their last known input, and what each blank was given is
+ * remembered (sUsed). When input arrives that differs from what a past blank was given, the game goes back to
+ * that blank's save and runs up to the present again, without picture or sound (gPortResim), now with the right
+ * input. It never runs more than sRollMax blanks ahead of the other player's last known input: there it waits.
+ */
+static void roll_tick(unsigned tick) {
+    uint32_t other = (uint32_t)!sMe, t, limit;
+    uint64_t t0, last;
+
+    if (!sRollBegun) {
+        sRollBegun = 1;
+        sChecked = tick; /* nothing was given to an earlier blank */
+    }
+    sync_note(tick); /* (the game as this blank finds it, whether the blank is new or run again) */
+    if (sResim && tick >= sLive) {
+        extern void PortSe_RunAgainEnds(unsigned first, unsigned live); /* snd_se.c */
+        sResim = 0; /* caught up: this blank is the present again */
+        PortSe_RunAgainEnds(sResimFrom, sLive);
+    }
+    if (!sResim) {
+        extern void PortSe_BlankBegins(unsigned tick); /* snd_se.c: which effects this blank starts */
+        PortSe_BlankBegins(tick);
+        Port_TestSlow(2, 0);
+        sample_local(tick);
+        send_inputs();
+        receive();
+        if (sResultSolo) return;
+        if (sGone) {
+            gone(tick);
+        }
+        t0 = last = SDL_GetTicksNS();
+        if (tick >= sHave[other] + (uint32_t)sRollMax) {
+            WaitMark w = wait_begin(t0);
+            sStalls++;
+            sSecWaits++;
+            while (tick >= sHave[other] + (uint32_t)sRollMax) {
+                uint64_t now = SDL_GetTicksNS();
+                if (now - last > 4000000ull) {
+                    send_inputs();
+                    last = now;
+                }
+                if (!receive()) {
+                    SDL_DelayNS(200000);
+                }
+                if (sResultSolo) return;
+                if (sGone) {
+                    gone(tick);
+                }
+                if (now - t0 > QUIET_NS) {
+                    gone_quiet(tick);
+                }
+            }
+            wait_end(w, tick);
+        }
+        {   /* (see sTheirAhead) */
+            int diff = (int)sMyAhead - (int)sTheirAhead; /* (both taken at the same point of a blank: when sending) */
+            if (getenv("ZENKAIPOWER_NET_SKEW") != NULL && tick == 1500) { /* testing: this copy falls behind by that many ms, once */
+                gPortPaceShiftNs = (unsigned)atoi(getenv("ZENKAIPOWER_NET_SKEW")) * 1000000u;
+            }
+            sBalance += (diff * 16 - sBalance) / 16;
+            if (sBalance >= 24 && getenv("ZENKAIPOWER_NET_NOBALANCE") == NULL) { /* a blank and a half apart or more: a millisecond later */
+                gPortPaceShiftNs += 1000000;
+                sSlowed++;
+            }
+        }
+        sSecWaitMs += (unsigned)((SDL_GetTicksNS() - t0) / 1000000ull);
+        if (++sSecTicks >= 60) { /* a second of blanks: what the meter shows next */
+            sShown[1] = (int)sSecRoll;
+            sShown[2] = sSecRoll != 0 ? (int)(sSecRollTicks * 10 / sSecRoll) : 0;
+            sShown[3] = (int)sSecWaits;
+            sShown[4] = (int)sSecWaitMs;
+            sShown[5] = sSecWaitMaxNs >= 30000000ull ? sSecWaitWhy : 0;
+            sSecRoll = sSecRollTicks = sSecWaits = sSecWaitMs = sSecTicks = 0;
+            sSecWaitMaxNs = 0;
+        }
+        limit = sHave[other] < tick ? sHave[other] : tick;
+        for (t = sChecked; t < limit && memcmp(sUsed[t % RING], sIn[other][t % RING], PAD) == 0; t++) {
+        }
+        sChecked = t;
+        if (t < limit) { /* blank t was given something else than what they really pressed */
+            sLive = tick;
+            sResimFrom = t;
+            sResim = 1;
+            if (sConnection.active) { sConnection.rolls++; sConnection.rollFrames += tick - t; }
+            sRollbacks++;
+            sRollTicks += tick - t;
+            sSecRoll++;
+            sSecRollTicks += tick - t;
+            gPortResim = 1;
+            Port_RollBack((int)(tick - t)); /* does not return: goes on after blank t's Port_RollSave below */
+        }
+        sync_check(sChecked, tick); /* (every blank below sChecked was run with their real input) */
+        if (tick % 600 == 0 && getenv("ZENKAIPOWER_GS_VERBOSE") != NULL) {
+            fprintf(stderr, "net: blank %u: %u rollbacks (%.1f blanks each), %u waits in the last 600 blanks; ahead %d, they %d, slowed %u ms; %u checks against the other copy\n", tick, sRollbacks,
+                    sRollbacks != 0 ? (double)sRollTicks / sRollbacks : 0.0, sStalls, (int)sMyAhead, (int)sTheirAhead, sSlowed, sSyncCompared);
+            sRollbacks = sRollTicks = sStalls = sSlowed = sSyncCompared = 0;
+        }
+    }
+    if (Port_RollSave() != 0) {
+        sTick = tick; /* back at this blank, to run from here again */
+    }
+    gPortResim = sResim || Port_NetWarp();
+    memcpy(sUsed[tick % RING], sIn[other][(tick < sHave[other] ? tick : sHave[other] - 1) % RING], PAD);
+}
+
+/* Keep presenting frames while waiting for the other side during startup. */
+static void session_hold(void) {
+    if (sSession) {
+        if (sGone) {
+            gone(sTick);
+        }
+        Gs_HoldFrame();
+    }
+}
+
+/* A blank of a session's start-up (the logos and the card check, without picture, up to the character select:
+   Port_NetWarp). Nobody plays it, so both copies give it nothing pressed for both players and go on without
+   waiting for each other: the two run the same blanks from the same first blank with the same input and arrive at
+   the character select in the same state, at their own speed (it was the round trip per blank or two: half a
+   minute at 100 ms). The check values still travel (with a packet a tenth of a second, which also keeps the line
+   open) and are compared as always. */
+static void warp_tick(unsigned tick) {
+    static uint64_t last;
+    uint64_t now = SDL_GetTicksNS();
+    uint32_t at = (uint32_t)tick + (uint32_t)sDelay, k;
+
+    for (k = 0; k < 2; k++) {
+        while (sHave[k] <= at) {
+            memcpy(sIn[k][sHave[k] % RING], kIdle, PAD);
+            sHave[k]++;
+        }
+    }
+    memcpy(sUsed[tick % RING], kIdle, PAD); /* (what the rollback's reading of the other pad gives) */
+    sync_note(tick);
+    sync_check(tick, tick);
+    if (now - last > 100000000ull) {
+        send_inputs();
+        last = now;
+    }
+    receive();
+    if (sGone) {
+        gone(tick);
+    }
+    session_hold();
+    gPortResim = 1;
+}
+
+/* The first blank after the start-up: waits for the other copy to have arrived too (a slower machine may take a
+   while: a minute is allowed), and both must have arrived at the same blank, or the two games are not the same. */
+static void meet(unsigned tick) {
+    uint64_t t0 = SDL_GetTicksNS(), last = 0;
+
+    sMet = 1;
+    sMyArrival = tick;
+    do {
+        uint64_t now = SDL_GetTicksNS();
+        if (last == 0 || now - last > 50000000ull) {
+            uint32_t hello[4] = {MAGIC, T_ARRIVED, tick, 0};
+            send_to_peer(hello, (int)sizeof(hello));
+            last = now;
+        }
+        if (sTheirArrival != 0) {
+            break;
+        }
+        if (!receive()) {
+            SDL_DelayNS(200000);
+        }
+        if (sGone) {
+            gone(tick);
+        }
+        if (now - t0 > 60000000000ull) {
+            gone_quiet(tick);
+        }
+        session_hold();
+    } while (sTheirArrival == 0);
+    fprintf(stderr, "zenkaipower: net: both at the character select (blank %u), %u ms after connecting\n", tick, (unsigned)(now_ms() - sStartedMs));
+    if (sTheirArrival != tick) {
+        fprintf(stderr, "zenkaipower: net: the other copy reached the character select at blank %u\n", (unsigned)sTheirArrival);
+        sByeWhy = BYE_APART;
+        ended("The two games no longer agree (desync): the match has ended.", tick);
+    }
+}
+
+void Port_NetBeginTick(unsigned tick) {
+    uint64_t t0, last;
+
+    if (!Port_NetActive()) {
+        return;
+    }
+    sTick = tick;
+    if (sResultSolo) {
+        extern void PortSe_BlankBegins(unsigned tick);
+        PortSe_BlankBegins(tick);
+        return;
+    }
+    if (Port_NetWarp()) {
+        warp_tick(tick);
+        return;
+    }
+    if (Port_NetSession() && !sMet) {
+        meet(tick);
+    }
+    if (sRollMax > 0) {
+        roll_tick(tick);
+        return;
+    }
+    sample_local(tick);
+    if (sLagMs != 0) {
+        SDL_Delay((Uint32)sLagMs); /* (a crude stand-in for a slow line: everything this copy sends is late) */
+    }
+    send_inputs();
+    receive();
+    if (sResultSolo) return;
+    t0 = last = SDL_GetTicksNS();
+    if (sHave[!sMe] <= tick) {
+        WaitMark w = wait_begin(t0);
+        while (sHave[!sMe] <= tick) {
+            uint64_t now = SDL_GetTicksNS();
+            if (now - last > 4000000ull) {
+                send_inputs(); /* the other side may be waiting for a packet that was lost */
+                last = now;
+            }
+            if (!receive()) {
+                SDL_DelayNS(200000);
+            }
+            if (sResultSolo) return;
+            if (sGone) {
+                gone(tick);
+            }
+            if (now - t0 > QUIET_NS) {
+                gone_quiet(tick);
+            }
+        }
+        wait_end(w, tick);
+    }
+    sWaitNs += SDL_GetTicksNS() - t0;
+    sWaits++;
+    sync_note(tick); /* (nothing is guessed here: every blank is sure when it begins) */
+    sync_check(tick, tick);
+    {   /* (the meter, when the two copies wait for each other every blank: time waited, and blanks that waited
+           more than a millisecond) */
+        unsigned ms = (unsigned)((SDL_GetTicksNS() - t0) / 1000000ull);
+        sSecWaitMs += ms;
+        sSecWaits += ms >= 1;
+        if (++sSecTicks >= 60) {
+            sShown[1] = sShown[2] = 0;
+            sShown[3] = (int)sSecWaits;
+            sShown[4] = (int)sSecWaitMs;
+            sShown[5] = sSecWaitMaxNs >= 30000000ull ? sSecWaitWhy : 0;
+            sSecWaits = sSecWaitMs = sSecTicks = 0;
+            sSecWaitMaxNs = 0;
+        }
+    }
+    if (tick % 600 == 0 && getenv("ZENKAIPOWER_GS_VERBOSE") != NULL) {
+        fprintf(stderr, "net: blank %u: waited for the other player %.2f ms per blank on average; %u checks against the other copy\n", tick, (double)sWaitNs / (double)sWaits / 1e6,
+                sSyncCompared);
+        sWaitNs = sWaits = 0;
+        sSyncCompared = 0;
+    }
+}
+
+/* What the game reads for a pad during this blank. */
+void Port_NetInput(int player, unsigned char *data) {
+    if (sResultSolo) {
+        memcpy(data, kIdle, PAD);
+        if (player == sMe) Port_PadRead(0, data);
+        return;
+    }
+    if (sRollMax > 0 && player == !sMe) {
+        memcpy(data, sUsed[sTick % RING], PAD); /* their real input, or the guess (roll_tick) */
+        return;
+    }
+    memcpy(data, player >= 0 && player < 2 && sTick < sHave[player] ? sIn[player][sTick % RING] : kIdle, PAD);
+}
+
+int Port_NetResim(void) {
+    return sResim;
+}
+
+/* The blank the game is in (run for the first time or again). */
+unsigned Port_NetTick(void) {
+    return sTick;
+}
+
+/* Which player's view this copy shows full screen in a two-player battle: the local player's when online; -1
+   otherwise (the two views side by side, as always). ZENKAIPOWER_VIEW=0|1: the same without a connection, for looking at
+   it and for comparing the game's state between the three ways of showing a battle. */
+int Port_NetView(void) {
+    static int forced = -2;
+    if (forced == -2) {
+        const char *e = getenv("ZENKAIPOWER_VIEW");
+        forced = e != NULL ? atoi(e) : -1;
+    }
+    if (forced >= 0) {
+        return forced & 1;
+    }
+    return Port_NetActive() ? sMe : -1;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------
+ * The session started from the game's "Dragon Net Battle" entry.
+ *
+ * Two copies can only stay in step if they start from the same state, and two players coming from their own menus
+ * with their own saves are not in the same state. So a session is a fresh start of the program on both sides:
+ *   1. the lobby (the window behind the menu entry): one side hosts, the other joins; the two find each other
+ *      (Port_Lobby*, a greeting and its answer);
+ *   2. each side then starts the program again with ZENKAIPOWER_NET_SESSION=1 and its role, an empty save folder of the
+ *      session's own (net_session/), and connects again as above. The game boots without picture and sound and
+ *      not held to real time, straight into the versus mode's menu (headless.c). The session greeting exchanges
+ *      both players' saved character, stage and music unlock bits before selection;
+ *   3. from there it is the game's own two-player versus mode, the host's pad also driving the menus;
+ *   4. leaving the versus mode for the main menu ends the session: each side starts the program once more, as
+ *      it normally is, with its own save.
+ * ------------------------------------------------------------------------------------------------------------- */
+#ifndef _WIN32
+#include <unistd.h>
+#endif
+
+static void relaunch(int role, const char *join, int port) {
+    char value[160];
+#ifdef _WIN32
+    char exe[1024];
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+#define SETENV(n, v) SetEnvironmentVariableA(n, v)
+#else
+#ifdef __APPLE__
+    char exe[1024];
+#endif
+#define SETENV(n, v) ((v) != NULL ? setenv(n, v, 1) : unsetenv(n))
+#endif
+    SETENV("ZENKAIPOWER_NET_HOST", NULL);
+    SETENV("ZENKAIPOWER_NET_JOIN", NULL);
+    SETENV("ZENKAIPOWER_NET_SESSION", NULL);
+    SETENV("ZENKAIPOWER_NET_PC_BINDINGS", NULL);
+    SETENV("ZENKAIPOWER_NET_GAMEPAD_BINDINGS", NULL);
+    SETENV("ZENKAIPOWER_NET_LAN_SESSION", NULL);
+    SETENV("ZENKAIPOWER_NET_CODE_SESSION", NULL);
+    SETENV("ZENKAIPOWER_SOUND_TICKS", NULL);
+    if (role != 0) {
+        char unlocks[NET_UNLOCK_WORDS * 8 + 1];
+        char pcBindings[PORT_PC_BINDINGS * 8 + 1], gamepadBindings[PORT_GAMEPAD_BINDINGS * 8 + 1];
+        int pc[PORT_PC_BINDINGS], gamepad[PORT_GAMEPAD_BINDINGS];
+        int i;
+        capture_unlocks(role - 1);
+        PortInput_PcGet(pc);PortInput_GamepadGet(gamepad);
+        for(i=0;i<PORT_PC_BINDINGS;i++) snprintf(pcBindings+i*8,9,"%08x",(unsigned)pc[i]);
+        for(i=0;i<PORT_GAMEPAD_BINDINGS;i++) snprintf(gamepadBindings+i*8,9,"%08x",(unsigned)gamepad[i]);
+        pcBindings[sizeof(pcBindings)-1]=gamepadBindings[sizeof(gamepadBindings)-1]=0;
+        SETENV("ZENKAIPOWER_NET_PC_BINDINGS", pcBindings);
+        SETENV("ZENKAIPOWER_NET_GAMEPAD_BINDINGS", gamepadBindings);
+        SETENV("ZENKAIPOWER_NET_SAVE_MODE", sSourceZenkai ? "zenkai" : "regular");
+        SETENV("ZENKAIPOWER_NET_SAVE_ID", sSourceSaveId[0] ? sSourceSaveId : NULL);
+        SETENV("ZENKAIPOWER_NET_SAVE_HASH", sSourceSaveHash[0] ? sSourceSaveHash : NULL);
+        for (i = 0; i < NET_UNLOCK_WORDS; ++i) {
+            snprintf(unlocks + i * 8, 9, "%08x", (unsigned)sUnlocks[role - 1][i]);
+        }
+        SETENV("ZENKAIPOWER_NET_UNLOCKS", unlocks);
+        {
+            static const char hex[] = "0123456789abcdef";
+            char custom[NET_CUSTOM_BYTES * 2 + 1];
+            for (i = 0; i < NET_CUSTOM_BYTES; i++) {
+                custom[i * 2] = hex[sCustom[role - 1][i] >> 4];
+                custom[i * 2 + 1] = hex[sCustom[role - 1][i] & 15];
+            }
+            custom[NET_CUSTOM_BYTES * 2] = 0;
+            SETENV("ZENKAIPOWER_NET_CUSTOM", custom);
+        }
+        if (role == 1) {
+            snprintf(value, sizeof(value), "%d", port);
+            SETENV("ZENKAIPOWER_NET_HOST", value);
+        } else {
+            snprintf(value, sizeof(value), "%s:%d", join, port);
+            SETENV("ZENKAIPOWER_NET_JOIN", value);
+        }
+        SETENV("ZENKAIPOWER_NET_SESSION", "1");
+        if (sLanSession) SETENV("ZENKAIPOWER_NET_LAN_SESSION", "1");
+        if (sCodeSession) SETENV("ZENKAIPOWER_NET_CODE_SESSION", "1");
+        SETENV("ZENKAIPOWER_NET_NAME", sMyName);
+        {   /* a match found with a room code: the lobby's local port, and for the host where to go on knocking */
+            char text[64] = "";
+            snprintf(value, sizeof(value), "%d", sCodeLocalPort);
+            SETENV("ZENKAIPOWER_NET_LOCALPORT", sCodeLocalPort != 0 ? value : NULL);
+            if (sCodePunchSet) {
+                inet_ntop(AF_INET, &sCodePunch.sin_addr, text, sizeof(text));
+                snprintf(value, sizeof(value), "%s:%d", text, ntohs(sCodePunch.sin_port));
+            }
+            SETENV("ZENKAIPOWER_NET_PUNCH", sCodePunchSet ? value : NULL);
+        }
+        if (role == 1) {
+            snprintf(value, sizeof(value), "%u", (unsigned)sRules);
+            SETENV("ZENKAIPOWER_NET_RULES", value);
+        } else {
+            SETENV("ZENKAIPOWER_NET_RULES", NULL);
+        }
+        SETENV("ZENKAIPOWER_SOUND_TICKS", "1");
+        SETENV("ZENKAIPOWER_NOMOVIE", "1");
+        if (getenv("ZENKAIPOWER_NET_VOICE") == NULL) { /* (before the save folder changes: it is read from the player's own) */
+            SETENV("ZENKAIPOWER_NET_VOICE", own_voice_alt() ? "alt" : "default");
+        }
+        if (getenv("ZENKAIPOWER_NET_OPTS") == NULL) { /* (the same for the player's camera type and screen shake) */
+            snprintf(value, sizeof(value), "%u", (unsigned)(own_options() & 0xFFFFu));
+            SETENV("ZENKAIPOWER_NET_OPTS", value);
+        }
+        SETENV("ZENKAIPOWER_SAVES", "net_session");
+        /* the session's own save folder starts empty: both sides begin from the game's defaults */
+        remove("net_session/card1/BASLUS-21678DBZT3/game.sav");
+        remove("net_session/card1/BASLUS-21678DBZT3/BASLUS-21678DBZT3");
+        remove("net_session/card1/BASLUS-21678DBZT3/icon.sys");
+        remove("net_session/card1/BASLUS-21678DBZT3/dbzsm.ico");
+    } else {
+        SETENV("ZENKAIPOWER_NET_UNLOCKS", NULL);
+        SETENV("ZENKAIPOWER_NET_SAVE_MODE", NULL);
+        SETENV("ZENKAIPOWER_NET_SAVE_ID", NULL);
+        SETENV("ZENKAIPOWER_NET_SAVE_HASH", NULL);
+        SETENV("ZENKAIPOWER_NET_CUSTOM", NULL);
+        SETENV("ZENKAIPOWER_SAVES", NULL); /* (a save folder named on the command line is not carried over a session: known) */
+        SETENV("ZENKAIPOWER_NOMOVIE", "1");
+    }
+    fflush(NULL);
+#ifdef _WIN32
+    GetModuleFileNameA(NULL, exe, sizeof(exe) - 1);
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    if (CreateProcessA(exe, NULL, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) {
+        ExitProcess(0);
+    }
+#elif defined(__APPLE__)
+    {
+        extern int _NSGetExecutablePath(char *buf, uint32_t *size); /* <mach-o/dyld.h> */
+        uint32_t cap = sizeof(exe) - 1;
+        if (_NSGetExecutablePath(exe, &cap) == 0) {
+            char *argv[2] = {exe, NULL};
+            execv(exe, argv);
+        }
+    }
+#else
+    {
+        char *argv[2] = {(char *)"/proc/self/exe", NULL};
+        execv("/proc/self/exe", argv);
+    }
+#endif
+    fprintf(stderr, "zenkaipower: net: could not start the program again\n");
+    exit(2);
+}
+
+/* Restart after changing the menu language, keeping the player's launch environment. */
+void Port_Restart(const char *language) {
+    const char *settings = getenv("ZENKAIPOWER_SETTINGS");
+    /* With settings disabled, carry this run's choice through the restart. */
+    if (settings != NULL && settings[0] == '\0' && language != NULL) {
+#ifdef _WIN32
+        SetEnvironmentVariableA("ZENKAIPOWER_MENU_LANG", language);
+        _putenv_s("ZENKAIPOWER_MENU_LANG", language);
+#else
+        setenv("ZENKAIPOWER_MENU_LANG", language, 1);
+#endif
+    }
+    fflush(NULL);
+#ifdef _WIN32
+    char exe[1024];
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    GetModuleFileNameA(NULL, exe, sizeof(exe) - 1);
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    if (CreateProcessA(exe, NULL, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) ExitProcess(0);
+#elif defined(__APPLE__)
+    char exe[1024];
+    uint32_t cap = sizeof(exe) - 1;
+    extern int _NSGetExecutablePath(char *buf, uint32_t *size);
+    if (_NSGetExecutablePath(exe, &cap) == 0) { char *argv[2] = {exe, NULL}; execv(exe, argv); }
+#else
+    char *argv[2] = {(char *)"/proc/self/exe", NULL};
+    execv("/proc/self/exe", argv);
+#endif
+    fprintf(stderr, "zenkaipower: language: could not restart the program\n");
+    exit(2);
+}
+
+/* 1 in a session started from Dragon Net Battle. */
+int Port_NetSession(void) {
+    return Port_NetActive() && sSession;
+}
+
+/* In a Dragon Net session, battle controls still come from the player's in-game
+   Options companion. The isolated session card must not enable ZENKAI saves. */
+int Port_NetOptionsControlsEnabled(void) {
+    const char *mode=getenv("ZENKAIPOWER_NET_SAVE_MODE");
+    return (Port_NetSession() || getenv("ZENKAIPOWER_NET_SESSION") != NULL) &&
+        (sSourceZenkai || (mode != NULL && strcmp(mode,"zenkai")==0));
+}
+
+/* For the game's start-up (src/menu/menu_i_c.c, menu_a_c.c): 1 when it has to be the game's own whatever the
+   player's settings say, which is in every session. ZENKAIPOWER_TEST_OWN_START=1 (testing the check above): this copy
+   follows its settings in a session too, as 0.1.32 and 0.1.33 did. */
+int Port_NetFixedStart(void) {
+    return Port_NetSession() && getenv("ZENKAIPOWER_TEST_OWN_START") == NULL;
+}
+
+/* The session without starting the program again (gs/state.c exchanges the game's state; 64-bit programs).
+   Begin: called on the game's own thread just before the game is put back to its first moment. */
+extern int Port_SessionCan(void);                                    /* gs/state.c */
+extern void Port_SessionRequest(int role, const char *address, int port);
+extern void Port_SessionReturn(void);
+static char sSavesBefore[512];
+static int sSavesWasSet;
+
+static void put_env(const char *name, const char *value) {
+#ifdef _WIN32
+    SetEnvironmentVariableA(name, value);
+    _putenv_s(name, value != NULL ? value : "");
+#else
+    if (value != NULL) { setenv(name, value, 1); } else { unsetenv(name); }
+#endif
+}
+
+void Port_NetSessionBegin(int role, const char *address, int port) {
+    char host[16], join[160];
+    static int known;
+
+    if (!known) { /* the player's own save folder, as the program was started */
+        const char *saves = getenv("ZENKAIPOWER_SAVES");
+        known = 1;
+        sSavesWasSet = saves != NULL;
+        snprintf(sSavesBefore, sizeof(sSavesBefore), "%s", saves != NULL ? saves : "");
+    }
+    sMe = role - 1;
+    capture_unlocks(sMe);
+    /* the session's own save folder starts empty: both sides begin from the game's defaults */
+    remove("net_session/card1/BASLUS-21678DBZT3/game.sav");
+    remove("net_session/card1/BASLUS-21678DBZT3/BASLUS-21678DBZT3");
+    remove("net_session/card1/BASLUS-21678DBZT3/icon.sys");
+    remove("net_session/card1/BASLUS-21678DBZT3/dbzsm.ico");
+    sVoiceAlt = own_voice_alt(); /* (before the save folder changes: it is read from the player's own) */
+    put_env("ZENKAIPOWER_SAVES", "net_session");
+    snprintf(host, sizeof(host), "%d", port);
+    snprintf(join, sizeof(join), "%s:%d", address, port);
+    if (sSock >= 0) {
+        closesocket(sSock);
+        sSock = -1;
+    }
+    sSession = 1;
+    sArrived = 0;
+    sMyArrival = sTheirArrival = 0;
+    sMet = 0;
+    net_start(role, role == 1 ? host : NULL, role == 2 ? join : NULL);
+}
+
+/* How many sessions have ended in this run. The port's own memory: the game's is put back to the moment the session
+   was asked for, so this is how the screens that asked for it (menu/port_tbo.c) know it has been and gone. */
+static int sSessionsEnded;
+
+int Port_NetSessionsEnded(void) {
+    return sSessionsEnded;
+}
+
+int Port_NetTakeEndReason(void) {
+    int reason = sEndReason;
+    sEndReason = 0;
+    return reason;
+}
+
+void Port_NetSessionEnd(void) {
+    sResultScreen = sResultSolo = 0;
+    sSessionsEnded++;
+    Relay_Close(sSock);
+    if (sSock >= 0) {
+        closesocket(sSock);
+        sSock = -1;
+    }
+    sMode = 0;
+    sSession = 0;
+    sLanSession = 0;
+    sCodeSession = 0;
+    sBotSide = -1;
+    PortChat_Reset();
+    put_env("ZENKAIPOWER_SAVES", sSavesWasSet ? sSavesBefore : NULL);
+}
+
+/* The session's start-up runs without picture and sound and without waiting for real time until the game has
+   reached the versus menu (headless.c says when). */
+int Port_NetWarp(void) {
+    return Port_NetSession() && !sArrived;
+}
+void Port_NetArrived(void) {
+    sArrived = 1;
+    fprintf(stderr, "zenkaipower: net: the start-up is over at blank %u, %u ms after connecting: the character select\n", (unsigned)sTick, (unsigned)(now_ms() - sStartedMs));
+}
+
+/* The session is over (the game went back to the main menu, or the other side is gone): back to the game as it
+   normally is. */
+void Port_NetLeave(void) {
+    Port_NetStatsInterrupt();
+    fprintf(stderr, "zenkaipower: net: the session has ended\n");
+    if (sApartAt != 0) {
+        fprintf(stderr, "zenkaipower: net: the two games differed from blank %u on (%u comparisons differed)\n", (unsigned)sApartAt, sApartCount);
+    }
+    PortChat_Reset();
+    if (sSock >= 0 && sConnected) { /* tell the other side, so that it does not wait for input that will not come */
+        uint32_t bye[3] = {MAGIC, T_BYE, sByeWhy};
+        int k;
+        for (k = 0; k < 3; k++) {
+            net_send(bye, sizeof(bye), &sPeer);
+        }
+    }
+    if (Port_SessionCan()) {
+        Port_SessionReturn(); /* the game as it was when the session was asked for (does not return) */
+    }
+    relaunch(0, NULL, 0);
+}
+
+/* Leave immediately; the peer can acknowledge its own results later. */
+void Port_NetResultLeave(void) {
+    uint32_t bye[3] = {MAGIC, T_BYE, BYE_END_BATTLE};
+    int k;
+    Port_NetResultDetach();
+    sByeWhy = BYE_END_BATTLE;
+    if (sSock >= 0 && sConnected)
+        for (k = 0; k < 3; k++) net_send(bye, sizeof(bye), &sPeer);
+}
+
+/* Normal End Battle never opens a disconnect dialog. */
+void Port_NetEndBattle(void) {
+    sEndReason = 0;
+    sByeWhy = BYE_END_BATTLE;
+    Port_NetLeave();
+}
+
+/* ---- the lobby: called from the settings code's window (ui.cpp), once a frame ---- */
+static int sLobby; /* 0 idle, 1 waiting, 2 found, -1 failed */
+static int sLobbyRole, sLobbyPort;
+static char sLobbyAddr[128];
+static uint64_t sLobbyLast;
+static int sLanMode, sLanQueue;
+static char sLobbyPeerName[NAME_LEN];
+
+const char *Port_LobbyPeerName(void) { return sLobbyPeerName; }
+
+/* Room codes (net_match.c, matchmaking): the lobby's states 3 (asking the matchmaking service; the host's code
+   is known at some point, Port_LobbyCode) and, once the other player's addresses are known, 1 as with an address:
+   greetings go to every one of those addresses, and the host sends its own packets there too, so that both routers
+   let the other side in. -3: the service said no (Port_LobbyError); -4: the two could not reach each other. */
+static int sCodeMode, sCodeAddrs;
+static int sCodeRelay = -1; /* which of sCodeAddr is the host's relay address (the one who joins) */
+static int sCodeVia;        /* the match was reached through the relay (for the window) */
+static struct sockaddr_in sCodeSeen; /* the address the service saw the other player under (for the relay's permission) */
+static int sCodeSeenSet, sCodeGen, sCodeRelayGen; /* ... and which of the search's later news the lobby has taken in */
+
+int Port_LobbyRelayed(void) { return sCodeVia; }
+static struct sockaddr_in sCodeAddr[MATCH_ADDRS];
+static char sCodeText[8], sCodeError[192];
+static uint64_t sCodeSince;
+
+const char *Port_LobbyCode(void) { return sCodeText; }
+const char *Port_LobbyError(void) { return sCodeError; }
+
+int Port_LobbyStart(int host, const char *address, int port) {
+    struct sockaddr_in local;
+    extern int Port_ZenkaiEnabled(void);
+
+    /* Headless bots open their lobby before the interactive edition selection. */
+    if (!Port_ZenkaiEnabled() && getenv("ZENKAIPOWER_NET_BOT") == NULL) {
+        sLobby = -1;
+        return sLobby;
+    }
+    if (sHandSock >= 0) { /* (a session that was asked for and never began) */
+        closesocket(sHandSock);
+        sHandSock = -1;
+    }
+    if (sSock >= 0) {
+        closesocket(sSock);
+    }
+#ifdef _WIN32
+    {
+        WSADATA w;
+        u_long on = 1;
+        WSAStartup(MAKEWORD(2, 2), &w);
+        sSock = (int)socket(AF_INET, SOCK_DGRAM, 0);
+        ioctlsocket(sSock, FIONBIO, &on);
+    }
+#else
+    sSock = socket(AF_INET, SOCK_DGRAM, 0);
+    fcntl(sSock, F_SETFL, fcntl(sSock, F_GETFL, 0) | O_NONBLOCK);
+#endif
+    sCodeMode = 0;
+    sLanMode = 0;
+    sLobbyPeerName[0] = '\0';
+    sCodeVia = 0;
+    sCodeLocalPort = 0;
+    sCodePunchSet = 0;
+    sLobbyRole = host ? 1 : 2;
+    sLobbyPort = port;
+    snprintf(sLobbyAddr, sizeof(sLobbyAddr), "%s", address != NULL ? address : "");
+    memset(&sPeer, 0, sizeof(sPeer));
+    sPeer.sin_family = AF_INET;
+    sLobby = 1;
+    sLobbyOther = 0;
+    sLobbyLast = 0;
+    if (host) {
+        memset(&local, 0, sizeof(local));
+        local.sin_family = AF_INET;
+        local.sin_addr.s_addr = htonl(INADDR_ANY);
+        local.sin_port = htons((uint16_t)port);
+        if (bind(sSock, (struct sockaddr *)&local, sizeof(local)) != 0) {
+            sLobby = -1;
+        }
+    } else {
+        sPeer.sin_port = htons((uint16_t)port);
+        if (inet_pton(AF_INET, sLobbyAddr, &sPeer.sin_addr) != 1) {
+            struct hostent *he = gethostbyname(sLobbyAddr);
+            if (he == NULL) {
+                sLobby = -1;
+            } else {
+                memcpy(&sPeer.sin_addr, he->h_addr_list[0], sizeof(sPeer.sin_addr));
+            }
+        }
+    }
+    return sLobby;
+}
+
+/* Direct Wii Custom Battle on a LAN: exchange the queue and names before accepting a peer. */
+/* Keep getenv's host pointer out of translated game code (its pointers are 32 bits in the 64-bit build). */
+int Port_LanChoice(char *address, int capacity) {
+    const char *lan = getenv("ZENKAIPOWER_LAN");
+    if (lan == NULL || lan[0] == '\0') {
+        extern int Port_Setting(const char *, int);
+        extern void Port_SettingText(const char *, const char *, char *, int);
+        if (Port_Setting("dragon_net_mode", 1) != 2) return 3;
+        Port_SettingText("lan_address", "", address, capacity);
+        return address[0] ? 2 : 0;
+    }
+    if (strcmp(lan, "auto") == 0) return 0;
+    if (strcmp(lan, "host") == 0) return 1;
+    if (strncmp(lan, "join:", 5) == 0 && lan[5] != '\0') {
+        if (capacity < 2 || strlen(lan + 5) >= (size_t)capacity) return 4;
+        snprintf(address, (size_t)capacity, "%s", lan + 5);
+        return 2;
+    }
+    if (strcmp(lan, "online") == 0) return 3;
+    return 4;
+}
+
+int Port_LobbyStartLan(int host, const char *address, int port, int queue) {
+    int state = Port_LobbyStart(host, address, port);
+    if (state > 0 && queue >= 0 && queue < MATCH_QUEUES) {
+        sLanQueue = queue;
+        sLanMode = 1;
+    }
+    return state;
+}
+
+static int sQuickQueue = -1; /* Port_LobbyStartQuick: the search that Port_LobbyStartCode starts is a quick match in this queue */
+static int sCodeQuick; /* keep that distinction after sQuickQueue is reset */
+
+/* Matchmaking and the session use the same slots: host is P1, joiner is P2. */
+const char *Port_LobbyName(int player) {
+    if (player < 0 || player > 1) return "";
+    return player == sLobbyRole - 1 ? Port_NetNameGet() : sLobbyPeerName;
+}
+
+int Port_LobbyStartCode(int host, const char *code) {
+    struct sockaddr_in local;
+    socklen_t len = sizeof(local);
+
+    Port_LobbyStart(1, "", 0); /* a socket on a port of the system's choosing */
+    if (sLobby < 0) {
+        return sLobby;
+    }
+    if (getsockname(sSock, (struct sockaddr *)&local, &len) != 0) {
+        sLobby = -1;
+        return sLobby;
+    }
+    sLobbyRole = host ? 1 : 2;
+    sCodeMode = 1;
+    sCodeQuick = sQuickQueue >= 0;
+    sCodeAddrs = 0;
+    sCodeSeenSet = 0;
+    sCodeGen = sCodeRelayGen = 0;
+    sCodeText[0] = sCodeError[0] = '\0';
+    sCodeLocalPort = ntohs(local.sin_port);
+    sLobbyPort = sCodeLocalPort;
+    sLobby = 3;
+    Relay_Close(-1);
+    sCodeVia = 0;
+    Match_Begin(sQuickQueue >= 0 ? 3 : sLobbyRole, sSock, sCodeLocalPort, sQuickQueue >= 0 ? kMatchQueues[sQuickQueue] : code, sMyName, NET_VERSION);
+    return sLobby;
+}
+
+/* A quick match in one of the queues (net_match.h: kMatchQueues). Whether this player hosts or joins is the
+   service's choice, known when it answers (Port_LobbyPoll takes it from there). */
+int Port_LobbyStartQuick(int queue) {
+    if (queue < 0 || queue >= MATCH_QUEUES) {
+        return -1;
+    }
+    /* Apply ranked rules here so the game menus, settings UI and bots all use the same limit.
+       Time-list index 3 is 240 game seconds; unranked queues retain their selected rules. */
+    if (queue == MATCH_RANKED_SINGLE) Port_NetRulesSet(0, 0, 3);
+    sQuickQueue = queue;
+    Port_LobbyStartCode(1, "");
+    sQuickQueue = -1;
+    return sLobby;
+}
+
+void Port_LobbyQueuesAsk(void) { Match_QueuesAsk(NET_VERSION); }
+void Port_LobbyHelloAsk(void) { Match_HelloAsk(); }
+int Port_LobbyRelease(int *min, int *latest) { return Match_Release(min, latest); }
+int Port_LobbyQueueWaiting(int queue) { return Match_QueueWaiting(queue); }
+
+void Port_LobbyCancel(void) {
+    if (sCodeMode) {
+        Match_Cancel();
+        sCodeMode = 0;
+    }
+    Relay_Close(sSock);
+    if (sSock >= 0) {
+        closesocket(sSock);
+        sSock = -1;
+    }
+    sLobby = 0;
+    sLanMode = 0;
+    sCodeQuick = 0;
+    sLobbyPeerName[0] = '\0';
+}
+
+/* The other player's addresses as the matchmaking service gave them: where to knock, which of them is the host's
+   relay address, and whom this side's relay (if it holds one) lets through. Called again when they change. */
+static void lobby_take_addrs(const MatchStatus *st) {
+    int i;
+
+    sCodeAddrs = 0;
+    sCodeRelay = -1;
+    for (i = 0; i < st->peerCount && sCodeAddrs < MATCH_ADDRS; i++) {
+        char text[64], *colon;
+        const char *addr = st->peerAddr[i];
+        struct sockaddr_in *a = &sCodeAddr[sCodeAddrs];
+        memset(a, 0, sizeof(*a));
+        a->sin_family = AF_INET;
+        if (strncmp(addr, "seen=", 5) == 0) { /* the address the service saw the other player under: for the relay only */
+            if (inet_pton(AF_INET, addr + 5, &a->sin_addr) == 1) {
+                Relay_Permit(sSock, a);
+                sCodeSeen = *a;
+                sCodeSeenSet = 1;
+            }
+            continue;
+        }
+        if (strncmp(addr, "relay=", 6) == 0) { /* the host's relay address: tried when the direct ones stay silent */
+            addr += 6;
+            sCodeRelay = sCodeAddrs;
+        }
+        snprintf(text, sizeof(text), "%s", addr);
+        colon = strrchr(text, ':');
+        if (colon != NULL) {
+            *colon = '\0';
+            a->sin_port = htons((uint16_t)atoi(colon + 1));
+            if (inet_pton(AF_INET, text, &a->sin_addr) == 1 && a->sin_port != 0) {
+                Relay_Permit(sSock, a); /* (the host, if it holds a relay address: this player may come in through it) */
+                sCodeAddrs++;
+            } else if (sCodeRelay == sCodeAddrs) {
+                sCodeRelay = -1;
+            }
+        }
+    }
+}
+
+/* This side has got a relay address after the other player was known: he is let through it now. */
+static void lobby_permit_again(void) {
+    int i;
+    for (i = 0; i < sCodeAddrs; i++) {
+        if (i != sCodeRelay) {
+            Relay_Permit(sSock, &sCodeAddr[i]);
+        }
+    }
+    if (sCodeSeenSet) {
+        Relay_Permit(sSock, &sCodeSeen);
+    }
+}
+
+/* 0 idle, 1 still waiting, 2 the other player is there, -1 it cannot work (port in use, unknown address). */
+int Port_LobbyPoll(void) {
+    uint8_t pkt[256];
+    struct sockaddr_in from;
+    uint64_t now = SDL_GetTicksNS();
+    int n;
+
+    if (sLobby == 3) { /* a room code: what the matchmaking service has said so far */
+        MatchStatus st;
+        int i;
+        Match_Poll(&st);
+        if (st.state == 2) {
+            Relay_Tick(sSock); /* (the relay address is kept while the room waits; the thread is done with the socket) */
+        }
+        snprintf(sCodeText, sizeof(sCodeText), "%s", st.code);
+        if (st.role != 0) {
+            sLobbyRole = st.role; /* (a quick match: host or joiner, as the service decided) */
+        }
+        if (st.state == -1) {
+            snprintf(sCodeError, sizeof(sCodeError), "%s", st.error);
+            sLobby = -3;
+        } else if (st.state == 3) {
+            snprintf(sLobbyPeerName, sizeof(sLobbyPeerName), "%s", st.peerName);
+            lobby_take_addrs(&st);
+            sCodeGen = st.addrGen;
+            sCodeRelayGen = st.relayGen;
+            sCodeSince = now;
+            sLobby = sCodeAddrs > 0 ? 1 : -4;
+        }
+        return sLobby;
+    }
+    if (sLobby != 1) {
+        return sLobby;
+    }
+    if (sCodeMode) {
+        MatchStatus st;
+        if (Match_SocketBusy()) {
+            return sLobby; /* (the search's thread is getting a relay address on this socket: not touched meanwhile) */
+        }
+        Match_Poll(&st);
+        if (st.state == 3 && st.addrGen != sCodeGen) { /* the host's relay address has come: knocked at from now on */
+            sCodeGen = st.addrGen;
+            lobby_take_addrs(&st);
+        }
+        if (st.state == 3 && st.relayGen != sCodeRelayGen) { /* this side has a relay address now */
+            sCodeRelayGen = st.relayGen;
+            lobby_permit_again();
+        }
+    }
+    if (sCodeMode && now - sLobbyLast > 200000000ull) {
+        /* to every address the other player may be reached at: the one who joins greets, the host only knocks */
+        uint32_t hello[3] = {MAGIC, T_HELLO, NET_VERSION}, punch[2] = {MAGIC, T_PUNCH};
+        int i;
+        for (i = 0; i < sCodeAddrs; i++) {
+            if (i == sCodeRelay ? now - sCodeSince < 3000000000ull && getenv("ZENKAIPOWER_RELAY_ONLY") == NULL : getenv("ZENKAIPOWER_RELAY_ONLY") != NULL) {
+                continue; /* three seconds for the direct ways first (ZENKAIPOWER_RELAY_ONLY, testing: the relay at once, and
+                             nothing else, also while there is no relay address yet) */
+            }
+            if (sLobbyRole == 2) {
+                fprint_send(&sCodeAddr[i]);
+                net_send(hello, sizeof(hello), &sCodeAddr[i]);
+            } else {
+                net_send(punch, sizeof(punch), &sCodeAddr[i]);
+            }
+        }
+        sLobbyLast = now;
+        if (now - sCodeSince > 24000000000ull) {
+            sLobby = -4; /* 24 seconds of knocking (a relay address is asked for after four of them, see net_match.c):
+                            the two cannot reach each other */
+            return sLobby;
+        }
+    } else if (!sCodeMode && sLobbyRole == 2 && now - sLobbyLast > 200000000ull) {
+        uint32_t hello[4 + NAME_LEN / 4] = {MAGIC, T_HELLO, NET_VERSION, (uint32_t)sLanQueue};
+        if (sLanMode) snprintf((char *)&hello[4], NAME_LEN, "%s", sMyName);
+        fprint_send(&sPeer);
+        net_send(hello, sLanMode ? sizeof(hello) : 12, &sPeer);
+        sLobbyLast = now;
+    }
+    while ((n = net_recv(pkt, (int)sizeof(pkt), &from)) >= 8) {
+        uint32_t magic, type;
+        memcpy(&magic, pkt, 4);
+        memcpy(&type, pkt + 4, 4);
+        if (magic != MAGIC) {
+            continue;
+        }
+        if (type == T_FPRINT && fprint_differs(pkt, n)) {
+            /* not the same game data: no match (the host answers with its own, so that the other side knows too) */
+            if (sLobbyRole == 1) {
+                fprint_send(&from);
+            }
+            snprintf(sCodeError, sizeof(sCodeError), "%s", kDataDiffer);
+            sLobby = -3;
+            return sLobby;
+        } else if (sLobbyRole == 1 && type == T_HELLO && !(n >= 12 && memcmp(pkt + 8, &kVersion, 4) == 0)) {
+            sLobbyOther = 1; /* someone with another release is trying: the window says so, and goes on waiting */
+        } else if (sLobbyRole == 1 && type == T_HELLO) {
+            uint32_t ack[4 + NAME_LEN / 4] = {MAGIC, T_HELLO_ACK, NET_VERSION, (uint32_t)sLanQueue};
+            int k;
+            if (sLanMode) {
+                uint32_t queue;
+                if (n < (int)(16 + NAME_LEN)) continue;
+                memcpy(&queue, pkt + 12, sizeof(queue));
+                if (queue != (uint32_t)sLanQueue) continue;
+                memcpy(sLobbyPeerName, pkt + 16, NAME_LEN);
+                sLobbyPeerName[NAME_LEN - 1] = '\0';
+                snprintf((char *)&ack[4], NAME_LEN, "%s", sMyName);
+            }
+            fprint_send(&from);
+            for (k = 0; k < 3; k++) {
+                net_send(ack, sLanMode ? sizeof(ack) : 12, &from);
+            }
+            if (sCodeMode) { /* where the session goes on knocking, so that the greeting of the session gets in */
+                sCodePunch = from;
+                sCodePunchSet = 1;
+                sCodeVia = Relay_IsPeer(&from);
+            }
+            sLobby = 2;
+        } else if (sLobbyRole == 2 && type == T_HELLO_ACK) {
+            if (sLanMode) {
+                uint32_t queue;
+                if (n < (int)(16 + NAME_LEN)) continue;
+                memcpy(&queue, pkt + 12, sizeof(queue));
+                if (queue != (uint32_t)sLanQueue) continue;
+                memcpy(sLobbyPeerName, pkt + 16, NAME_LEN);
+                sLobbyPeerName[NAME_LEN - 1] = '\0';
+            }
+            sLobby = n >= 12 && memcmp(pkt + 8, &kVersion, 4) == 0 ? 2 : -2; /* -2: the host is another release */
+            if (sCodeMode && sLobby == 2) { /* the address that answered is the one the session joins */
+                inet_ntop(AF_INET, &from.sin_addr, sLobbyAddr, sizeof(sLobbyAddr));
+                sLobbyPort = ntohs(from.sin_port);
+                sCodeVia = sCodeRelay >= 0 && from.sin_addr.s_addr == sCodeAddr[sCodeRelay].sin_addr.s_addr && from.sin_port == sCodeAddr[sCodeRelay].sin_port;
+            }
+        }
+    }
+    return sLobby;
+}
+
+void Port_LobbyLaunch(void);
+const char *Port_NetNameGet(void);
+
+/* ZENKAIPOWER_LOBBY=host[:QUEUE] or ZENKAIPOWER_LOBBY=join:CODE: the room-code lobby driven without its window, once a blank (tests; the
+   code and each change of state are written to the log). ZENKAIPOWER_RELAY_ONLY=1: the one who joins tries nothing but the
+   host's relay address. */
+void Port_LobbyAuto(void) {
+    static int state = -99, begun, coded;
+    const char *what = getenv("ZENKAIPOWER_LOBBY");
+    int now;
+
+    if (what == NULL || begun == 2 || Port_NetSession()) {
+        return;
+    }
+    /* Authenticate headless bots before opening a matchmaking room. LAN needs no account. */
+    if (getenv("ZENKAIPOWER_NET_BOT") && strncmp(what, "lan:", 4) != 0 &&
+        strncmp(what, "direct:", 7) != 0) {
+        static int loginStarted;
+        char message[256];
+        if (!loginStarted) {
+            if (getenv("ZENKAIPOWER_NET_NAME")) Port_NetNameSet(getenv("ZENKAIPOWER_NET_NAME"));
+            loginStarted = 1;
+            /* Reuse net_account_bot.dat across supervisor restarts. The access
+               code is only a fallback when no usable saved session remains. */
+            Port_AccountRestore(Port_NetNameGet());
+        }
+        now = Port_AccountPoll(message, sizeof(message));
+        if (now == 1) return;
+        if (!Port_AccountLogged(Port_NetNameGet())) {
+            const char *code = getenv("ZENKAIPOWER_BOT_ACCESS_CODE");
+            if (loginStarted == 1 && code && code[0]) {
+                loginStarted = 2;
+                Port_AccountBegin(Port_NetNameGet(), code);
+                return;
+            }
+            fprintf(stderr, "zenkaipower: bot login failed: %s\n",
+                    message[0] ? message : "use --login with the bot account name and access code");
+            begun = 2;
+            return;
+        }
+    }
+    if (!begun) {
+        begun = 1;
+        if (getenv("ZENKAIPOWER_NET_BOT") != NULL && getenv("ZENKAIPOWER_NET_NAME") != NULL)
+            Port_NetNameSet(getenv("ZENKAIPOWER_NET_NAME"));
+        if (strncmp(what, "host:", 5) == 0) { /* room-code host with explicit battle rules */
+            int q, type, dp;
+            for (q = 0; q < MATCH_QUEUES && strcmp(what + 5, kMatchQueues[q]) != 0; q++) {
+            }
+            if (q < MATCH_QUEUES) {
+                type = q == 0 || q == MATCH_RANKED_SINGLE ? 0 : q == 1 ? 1 : 2;
+                dp = q >= 2 && q < MATCH_RANKED_SINGLE ? q - 2 : 0;
+                Port_NetSpeedSet(NET_SPEED_STANDARD);
+                Port_NetRulesSet(type, dp, 4);
+                Port_NetOptions(Port_RollCan() ? 8 : 0, -2);
+                Port_LobbyStartCode(1, "");
+            } else {
+                fprintf(stderr, "zenkaipower: lobby: unknown room mode '%s'\n", what + 5);
+                begun = 2;
+                return;
+            }
+        } else if (strncmp(what, "quick:", 6) == 0) { /* ZENKAIPOWER_LOBBY=quick:<queue>: a quick match (S, T, D10, D15, D20) */
+            int q, type, dp;
+            for (q = 0; q < MATCH_QUEUES && strcmp(what + 6, kMatchQueues[q]) != 0; q++) {
+            }
+            type = q == 0 || q == MATCH_RANKED_SINGLE ? 0 : q == 1 ? 1 : 2;
+            dp = q >= 2 && q < MATCH_RANKED_SINGLE ? q - 2 : 0;
+            Port_NetSpeedSet(NET_SPEED_STANDARD);
+            Port_NetRulesSet(type, dp, 4); /* (a queue's rules: its battle type, no time limit, 120%) */
+            if (getenv("ZENKAIPOWER_NET_ROLLBACK") == NULL && getenv("ZENKAIPOWER_NET_DELAY") == NULL) {
+                Port_NetOptions(Port_RollCan() ? 8 : 0, -2); /* (and a quick match's fixed rollback and delay, as the window sets them) */
+            }
+            Port_LobbyStartQuick(q);
+        } else if (strncmp(what, "lan:join:", 9) == 0) { /* lan:join:<address>:<queue> */
+            char addr[128], queue[16];
+            int q;
+            if (sscanf(what + 9, "%127[^:]:%15s", addr, queue) == 2) {
+                for (q = 0; q < MATCH_QUEUES && strcmp(queue, kMatchQueues[q]) != 0; q++) {
+                }
+                if (q < MATCH_QUEUES) Port_LobbyStartLan(0, addr, 25443, q);
+            }
+        } else if (strncmp(what, "direct:", 7) == 0) { /* ZENKAIPOWER_LOBBY=direct:<port> hosts, direct:<address>:<port> joins */
+            char addr[128];
+            int port;
+            if (sscanf(what + 7, "%127[^:]:%d", addr, &port) == 2) {
+                Port_LobbyStart(0, addr, port);
+            } else {
+                Port_LobbyStart(1, NULL, atoi(what + 7));
+            }
+        } else {
+            Port_LobbyStartCode(strncmp(what, "join:", 5) != 0, strncmp(what, "join:", 5) == 0 ? what + 5 : "");
+        }
+    }
+    now = Port_LobbyPoll();
+    if (now != state || (!coded && Port_LobbyCode()[0] != '\0')) {
+        state = now;
+        coded = Port_LobbyCode()[0] != '\0';
+        fprintf(stderr, "zenkaipower: lobby: state %d, code '%s'%s%s\n", now, Port_LobbyCode(), now == -3 ? ", " : "", now == -3 ? Port_LobbyError() : "");
+    }
+    if (now == 2) {
+        fprintf(stderr, "zenkaipower: lobby: the other player is there (%s)\n", Port_LobbyRelayed() ? "through the relay" : "directly");
+        begun = 2;
+        Port_LobbyLaunch();
+    } else if (now < 0) {
+        begun = 2;
+    }
+}
+
+/* The other player is there: start the session. */
+void Port_LobbyLaunch(void) {
+    sLanSession = sLanMode;
+    sCodeSession = sCodeMode && !sCodeQuick;
+    if (sCodeMode && Port_SessionCan()) {
+        sHandSock = sSock; /* the session goes on with this socket (see sHandSock) */
+    } else {
+        closesocket(sSock);
+    }
+    sSock = -1;
+    sLobby = 0;
+    sLanMode = 0;
+    if (sCodeMode) {
+        Match_Cancel();
+        sCodeMode = 0;
+        if (sLobbyRole == 1) {
+            sLobbyPort = sCodeLocalPort; /* the host's session listens where the lobby did */
+        }
+    }
+    if (Port_SessionCan()) {
+        Port_SessionRequest(sLobbyRole, sLobbyAddr, sLobbyPort); /* the game's thread makes the change at its next blank */
+        return;
+    }
+    relaunch(sLobbyRole, sLobbyAddr, sLobbyPort);
+}
+
+/* For the meter (ui.cpp). 0 when no match is on; else out = ping in ms (-1 not known yet), going back per second,
+   blanks per going back x 10, waits per second, ms waited per second, the rollback limit (0: waiting for each
+   other), the input delay, whether it is chosen from the ping, why the waits of the last second were (1: the other
+   game behind, 2: nothing came), the blank the two games came apart at (0: they agree). */
+int Port_NetStats(int *out) {
+    if (sMode <= 0 || !sConnected) {
+        return 0;
+    }
+    out[0] = sPingMs;
+    out[1] = sShown[1];
+    out[2] = sShown[2];
+    out[3] = sShown[3];
+    out[4] = sShown[4];
+    out[5] = sRollMax;
+    out[6] = sDelay;
+    out[7] = sAutoDelay;
+    out[8] = sShown[5];        /* why this copy waited in the last second (WHY_*), 0 for no wait worth naming */
+    out[9] = (int)sApartAt;    /* the blank at which the two games came apart, 0 for not */
+    return 1;
+}
+
+/* Mean absolute change between consecutive RTT samples during this battle. */
+int Port_NetJitterMs(void) {
+    return sConnection.active && sConnection.samples > 1 ?
+           (int)(sConnection.jitterSum / (sConnection.samples - 1)) : 0;
+}
+
+/* 1 while a copy of another release is trying to join the lobby this copy hosts. */
+int Port_LobbyOther(void) {
+    return sLobbyOther;
+}
+
+/* In ZENKAI mode the player name is read from the encrypted .options companion. */
+extern void Port_SettingText(const char *name, const char *def, char *out, int size);
+const char *Port_NetNameGet(void) {
+    static int loaded;
+    if (!loaded) {
+        const char *botName = getenv("ZENKAIPOWER_NET_BOT") ? getenv("ZENKAIPOWER_NET_NAME") : NULL;
+        char name[NAME_LEN];
+        loaded = 1;
+        if (botName && botName[0]) {
+            Port_NetNameSet(botName);
+        } else {
+            Port_SettingText("net_name", sMyName, name, sizeof(name));
+            Port_NetNameSet(name);
+        }
+    }
+    return sMyName;
+}
+
+/* Menu presentation survives the session's boot-state restore; it never affects simulation. */
+static int sBattleMenuStyle;
+int Port_NetBattleMenuStyle(int style) {
+    if (style >= 0) sBattleMenuStyle = style;
+    return sBattleMenuStyle;
+}
+
+/* Called at battle-scene start, once per rematch. Input observations are real
+   receives/sends, not simulated frame counts, and are never rewound. */
+void Port_NetConnectionBegin(void) {
+    memset(&sConnection, 0, sizeof(sConnection));
+    sConnection.active = 1;
+    sConnection.began = SDL_GetTicksNS();
+}
+
+int Port_NetConnectionJson(char *out, int capacity) {
+    char average[40] = "null", minimum[24] = "null", maximum[24] = "null", jitter[40] = "null";
+    char save_fields[160] = "";
+    int used;
+    uint64_t elapsed;
+    if (!sConnection.active) return 0;
+    sConnection.active = 0;
+    elapsed = (SDL_GetTicksNS() - sConnection.began) / 1000000;
+    if (sConnection.samples) {
+        SDL_snprintf(average, sizeof(average), "%.3f", (double)sConnection.rttSum / sConnection.samples);
+        SDL_snprintf(minimum, sizeof(minimum), "%d", sConnection.minRtt);
+        SDL_snprintf(maximum, sizeof(maximum), "%d", sConnection.maxRtt);
+    }
+    if (sConnection.samples > 1)
+        SDL_snprintf(jitter, sizeof(jitter), "%.3f", (double)sConnection.jitterSum / (sConnection.samples - 1));
+    if (sSourceZenkai && source_hex(sSourceSaveId, 32) && source_hex(sSourceSaveHash, 64))
+        SDL_snprintf(save_fields, sizeof(save_fields),
+            ",\"save_id\":\"%s\",\"save_hash\":\"%s\"", sSourceSaveId, sSourceSaveHash);
+    used = SDL_snprintf(out, capacity,
+        "{\"rtt_samples\":%llu,\"avg_ping_ms\":%s,\"min_ping_ms\":%s,\"max_ping_ms\":%s,\"jitter_ms\":%s,"
+        "\"duration_ms\":%llu,\"input_packets_sent\":%llu,\"input_packets_received\":%llu,"
+        "\"input_bytes_sent\":%llu,\"input_bytes_received\":%llu,\"wait_count\":%llu,\"wait_ms\":%.3f,"
+        "\"rollbacks\":%llu,\"rollback_frames\":%llu,\"input_delay_frames\":%d,\"rollback_window_frames\":%d,"
+        "\"relayed\":%s,\"protocol_version\":%d,\"save_mode\":\"%s\"%s}",
+        (unsigned long long)sConnection.samples, average, minimum, maximum, jitter,
+        (unsigned long long)elapsed, (unsigned long long)sConnection.sent, (unsigned long long)sConnection.received,
+        (unsigned long long)sConnection.sentBytes, (unsigned long long)sConnection.receivedBytes,
+        (unsigned long long)sConnection.waits, (double)sConnection.waitNs / 1000000.0,
+        (unsigned long long)sConnection.rolls, (unsigned long long)sConnection.rollFrames,
+        sDelay, sRollMax, sFromLobby && Port_LobbyRelayed() ? "true" : "false", NET_VERSION,
+        sSourceZenkai ? "zenkai" : "regular", save_fields);
+    return used > 0 && used < capacity;
+}

@@ -1,0 +1,65 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Build and run Windows release",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "noDebug": true,
+            "program": "${workspaceFolder}/build/windows-x64/ZenkaiPower.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build Windows release",
+            "externalConsole": false
+        },
+        {
+            "name": "Build and run Linux release",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/linux-x64/ZenkaiPower",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build Linux release",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Allow rollback write tracking to handle protected snapshot pages",
+                    "text": "handle SIGSEGV nostop noprint pass",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Stop on actual crashes after rollback rejects a fault",
+                    "text": "break on_crash",
+                    "ignoreFailures": false
+                }
+            ]
+        },{
+            "name": "Build complete release",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/linux-x64/ZenkaiPower",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "Build complete release",
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "setupCommands": [
+                {
+                    "description": "Allow rollback write tracking to handle protected snapshot pages",
+                    "text": "handle SIGSEGV nostop noprint pass",
+                    "ignoreFailures": false
+                },
+                {
+                    "description": "Stop on actual crashes after rollback rejects a fault",
+                    "text": "break on_crash",
+                    "ignoreFailures": false
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,2 @@
+android_toolchain.sh text eol=lf
+build_nod.sh text eol=lf

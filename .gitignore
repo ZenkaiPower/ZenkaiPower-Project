@@ -1,0 +1,109 @@
+*.iso
+*.rvz
+/disc/
+/wii/
+/tools/
+/.venv/
+/build/
+/asm/
+/roms/
+*.o
+.splache
+__pycache__/
+/build.ninja
+.ninja_*
+/port/build/
+/server/*.sqlite3
+/server/*.sqlite3-wal
+/server/*.sqlite3-shm
+/gamedata/
+port/tests/ps2float/*.o
+port/tests/ps2float/*.s
+!port/tests/ps2float/crt0*.s
+port/tests/ps2float/*.elf
+port/tests/ps2float/*.bin
+zenkaipower_pipelines.txt
+zenkaipower_crash.txt
+saves/
+zenkaipower_settings.txt
+docs/port/img/
+port/tests/ps2float/test.elf
+port/tests/ps2float/*.o
+/zenkaipower-setup
+/Tenkaichi3Decomp-setup
+/play.sh
+install.log
+port/build_release/
+
+# stages and songs from outside the disc that a player drops in next to the game (never committed)
+/stages/
+/songs/
+/textures/
+
+# Local account login tokens
+/net_account.dat
+/net_account.dat.*.tmp
+
+/net_account_bot.dat
+/net_account_bot.dat.*.tmp
+
+# Private Cloudflare migration credentials
+/server/cloudflare.local.json
+
+# Cloudflare development and private deployment configuration
+/server/node_modules/
+/server/.wrangler/
+/server/dist/
+/server/.dev.vars*
+/server/wrangler.local.json
+
+/server/wrangler.*.local.json
+
+# Generated Node dependencies and Miniflare cache at any level
+node_modules/
+
+# Player save, settings and private login files
+/savegame/
+
+# Binary player settings
+settings.dat
+settings.dat.part
+game-info.pak
+
+# Generated Linux and Windows release folders and archives
+/release/
+
+# Setup executable under the release product name
+/ZenkaiPower-setup
+
+/ZenkaiPower-bot
+
+# Native bot build outputs
+/bot/
+
+# Textures extracted with the export cheat
+/export/
+/port/export/
+
+# Mods
+mods/
+
+# TODO
+TODO.md
+
+# Ignore
+.ignore/
+# Local server databases
+/server/data/*.sqlite3*
+
+# Ignore generated files left by builds before the branding rename.
+bt3_pipelines.txt
+bt3_crash.txt
+bt3_settings.txt
+/bt3-setup
+
+# Assets
+assets/setup
+# Website build output
+/.pages-source/
+/.pages-output/

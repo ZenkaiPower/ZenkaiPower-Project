@@ -1,0 +1,130 @@
+{
+	"schema_version": 1,
+	"labels_version": 1,
+	"translation_version": 1,
+	"locale": "it",
+	"name": "Italiano",
+	"source": "ZENKAI Power!",
+	"labels": {
+		"pzs3us1/00448/1/25/6/0": {
+			"original": "MEMORY CARD slot 1",
+			"text": "Spazio di salvataggio"
+		},
+		"pzs3us1/00448/1/25/6/1": {
+			"original": "MEMORY CARD slot 2",
+			"text": "Spazio di salvataggio"
+		},
+		"pzs3us1/00448/1/25/6/2": {
+			"original": "MEMORY CARD slot 1 \u000aand MEMORY CARD slot 2",
+			"text": "Spazio di salvataggio"
+		},
+		"pzs3us1/00448/1/25/6/5": {
+			"original": "Checking memory card (PS2)...\u000aDo not remove memory card (PS2),\u000acontroller, reset, or switch off the console.",
+			"text": "Verifica dello spazio di salvataggio...\nNon chiudere il gioco."
+		},
+		"pzs3us1/00448/1/25/6/6": {
+			"original": "No memory card (PS2) inserted.\u000aAt least 61 KB of free space \u000ais required to save this game data. \u000aContinue anyway?",
+			"text": "Spazio di salvataggio non disponibile.\nContinuare comunque?"
+		},
+		"pzs3us1/00448/1/25/6/7": {
+			"original": "Not enough free space on memory \u000acard (PS2). At least 61 KB of free \u000aspace is required to save this game \u000adata. Continue anyway?",
+			"text": "Spazio di salvataggio insufficiente.\nContinuare comunque?"
+		},
+		"pzs3us1/00448/1/25/6/9": {
+			"original": "Do you wish to create a save file \u000aon the memory card (PS2)?",
+			"text": "Vuoi creare un file di salvataggio?"
+		},
+		"pzs3us1/00448/1/25/6/10": {
+			"original": "Creating save file. \u000aDo not remove memory card (PS2),\u000acontroller, reset, or switch off the console.",
+			"text": "Creazione del file di salvataggio.\nNon chiudere il gioco."
+		},
+		"pzs3us1/00448/1/25/6/11": {
+			"original": "Save file successfully created.",
+			"text": "File di salvataggio creato."
+		},
+		"pzs3us1/00448/1/25/6/12": {
+			"original": "Save file creation failed.",
+			"text": "Creazione del file di salvataggio non riuscita."
+		},
+		"pzs3us1/00448/1/25/6/13": {
+			"original": "Save game data?",
+			"text": "Salvare i dati di gioco?"
+		},
+		"pzs3us1/00448/1/25/6/14": {
+			"original": "Save data already exists.\u000aWould you like to overwrite the data?",
+			"text": "I dati di salvataggio esistono già.\nVuoi sovrascriverli?"
+		},
+		"pzs3us1/00448/1/25/6/15": {
+			"original": "Memory card (PS2) has been replaced\u000awith another.\u000aSave game data?",
+			"text": "Lo spazio di salvataggio è cambiato.\nSalvare i dati di gioco?"
+		},
+		"pzs3us1/00448/1/25/6/16": {
+			"original": "Saving data. \u000aDo not remove memory card (PS2), \u000acontroller, reset, or switch off the console.",
+			"text": "Salvataggio in corso.\nNon chiudere il gioco."
+		},
+		"pzs3us1/00448/1/25/6/17": {
+			"original": "Save successful.",
+			"text": "Salvataggio riuscito."
+		},
+		"pzs3us1/00448/1/25/6/18": {
+			"original": "Save failed.\u000aPlease check memory card \u000a(PS2) and try again.",
+			"text": "Salvataggio non riuscito.\nControlla lo spazio di salvataggio e riprova."
+		},
+		"pzs3us1/00448/1/25/6/19": {
+			"original": "Exit without saving?",
+			"text": "Uscire senza salvare?"
+		},
+		"pzs3us1/00448/1/25/6/20": {
+			"original": "Loading data. \u000aDo not remove memory card (PS2), \u000areset, or switch off the console.",
+			"text": "Caricamento dei dati.\nNon chiudere il gioco."
+		},
+		"pzs3us1/00448/1/25/6/21": {
+			"original": "Load successful.",
+			"text": "Caricamento riuscito."
+		},
+		"pzs3us1/00448/1/25/6/22": {
+			"original": "Load failed.\u000aPlease check memory card (PS2) and try again.",
+			"text": "Caricamento non riuscito.\nControlla lo spazio di salvataggio e riprova."
+		},
+		"pzs3us1/00448/1/25/6/24": {
+			"original": "Memory card (PS2)\u000ais unformatted.\u000aFormat memory card (PS2)?",
+			"text": "Lo spazio di salvataggio non è formattato.\nFormattarlo?"
+		},
+		"pzs3us1/00448/1/25/6/25": {
+			"original": "Formatting memory card (PS2). \u000aDo not remove memory card (PS2), \u000acontroller, reset, or switch off the console.",
+			"text": "Formattazione dello spazio di salvataggio.\nNon chiudere il gioco né interrompere il processo."
+		},
+		"pzs3us1/00448/1/25/6/26": {
+			"original": "Format successful.",
+			"text": "Formattazione riuscita."
+		},
+		"pzs3us1/00448/1/25/6/27": {
+			"original": "Format failed!\u000aPlease check memory card (PS2)\u000aand try again.",
+			"text": "Formattazione non riuscita!\nControlla lo spazio di salvataggio e riprova."
+		},
+		"pzs3us1/00448/1/25/6/28": {
+			"original": "No memory card (PS2) inserted.",
+			"text": "Nessuno spazio di salvataggio disponibile."
+		},
+		"pzs3us1/00448/1/25/6/29": {
+			"original": "Game data not found \u000ain memory card (PS2).",
+			"text": "Dati di gioco non trovati."
+		},
+		"pzs3us1/00448/1/25/6/30": {
+			"original": "Load Failed. \u000aMemory card (PS2) error!\u000aData may be corrupt.",
+			"text": "Caricamento non riuscito.\nI dati potrebbero essere\ndanneggiati o potresti non\navere i permessi per scrivere\nnello spazio di salvataggio."
+		},
+		"pzs3us1/00448/1/25/6/31": {
+			"original": "Not enough free space on memory \u000acard (PS2). At least 61 KB of free \u000aspace is required to save this game \u000adata.",
+			"text": "Spazio di salvataggio insufficiente.\n"
+		},
+		"pzs3us1/00448/1/25/6/32": {
+			"original": "Settings have been\u000achanged. Save the\u000achanged settings?",
+			"text": "Le impostazioni sono cambiate.\nSalvare le modifiche?"
+		},
+		"pzs3us1/00448/1/25/6/40": {
+			"original": "Checking memory card (PS2)...\u000aDo not remove memory card (PS2),\u000acontroller, reset, or switch off the console.",
+			"text": "Verifica dello spazio di salvataggio...\nNon chiudere il gioco."
+		}
+	}
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Generated upstream SDL sources: initializeBluetooth checks permission
+         before creating either manager/device; lint does not follow that guard
+         through callbacks. Normal Android gamepad input needs no Bluetooth grant. -->
+    <issue id="MissingPermission">
+        <ignore path="src/main/java/org/libsdl/app/HIDDeviceManager.java" />
+        <ignore path="src/main/java/org/libsdl/app/HIDDeviceBLESteamController.java" />
+    </issue>
+    <!-- SDL supplies RECEIVER_EXPORTED in its API >= 33 branch. The flagged
+         legacy overload is reached only on API < 33. -->
+    <issue id="UnspecifiedRegisterReceiverFlag">
+        <ignore path="src/main/java/org/libsdl/app/HIDDeviceManager.java" />
+    </issue>
+</lint>
