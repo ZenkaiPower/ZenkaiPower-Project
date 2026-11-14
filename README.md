@@ -166,7 +166,7 @@ Add a pause menu to the training mode, allowing players to adjust training setti
 
 ### Character Reference
 
-The *Character Reference* menu now include both Japanese and US voice actors for each character.
+The *Character Reference* menu now include both Japanese and US voice actors credits for each character.
 
 <img src="./figs/character-voices.gif" width="320"/>
 

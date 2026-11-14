@@ -1,6 +1,7 @@
 """Stage the public website without copying game data or local setup artwork."""
 from pathlib import Path
 import argparse
+import re
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,7 +20,18 @@ def prepare(destination):
     shutil.copytree(ROOT / 'web/assets', destination / 'assets')
     shutil.copy2(ROOT / 'assets/zp.png', destination / 'assets/zp.png')
     shutil.copytree(ROOT / 'figs', destination / 'figs')
-    readme = (ROOT / 'README.md').read_text(encoding='utf-8')
+    readme = (ROOT / 'README.md').read_text(encoding='utf-8-sig')
+    # Wrap edition content for the website while keeping the GitHub README intact.
+    editions_start = readme.index('### Sparking! METEOR')
+    editions_end = readme.index('<img src="./assets/zp.png"', editions_start)
+    editions = readme[editions_start:editions_end]
+    editions = re.sub(
+        r'(### [^\n]+\n\n)(.*?)(?=### |\Z)',
+        lambda match: match[1] + '<div class="edition-row" markdown="1">\n\n'
+        + match[2].rstrip() + '\n\n</div>\n\n',
+        editions, flags=re.DOTALL,
+    )
+    readme = readme[:editions_start] + editions + readme[editions_end:]
     readme = readme.replace('(./LICENSE)', '(https://github.com/ZenkaiPower/ZenkaiPower-Project/blob/main/LICENSE)')
     (destination / 'README.md').write_text(readme, encoding='utf-8')
     print(f'Website source: {destination}')
