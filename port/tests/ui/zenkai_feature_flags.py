@@ -17,7 +17,7 @@ with tempfile.TemporaryDirectory(prefix='zenkai-features-') as directory:
                         '-Iinclude', '-Iport/include', '-include', 'port_compat.h'] +
                        [f'-D{name}={value}' for name, value in zip(flags, values)] +
                        ['port/tests/ui/zenkai_feature_flags.c', 'port/tests/save/zenkai_feature_flags.c',
-                        'src/sys/save.c', 'src/menu/menu_c_c.c', 'src/menu/menu_a_d.c',
+                        'src/sys/save.c', 'src/sys/port_zenkai_pack.c', 'src/menu/menu_c_c.c', 'src/menu/menu_a_d.c',
                         'src/menu/menu_k_f.c', 'src/menu/menu_i_d.c', 'src/menu/menu_j_b.c',
                         '-Wl,--gc-sections', '-o', str(exe)],
                        cwd=ROOT, check=True)

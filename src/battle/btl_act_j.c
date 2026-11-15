@@ -652,7 +652,7 @@ s32 BtlAct_CanUseSkill(BtlActJChr *chr, u32 slot) {
 #endif
 
 #ifdef PORT
-    if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled() && BtlSkill_GetId(chr, slot) == 0x18 &&
+    if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled() && BtlSkill_GetId(chr, slot) == 0x18 &&
         Port_BtlKaiokenTier(chr) >= 3) return 0;
 #endif
     flags = BtlSkill_GetFlags(chr, slot);

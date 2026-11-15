@@ -52,9 +52,17 @@ typedef int SDL_SpinLock;
 void SDL_LockSpinlock(int *) {}
 void SDL_UnlockSpinlock(int *) {}
 static int sMeter=1,gsInterp,settingsWrites,apiSetting;
+extern "C" int Port_ClashSquare(void) { return 0; }
+extern "C" void Port_ClashSquareApply(int) {}
+extern "C" int Port_VirtualGamepad(void) { return 0; }
+extern "C" void Port_VirtualGamepadApply(int) {}
+
 bool meter_on(void) { return sMeter!=0; }
 static std::map<std::string,int> prefs;
 static int japaneseAvailable=1,wiiAvailable=1;
+int MenuTranslation_EuropeanAvailable(void) { return 1; }
+void Port_SettingText(const char *,const char *fallback,char *out,int size) { if(size>0) { strncpy(out,fallback,size-1);out[size-1]=0; } }
+
 int PortSongs_SoundtrackAvailable(void) { return japaneseAvailable; }
 extern "C" int Port_WiiArtAvailable(void) { return wiiAvailable; }
 int Port_Setting(const char *key,int fallback) { return !strcmp(key,"gpu_api") ? apiSetting:prefs.count(key) ? prefs[key]:fallback; }
@@ -114,9 +122,18 @@ void Port_FlashOptionsVideoFooter(int enabled) { nativeFooter=enabled; }
 void Option_PlateGoto(int a,int b,const char *label) { if(b==OPT_CLIP_BOTTOM) footerLabel=label; }
 static void Option_PortPrepareFooter(void);
 static void Option_PortDefaults(void);
+static int sOptionPackConfirm,packOn=1,packCanDisable=1;
+int Port_ZenkaiPackEnabled(void) { return packOn; }
+int Port_ZenkaiPackCanDisable(void) { return packCanDisable; }
+int Port_ZenkaiPackDisable(void) { if(!packCanDisable) return 0;packCanDisable=0;packOn=0;return 1; }
+static int Option_PortAvailable(int row) {
+ return row==PORT_CLASSIC_OPTION_ROW ? packCanDisable:Port_OptionsAvailable(row);
+}
+
 static int resetAnswer;
 void Option_UpdateReset(void) {
     if(resetAnswer>0) Option_PortDefaults();
+    sOptionPackConfirm=0;
     option.state=PORT_OPTION_VIDEO_PAGE;
 }
 #define OPT_VOICE(n) ((void)0)
@@ -356,53 +373,47 @@ int main(void) {
       }
       footerHit=0;option.state=state;sOptionVideoRow=row;sOptionSettingsCategory=category;sOptionVideoPhase=phase;
     }
-    /* New categories share the native lifecycle and persist existing settings. */
+    /* Current category order, resource gates, and save-owned Classic Mode. */
     option.state=PORT_OPTION_MORE_PAGE;sOptionVideoPhase=16;sOptionVideoClosing=0;sOptionVideoRow=2;
-    key(0,PADG_CROSS);assert(sOptionSettingsCategory==2 && Option_PortSettingCount()==4);
+    key(0,PADG_CROSS);assert(sOptionSettingsCategory==2 && Option_PortSettingCount()==3);
     for(int i=0;i<32;i++) Option_PortAdvance();
     assert(!strcmp(Option_PortHeading(),"Visual Settings"));
-    assert(Port_OptionsVideoGet(16)==1 && Port_OptionsVideoGet(18)==1);
-    Port_OptionsVideoChange(16,-1);
-    Port_OptionsVideoChange(16,1);native_video_apply();
-    assert(prefs["skip_logos"]==0 && prefs["skip_copyright"]==1);
-    Port_OptionsVideoChange(17,1);Port_OptionsVideoChange(18,-1);Port_OptionsVideoChange(18,1);native_video_apply();
-    assert(prefs["skip_intro"]==1 && prefs["language_prompt_always"]==1);
-    japaneseAvailable=0;native_video_apply();sOptionVideoRow=3;
+    Port_OptionsVideoChange(17,1);native_video_apply();assert(prefs["skip_intro"]==1);
+    Port_OptionsCategoryDefaults(2);native_video_apply();assert(prefs["skip_intro"]==0);
+    option.state=PORT_OPTION_MORE_PAGE;sOptionVideoPhase=16;sOptionVideoRow=3;
+    wiiAvailable=0;native_video_apply();key(0,PADG_CROSS);
+    for(int i=0;i<32;i++) Option_PortAdvance();
+    assert(sOptionSettingsCategory==3 && Option_PortSettingCount()==4);
+    assert(Option_PortSettingRow(0)==21 && Option_PortSettingRow(1)==19 &&
+           Option_PortSettingRow(2)==20 && Option_PortSettingRow(3)==PORT_CLASSIC_OPTION_ROW);
+    japaneseAvailable=0;native_video_apply();sOptionVideoRow=1;
     key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PAGE);
     Port_OptionsVideoChange(19,1);native_video_apply();assert(!prefs.count("game_version"));
     japaneseAvailable=1;native_video_apply();Port_OptionsVideoChange(19,1);native_video_apply();assert(prefs["game_version"]==1);
-    Port_OptionsCategoryDefaults(2);native_video_apply();
-    assert(prefs["skip_logos"]==0 && prefs["skip_copyright"]==1 && prefs["skip_intro"]==0 && prefs["language_prompt_always"]==1 && prefs["game_version"]==0);
-    option.state=PORT_OPTION_MORE_PAGE;sOptionVideoPhase=16;sOptionVideoRow=3;
-    wiiAvailable=0;native_video_apply();key(0,PADG_CROSS);
-    assert(sOptionSettingsCategory==3 && Option_PortSettingCount()==2);
-    for(int i=0;i<32;i++) Option_PortAdvance();
-    assert(!strcmp(Option_PortHeading(),"General Settings"));
-    sOptionVideoRow=1;
-    { PortMenuMouse mouse={500,88,1,0,0,0};
-      int sounds=soundCount;Option_PortVideoMouse(&mouse);
-      assert(sOptionVideoRow==0 && hover && soundCount==sounds+1 && lastSound==0);
-      Option_PortVideoMouse(&mouse);assert(soundCount==sounds+1); /* stationary focus is quiet */
-      mouse.confirm=1;gPad[0].gamePressed=gPad[0].gameRepeat=0;
-      Option_PortVideoMouse(&mouse);Option_PortInput();
-      assert(option.state==PORT_OPTION_VIDEO_PAGE && soundCount==sounds+2 && lastSound==1);
-    }
-    key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PAGE && lastSound==1); /* network unavailable */
-    Port_OptionsVideoChange(20,1);native_video_apply();assert(!prefs.count("dragon_net_mode"));
-    assert(Port_OptionsVideoGet(21)==0);
-    sOptionVideoRow=1;key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PICKER);
-    key(PADG_RIGHT,0);key(0,PADG_CROSS);key(0,0);assert(prefs["save_quick"]==1);
-    Port_OptionsCategoryDefaults(3);native_video_apply();
-    assert(prefs["save_quick"]==0 && !prefs.count("dragon_net_mode"));
-    { PortMenuMouse mouse={500,176,1,1,0,0};gPad[0].gamePressed=gPad[0].gameRepeat=0;
-      Option_PortVideoMouse(&mouse);assert(sOptionVideoRow==1 && !gPad[0].gamePressed); }
-    wiiAvailable=1;native_video_apply();sOptionVideoRow=0;
-    key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PICKER && option.picker==3);
-    key(PADG_RIGHT,0);key(0,PADG_CROSS);key(0,0);assert(prefs["dragon_net_mode"]==2);
-    key(0,PADG_CROSS);key(PADG_RIGHT,0);key(0,PADG_CROSS);key(0,0);assert(prefs["dragon_net_mode"]==1);
-    prefs["dragon_net_mode"]=0;native_video_apply(); /* legacy disabled preference maps to Online */
-    assert(Port_OptionsVideoGet(20)==0 && prefs["dragon_net_mode"]==1);
-    Port_OptionsCategoryDefaults(3);native_video_apply();assert(prefs["dragon_net_mode"]==1);
+    sOptionVideoRow=2;key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PAGE);
+    wiiAvailable=1;native_video_apply();prefs["dragon_net_mode"]=0;native_video_apply();assert(prefs["dragon_net_mode"]==1);
+    sOptionVideoRow=3;assert(!strcmp(Option_PortDescriptor(3)->label,"Classic Mode"));
+    assert(Option_PortSettingGet(3)==0 && Option_PortAvailable(PORT_CLASSIC_OPTION_ROW));
+    key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PICKER);
+    key(PADG_LEFT,0);assert(option.value==1 && packOn);
+    key(0,PADG_TRIANGLE);key(0,0);assert(packOn && !sOptionPackConfirm);
+    key(0,PADG_CROSS);key(PADG_LEFT,0);key(0,PADG_CROSS);
+    assert(sOptionPackConfirm && packOn && option.state==PORT_OPTION_VIDEO_PAGE);
+    key(0,0);assert(option.state==PORT_OPTION_VIDEO_RESET && packOn);
+    resetAnswer=-1;key(0,0);assert(packOn && !sOptionPackConfirm);
+    key(0,PADG_CROSS);key(PADG_LEFT,0);key(0,PADG_CROSS);key(0,0);
+    resetAnswer=1;key(0,0);assert(!packOn && !packCanDisable && option.dirty);
+    assert(!Option_PortAvailable(PORT_CLASSIC_OPTION_ROW) && Option_PortSettingGet(3)==1);
+    assert(Option_PortSettingCount()==4 && Option_PortSettingRow(3)==PORT_CLASSIC_OPTION_ROW);
+    key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PAGE && !sOptionPackConfirm);
+    Port_OptionsCategoryDefaults(3);native_video_apply();assert(!packOn);
+    packOn=1;packCanDisable=0;
+    assert(Option_PortSettingCount()==4 && Option_PortSettingGet(3)==0);
+    sOptionVideoRow=2;key(PADG_DOWN,0);assert(sOptionVideoRow==3);
+    key(0,PADG_CROSS);assert(option.state==PORT_OPTION_VIDEO_PAGE && packOn);
+    key(PADG_DOWN,0);assert(sOptionVideoRow==4);
+    key(PADG_DOWN,0);assert(sOptionVideoRow==0);
+    packCanDisable=1;option.dirty=0;
     /* All Options live in the companion; Sync leaves the main save intact. */
     unsigned char save[0x4000]={0},original[0x4000];
     memset(save,0xA5,sizeof(save));memcpy(original,save,sizeof(save));

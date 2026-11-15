@@ -175,7 +175,7 @@ static int PortTour_Owned(const SaveData *save, int chara) {
         (SAVE_CHARA_WORD(save, chara) & ((u64)1 << (chara % 64))) != 0;
 }
 static int PortTour_Enabled(void) {
-    return PORT_ZENKAI_TOURNAMENT && Port_ZenkaiEnabled();
+    return PORT_ZENKAI_TOURNAMENT && Port_ZenkaiPackEnabled();
 }
 static int PortTour_OriginalRoster(const SaveData *save) {
     static const u8 excluded[] = {7,8,9,10,24,38,54,69,70,71,72,75,76,97,110,

@@ -18,7 +18,7 @@ extern int Port_NetActive(void);
 
 static inline int BtlAiLevel_ZenkaiEnabled(void) {
 #ifdef PORT
-    return PORT_ZENKAI_RAISED_DIFFICULTY && Port_ZenkaiEnabled() && !Port_NetSession() && !Port_NetActive();
+    return PORT_ZENKAI_RAISED_DIFFICULTY && Port_ZenkaiPackEnabled() && !Port_NetSession() && !Port_NetActive();
 #else
     return 0;
 #endif

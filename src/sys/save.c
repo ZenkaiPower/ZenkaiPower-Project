@@ -93,6 +93,9 @@ void Save_UnlockAll(SaveData *opt) {
         }
     }
     opt->money = SAVE_MONEY_UNLOCK_ALL;
+#ifdef PORT
+    Port_ZenkaiPackEarnedZeni(opt, SAVE_MONEY_UNLOCK_ALL);
+#endif
     for (i = 0; i < SAVE_REC_COUNT; i++) {
         opt->rec[i].chara = -1;
     }
@@ -121,13 +124,16 @@ void Save_SetDefaults(SaveData *opt) {
     Port_ZenkaiNewGame();
 #endif
     memset(opt, 0, SAVE_SIZE);
+#ifdef PORT
+    Port_ZenkaiPackInit(opt);
+#endif
     opt->slot[0].flags |= 3;
     opt->slot[0].val[0] |= 1;
     opt->slot[0].val[2] |= 1;
     opt->unkC = 1;
     Save_ResetRules();
 #ifdef PORT
-    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled()) {
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiPackEnabled()) {
         /* ZENKAI saves start with the early Dragon History roster. Saved unlocks
            replace these defaults when loading an existing game. */
         for (i = 0; i < SAVE_CHARA_COUNT; i++) {
@@ -270,6 +276,9 @@ void Save_AddItem(s32 idx) {
 
 /* Adds amount (may be negative) to the money, clamped to 0..9,999,999. */
 void Save_AddMoney(s32 amount) {
+#ifdef PORT
+    Port_ZenkaiPackEarnedZeni(gSaveData, amount);
+#endif
     gSaveData->money += amount;
     if (gSaveData->money > SAVE_MONEY_MAX) {
         gSaveData->money = SAVE_MONEY_MAX;

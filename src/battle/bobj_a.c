@@ -1062,6 +1062,7 @@ void BtlObjBody_Swap(BobjBody *body) {
  * include model scaling; use local corners so repeated updates cannot compound it. */
 static void Port_BtlObjObbScale(BobjObb *box) {
     s32 i;
+    if (!Port_ZenkaiPackEnabled()) return;
     for (i = 0; i < 3; i++) {
         Vec4 *axis = &box->axis[i];
         f32 lengthSq = axis->x * axis->x + axis->y * axis->y + axis->z * axis->z;
@@ -1083,6 +1084,7 @@ static void Port_BtlObjObbScale(BobjObb *box) {
  * including a return to normal size; never multiply the previous frame's radius. */
 static void Port_BtlObjBodyPartSphere(BobjBodyPart *part) {
     Vec4 *half = &part->box.unk10;
+    if (!Port_ZenkaiPackEnabled()) return;
     part->radiusSq = half->x * half->x + half->y * half->y + half->z * half->z;
     part->radius = sqrtf(part->radiusSq);
 }
@@ -1355,7 +1357,7 @@ void BtlObjHit_BuildVolumes(BobjObj *obj) {
                 Mtx_MulVec4(&center, &part->mtx, &offset);
                 ColSphere_Set(&work->atkSphere[work->atkSphereCount], &center,
 #if defined(PORT) && PORT_ZENKAI_GIANTS
-                              hit->r0 * obj->xf.scale
+                              hit->r0 * (Port_ZenkaiPackEnabled() ? obj->xf.scale : 1.0f)
 #else
                               hit->r0
 #endif
@@ -1476,7 +1478,7 @@ void BtlObjXf_Update(BobjObj *obj) {
     Vu0Cur_StoreMtx(mtx);
     Mtx_InverseRT(&obj->xf.inv, mtx);
 #if defined(PORT) && PORT_ZENKAI_GIANTS
-    if (scale != 1.0f && scale > 0.0f) {
+    if (Port_ZenkaiPackEnabled() && scale != 1.0f && scale > 0.0f) {
         s32 r, c;
         f32 invScaleSq = 1.0f / (scale * scale);
         for (r = 0; r < 4; r++)
@@ -1496,7 +1498,7 @@ void BtlObjXf_SetMtx(BobjObj *obj, Mtx44 *m) {
     {
         f32 scaleSq = dst->m[0][0] * dst->m[0][0] + dst->m[0][1] * dst->m[0][1] +
                       dst->m[0][2] * dst->m[0][2];
-        if (scaleSq > 1.001f) {
+        if (Port_ZenkaiPackEnabled() && scaleSq > 1.001f) {
             s32 r, c;
             for (r = 0; r < 4; r++)
                 for (c = 0; c < 3; c++) obj->xf.inv.m[r][c] /= scaleSq;

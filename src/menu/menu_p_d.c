@@ -164,6 +164,7 @@ s32 UbScore_Transfer(s32 *from, s32 *to, s32 step, f32 rate) {
 #ifdef PORT
     if (Port_ZenkaiEnabled() && to == &P_SAVE->money && step > 0 && rate > 0.0f) {
         gPortUbPointsPending = 1;
+        Port_ZenkaiPackEarnedZeni(P_SAVE, (s32)((*from >= step ? step : *from) * rate));
     }
 #endif
     Snd_PlaySe(2, 5);

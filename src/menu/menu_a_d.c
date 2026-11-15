@@ -820,11 +820,11 @@ s32 ModeMenu_Run(s32 section) {
 #ifdef PORT
 /* Read through the menu's complete progress layout (battle uses a prefix view). */
 int Port_StoryIsFirstEpisode(void) {
-    return PORT_ZENKAI_STORY_RESTRICTIONS && Port_ZenkaiEnabled() && gProgress->subMenu == 0 && gProgress->subMenuItem == 0;
+    return PORT_ZENKAI_STORY_RESTRICTIONS && Port_ZenkaiPackEnabled() && gProgress->subMenu == 0 && gProgress->subMenuItem == 0;
 }
 
 int Port_StoryIsSaiyanEpisode(void) {
-    return PORT_ZENKAI_STORY_RESTRICTIONS && Port_ZenkaiEnabled() && gProgress->subMenu == 0 &&
+    return PORT_ZENKAI_STORY_RESTRICTIONS && Port_ZenkaiPackEnabled() && gProgress->subMenu == 0 &&
            (u32)gProgress->subMenuItem < 3;
 }
 #endif

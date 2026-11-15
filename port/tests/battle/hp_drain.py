@@ -65,6 +65,7 @@ static int zenkai=1,stopped,damageCalls,ends,mode;
 int gPortTrainingHealthRegeneration=1,gPortTrainingKiRegeneration=1,gPortTrainingBlastRegeneration=1,gPortTrainingSwitchRegeneration=1;
 static u32 motionFlags;
 int Port_ZenkaiEnabled(void) {return zenkai;}
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 BtlActMember *BtlMember_GetActive(BtlActChr *c) {return &c->members[c->active];}
 BtlActMember *BtlMember_Get(BtlActChr *c,int i) {return &c->members[i];}
 BtlActVitals *BtlMember_GetActiveGauge(BtlActChr *c) {return &BtlMember_GetActive(c)->vitals;}

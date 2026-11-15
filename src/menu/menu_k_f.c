@@ -576,7 +576,7 @@ void Bracket_FillEntrants(LBracket *b) {
     }
     /* Legacy Zenkai used the full CPU roster, which can fill a bracket even
        when the independently enabled story progression starts with ten entries. */
-    if (Port_ZenkaiEnabled()) {
+    if (Port_ZenkaiPackEnabled()) {
         cpuGrid = (LChrCell *)(MPACK_AT(b->res, 24) + 0x10);
         cpuGridCount = b->res[b->res[24] >> 2];
     }

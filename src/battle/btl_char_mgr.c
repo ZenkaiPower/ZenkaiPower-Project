@@ -294,7 +294,7 @@ void BtlChar_CopyMemberAbility(BtlMgrChr *chr, s32 idx) {
 
     for (i = 0; i < 4; i++) {
 #ifdef PORT
-        if (i == 3 && PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled()) {
+        if (i == 3 && PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled()) {
             dst->ability[i] = (src->ability[i] & ~PORT_KAIOKEN_TIER_MASK) |
                 (dst->ability[i] & PORT_KAIOKEN_TIER_MASK);
             continue;
@@ -455,7 +455,7 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
             m->bonus[6] = BtlUtil_Clamp(m->bonus[6] + other->bonus[6], -20, 40);
             for (i = 0; i < 4; i++) {
 #ifdef PORT
-                if (i == 3 && PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled()) {
+                if (i == 3 && PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled()) {
                     m->ability[i] |= other->ability[i] & ~PORT_KAIOKEN_TIER_MASK;
                     continue;
                 }

@@ -9,6 +9,7 @@ SaveData *gSaveData = &save;
 static TourMenu menu;
 static int zenkai=1;
 int Port_ZenkaiEnabled(void) { return zenkai; }
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 u32 Rand_Range(u32 n) { assert(n); return n-1; }
 extern void TourMenu_CheckInvite(void);
 

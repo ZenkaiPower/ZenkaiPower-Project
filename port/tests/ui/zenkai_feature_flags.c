@@ -63,5 +63,12 @@ int main(void) {
     save.stageBits=(u64)1<<2;
     Bracket_SetupBattle(&bracket);
     assert(stage==(PORT_ZENKAI_TOURNAMENT?32:2));
+    /* A saved Off pack wins over every enabled build switch. */
+    Port_ZenkaiPackInit(&save);
+    assert(Port_ZenkaiPackDisable());
+    gProgress->subMenu=0;gProgress->subMenuItem=0;
+    assert(!Port_StoryIsFirstEpisode() && !Port_StoryIsSaiyanEpisode());
+    assert(!PortTour_Enabled() && PortTour_Available(&save,2));
+    assert(BtlAiLevel_FromBase(6)==6 && BtlAiLevel_StoryOffset(2)==9);
     return 0;
 }

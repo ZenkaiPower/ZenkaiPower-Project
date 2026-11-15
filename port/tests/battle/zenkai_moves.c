@@ -9,6 +9,7 @@ static int active, online, allocations;
 static SaveData save;
 SaveData *gSaveData = &save;
 int Port_ZenkaiEnabled(void) { return active; }
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return online; }
 void *Heap_Alloc(s32 size, u32 align, s32 tail, s32 heap) {

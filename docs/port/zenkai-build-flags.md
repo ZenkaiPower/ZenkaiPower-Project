@@ -1,6 +1,6 @@
 # Zenkai gameplay build flags
 
-The five independent switches below are defined in
+The seven independent switches below are defined in
 [`include/sys/port_zenkai_features.h`](../../include/sys/port_zenkai_features.h).
 They default to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
 the compiler, then rebuild the game. These are build choices, not menu options.
@@ -12,6 +12,8 @@ Original mode retains its original behavior regardless of these switches.
 | `PORT_ZENKAI_STORY_UNLOCKS` | New Zenkai games start with ten entries and use additional Dragon History character rewards. | New games start with the original 132 entries; story rewards use the original character list, including Nail's original reward. |
 | `PORT_ZENKAI_TOURNAMENT` | Enables the documented Dragon World Tour progression pools, tournament locks, boss eligibility, identity/incarnation/form priorities, individual participant slots, DP-weighted CPU results, and fixed Yamcha stages. | Restores legacy tournament behavior: full-roster Zenkai CPU generation, original boss selection and exact-ID duplicate rules, no new Cell-completion lock, 50/50 CPU results, and random Yamcha maps. |
 | `PORT_ZENKAI_RAISED_DIFFICULTY` | Applies Zenkai's +10 CPU rebase (capped at 29) and its -5/0/+5 story difficulty offsets. | Uses original CPU levels and original 0/+6/+9 story offsets. |
+| `PORT_ZENKAI_SSJ2_MOVESET` | Enables Goku (End) SSJ2 replacement blasts. | Uses his original moveset. |
+| `PORT_ZENKAI_KAIOKEN` | Enables tiered Kaioken bonuses, upgrade costs, and HP drain. | Uses original Kaioken behavior. |
 | `PORT_ZENKAI_STORY_RESTRICTIONS` | Restricts Goku (Early)'s Kaioken Attack, Spirit Bomb/Genki Dama, and Kaioken support ability in the first story episode, and his special Kienzan blast in Saiyan Saga episodes. | Removes these story-specific restrictions; moves use their normal eligibility rules. |
 
 Changing the starting-roster flag does not rewrite existing saves. Start a new
@@ -28,7 +30,7 @@ The flags can be combined freely. In particular:
 - Disabling raised difficulty does not disable Training's retention of its selected
   CPU behavior across transformations and teammate switches.
 - Disabling story move restrictions does not enable the separate SSJ2 moveset or
-  tiered Kaioken features.
+  tiered Kaioken features when their build flags are disabled.
 
 ## Compiler overrides
 
@@ -44,14 +46,12 @@ pass the definitions to all game-source compilation steps; editing the shared
 header defaults also applies across platforms. A rebuild is required after either
 kind of change.
 
-## Existing independent combat flags
+## Runtime pack
 
-- `PORT_ZENKAI_SSJ2_MOVESET`: defaults to **0** in
-  [`port_zenkai_moves.c`](../../src/battle/port_zenkai_moves.c).
-- `PORT_ZENKAI_KAIOKEN`: defaults to **0** in
-  [`port_hp_drain.h`](../../include/battle/port_hp_drain.h).
-
-These keep their existing values and can still be overridden independently.
+All seven flags default to **1** in the shared header. They set which features
+are compiled in; they do not override a saved decision to disable the pack.
+[Classic Mode](zenkai-pack.md) controls the complete `zenkai_pack` at runtime.
+The two combat headers retain guarded fallbacks with the same enabled defaults.
 
 ## Verification
 

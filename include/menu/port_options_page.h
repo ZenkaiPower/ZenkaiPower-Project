@@ -14,6 +14,13 @@ extern void Port_FlashOptionsCaptionMotion(s32 layer,f32 *x,f32 *y);
 extern s32 Port_FlashOptionsCaptionStyle(s32 layer,u32 *tint);
 extern void Port_GsMarker(s32 effect);
 extern s32 Port_ZenkaiEnabled(void);
+extern int Port_ZenkaiPackEnabled(void);
+extern int Port_ZenkaiPackCanDisable(void);
+extern int Port_ZenkaiPackDisable(void);
+static s32 sOptionPackConfirm;
+static int Option_PortAvailable(int row) {
+    return row==PORT_CLASSIC_OPTION_ROW ? Port_ZenkaiPackCanDisable():Port_OptionsAvailable(row);
+}
 static s32 sOptionVideoRow,sOptionVideoFirst;
 static s32 sOptionPickerClosing;
 static s32 sOptionVideoEditing,sOptionVideoOriginal;
@@ -42,9 +49,12 @@ static const PortVideoOption *Option_PortDescriptor(s32 row) {
     return Port_OptionsDescriptor(Option_PortSettingRow(row));
 }
 static s32 Option_PortSettingGet(s32 row) {
+    if(Option_PortSettingRow(row)==PORT_CLASSIC_OPTION_ROW) return !Port_ZenkaiPackEnabled();
     return Port_OptionsVideoGet(Option_PortSettingRow(row));
 }
 static void Option_PortSettingChange(s32 row,s32 direction) {
+    /* This save-owned choice commits only after its separate confirmation. */
+    if(Option_PortSettingRow(row)==PORT_CLASSIC_OPTION_ROW) return;
     Port_OptionsVideoChange(Option_PortSettingRow(row),direction);
 }
 static void Option_PortCancelEdit(void) {
@@ -56,6 +66,10 @@ static void Option_PortCancelEdit(void) {
     }
 }
 static void Option_PortDefaults(void) {
+    if(sOptionPackConfirm) {
+        if(Port_ZenkaiPackDisable()) gOption->dirty=1;
+        return;
+    }
     Port_OptionsCategoryDefaults(sOptionSettingsCategory);
 }
 /* Both save policies defer persistence to the native Options exit flow. */
@@ -122,7 +136,7 @@ static void Option_PortArtInit(void) {
     s32 variant,frame;
     if(sOptionPortArtReady || !Port_ZenkaiEnabled()) return;
     Port_FlashOptionsChevronFrame(-1);
-    sOptionFooterSelected=0;sOptionVideoEditing=0;
+    sOptionFooterSelected=0;sOptionVideoEditing=0;sOptionPackConfirm=0;
     sOptionPortArtReady=1;sOptionTopLeaving=0;sOptionVideoPhase=sOptionVideoClosing=0;sOptionFromPage=OPT_ST_TOP;sOptionTopFirst=0;sOptionTopScroll=0;
     for(variant=0;variant<4;variant++) {
         memset(&sOptionPlateMovies[variant],0,sizeof(MFlash));
@@ -323,8 +337,11 @@ static s32 Option_PortInput(void) {
             Option_PlateGoto(0,OPT_CLIP_PICK,"fl_off_start");gOption->value^=1;
             Option_PlateGoto(0,OPT_CLIP_PICK,"fl_on_start");Snd_PlaySe(1,0);
         } else if(gPad[0].gamePressed&(PADG_CROSS|PADG_TRIANGLE)) {
-            if((gPad[0].gamePressed&PADG_CROSS) && gOption->value!=Option_PortSettingGet(sOptionVideoRow))
-                Option_PortSettingChange(sOptionVideoRow,1);
+            if((gPad[0].gamePressed&PADG_CROSS) && gOption->value!=Option_PortSettingGet(sOptionVideoRow)) {
+                if(Option_PortSettingRow(sOptionVideoRow)==PORT_CLASSIC_OPTION_ROW && gOption->value==1 && Port_ZenkaiPackCanDisable())
+                    sOptionPackConfirm=1;
+                else Option_PortSettingChange(sOptionVideoRow,1);
+            }
             if(gPad[0].gamePressed&PADG_TRIANGLE) {
                 Option_PlateGoto(0,OPT_CLIP_PICK,"fl_off_start");
                 gOption->value=Option_PortSettingGet(sOptionVideoRow);
@@ -339,7 +356,11 @@ static s32 Option_PortInput(void) {
     }
     if(gOption->state==PORT_OPTION_VIDEO_RESET) { Option_UpdateReset();return 1; }
     if(gOption->state==PORT_OPTION_VIDEO_PAGE) {
-        if(sOptionPickerClosing) { sOptionPickerClosing=0;return 1; } /* Native PAD gate waited for exit. */
+        if(sOptionPickerClosing) {
+            sOptionPickerClosing=0;
+            if(sOptionPackConfirm) {gOption->state=PORT_OPTION_VIDEO_RESET;gOption->resetStep=0;}
+            return 1;
+        } /* Native PAD gate waited for exit before opening confirmation. */
         if(sOptionVideoClosing || sOptionVideoPhase<16) return 1;
         if(gPad[0].gamePressed&PADG_TRIANGLE) {
             if(sOptionVideoEditing) { Option_PortCancelEdit();Snd_PlaySe(1,2);return 1; }
@@ -351,7 +372,7 @@ static s32 Option_PortInput(void) {
         } else if(!sOptionVideoEditing && (gPad[0].gameRepeat&(PADG_UP|PADG_DOWN))) {
             sOptionVideoRow=(sOptionVideoRow+((gPad[0].gameRepeat&PADG_UP) ? Option_PortSettingCount():1))%(Option_PortSettingCount()+1);
             Option_PortVideoEnsure();Snd_PlaySe(1,0);
-        } else if(sOptionVideoRow<Option_PortSettingCount() && !Port_OptionsAvailable(Option_PortSettingRow(sOptionVideoRow))) {
+        } else if(sOptionVideoRow<Option_PortSettingCount() && !Option_PortAvailable(Option_PortSettingRow(sOptionVideoRow))) {
             /* Focus and feedback remain native; only activation is blocked. */
             if(gPad[0].gamePressed&PADG_CROSS) Snd_PlaySe(1,1);
             else if(gPad[0].gameRepeat&(PADG_LEFT|PADG_RIGHT)) Snd_PlaySe(1,0);
@@ -656,7 +677,7 @@ static void Option_PortDraw(void) {
             char valueText[128],labelText[128];
             if(row>=Option_PortSettingCount()) break;
             option=Option_PortDescriptor(row);
-            s32 selected=Port_OptionsAvailable(Option_PortSettingRow(row)) ? Option_PortVideoFocus(row):
+            s32 selected=Option_PortAvailable(Option_PortSettingRow(row)) ? Option_PortVideoFocus(row):
                 (Option_PortVideoFocus(row) ? -2:-1);
             s32 value=Option_PortSettingGet(row);
             MenuTranslation_PortTextCopy(option->nameIds[value],option->names[value],valueText,sizeof(valueText));

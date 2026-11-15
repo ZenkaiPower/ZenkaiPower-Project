@@ -134,7 +134,7 @@ void BtlMember_LoadParams(BtlMemberChr *chr, s32 member, s32 init, f32 healthPct
 
     if (init) {
         #ifdef PORT
-        if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled()) m->ability[3] &= ~PORT_KAIOKEN_TIER_MASK;
+        if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled()) m->ability[3] &= ~PORT_KAIOKEN_TIER_MASK;
 #endif
         g->unk30 = 0;
         g->fused = 0;
@@ -882,18 +882,18 @@ void BtlMembers_UpdateQueuedDamage(void) {
 /* Tier state lives in the member so battle snapshots retain it. */
 int Port_BtlKaiokenTier(void *fighter) {
     BtlMemberChr *chr = (BtlMemberChr *)fighter;
-    return PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled() ? ((unsigned)BtlMember_GetActive(chr)->ability[3] >> 26) & 3 : 0;
+    return PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled() ? ((unsigned)BtlMember_GetActive(chr)->ability[3] >> 26) & 3 : 0;
 }
 void Port_BtlKaiokenClear(void *fighter) {
     BtlMemberChr *chr = (BtlMemberChr *)fighter;
-    if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled()) BtlMember_GetActive(chr)->ability[3] &= ~PORT_KAIOKEN_TIER_MASK;
+    if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled()) BtlMember_GetActive(chr)->ability[3] &= ~PORT_KAIOKEN_TIER_MASK;
 }
 int Port_BtlKaiokenUpgrade(void *fighter,int cost) {
     BtlMemberChr *chr = (BtlMemberChr *)fighter;
     BtlMember *member = BtlMember_GetActive(chr);
     int tier = Port_BtlKaiokenTier(chr);
     int count = cost > 0 ? member->gauge.blast / cost : 0;
-    if (!PORT_ZENKAI_KAIOKEN) return 0;
+    if (!PORT_ZENKAI_KAIOKEN || !Port_ZenkaiPackEnabled()) return 0;
     if (count > 3 - tier) count = 3 - tier;
     if (count < 0) count = 0;
     member->ability[3] = (member->ability[3] & ~PORT_KAIOKEN_TIER_MASK) | ((tier + count) << 26);
@@ -906,7 +906,7 @@ void Port_BtlHpDrainTick(void *fighter,int kaioken) {
     s32 rate,amount;
     s32 tier=Port_BtlKaiokenTier(chr);
     if(!Port_ZenkaiEnabled()) return;
-    kaioken = kaioken && PORT_ZENKAI_KAIOKEN;
+    kaioken = kaioken && PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled();
     rate=Port_HpDrainRate(BtlMember_HasAbility(chr,PORT_ABILITY_HP_DRAIN_50),
         BtlMember_HasAbility(chr,PORT_ABILITY_HP_DRAIN_100),
         BtlMember_HasAbility(chr,PORT_ABILITY_HP_DRAIN_150),kaioken ? (tier ? tier:1):0);

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "labels_version": 2,
-  "translation_version": 3,
-  "labels_count": 417,
+  "translation_version": 6,
+  "labels_count": 420,
   "locale": "en",
   "name": "English",
   "order": 1,
@@ -1674,6 +1674,18 @@
     "character-reference/voice/160": {
       "original": "Kyle Hebert",
       "text": "Kyle Hebert"
+    },
+    "options/setting/classic-mode": {
+      "original": "Classic Mode",
+      "text": "Classic Mode"
+    },
+    "options/help/classic-mode": {
+      "original": "Change the game to classical progress and mechanics.",
+      "text": "Change the game to classical progress and mechanics."
+    },
+    "options/confirm/classic-on": {
+      "original": "Enable Classic Mode?\nYou cannot turn it off again.",
+      "text": "Enable Classic Mode?\nYou cannot turn it off again."
     }
   }
 }

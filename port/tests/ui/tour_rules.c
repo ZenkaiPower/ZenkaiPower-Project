@@ -12,6 +12,7 @@ static unsigned randomState;
 static int forcedRoll=-1, randomBound, randomCalls;
 static int zenkai = 1;
 int Port_ZenkaiEnabled(void) { return zenkai; }
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 u32 Rand_Range(u32 n) {
     assert(n > 0);randomBound=n;randomCalls++;
     if(forcedRoll>=0) {assert((u32)forcedRoll<n);return forcedRoll;}

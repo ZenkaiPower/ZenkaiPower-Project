@@ -36,7 +36,7 @@ More Options
   Video Settings
   Battle Effects
   Visual Settings (Startup Logos, Intro Movie, Language Selection)
-  General Settings (Autosave, Game Edition, Network Mode)
+  General Settings (Autosave, Game Edition, Network Mode, Classic Mode)
   EXIT — returns to Options
 
 Video Settings — four visible settings at a time
@@ -281,3 +281,28 @@ During ZENKAI play, numeric keys owned by More Options use a runtime overlay in 
 Checks: `options_video.py` covers native/port round trips, migration, schema rejection, dirty tracking, failed publication, missing-disc preservation and Original mode isolation. `port/tests/save/options_file.c` uses temporary files to check versioned save IO, corruption detection, failed atomic replacement and preservation of unrelated save bytes. `options_settings.c` checks runtime/cache isolation. No player save files are used.
 
 Startup Logos, Intro Movie and Language Selection use positive On=show/play semantics. Defaults are On, On and On respectively. The copyright page is always skipped, regardless of the Startup Logos setting; the legacy `skip_copyright` preference is retained for compatibility. The ZOP2 decoder also accepts ZOP1 saves and inverts their three legacy skip values, preserving saved startup behavior. Existing preference keys remain compatible.
+
+
+## Classic Mode (save-owned General Settings option)
+
+General Settings always displays Classic Mode after Network Mode as its fourth
+row. It is enabled only while the current save can still disable the Zenkai pack. Its descriptor-only
+flattened row is `PORT_CLASSIC_OPTION_ROW` (22). The existing 22 persisted ZOP rows
+stay unchanged: the choice belongs to the main save, not the Options companion.
+It is exposed only in the in-game menu and managed on the game thread.
+
+The native On/Off picker displays the inverse of the pack state: Off keeps the
+pack enabled; On requests original progress and mechanics. Help reads:
+"Change the game to classical progress and mechanics."
+Confirming On closes the picker, then opens the native Yes/No dialog:
+"Enable Classic Mode? You cannot turn it off again."
+No is selected by default. Cancel/No changes nothing; Yes commits the permanent
+pack-disabled flag and marks Options dirty for the normal game-save flow.
+
+After earning positive Zeni or enabling Classic Mode, the entry stays visible
+and focusable but is dimmed and cannot open its picker. Older saves without the
+earnings record also disable it. The row count and Default footer stay unchanged.
+Default never changes this save-owned choice. The setter rechecks eligibility
+before committing. The renderer bridge skips this row when resetting category
+defaults; native picker captions use its shared descriptor.
+See [the pack contract](zenkai-pack.md) for feature IDs and saved layout.

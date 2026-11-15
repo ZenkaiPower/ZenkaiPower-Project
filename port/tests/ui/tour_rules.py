@@ -56,6 +56,7 @@ static ESel selector;
 ESel *gEntrySel=&selector;
 static ESelState state;
 int Port_ZenkaiEnabled(void) {return 1;}
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 u32 Rand_Range(u32 n) {assert(n);return n-1;}
 int ChrTbl_WrapCostume(int c,int *color) {return c==99?4:2;}
 ''' + player[start:end] + r'''

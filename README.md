@@ -219,6 +219,12 @@ Game modes raises base CPU difficulty, making the game a little more challenging
 
 Leaving *Ultimate Battle* or *Ultimate Training* after progress was made will now prompt the player to save their progress on exit.
 
+**Classic Mode** disables the seven-feature Zenkai gameplay pack and restores
+original progress and mechanics. Find it under **Options ? More Options ? General
+Settings** before earning any Zeni. Enabling it requires confirmation and is
+permanent for that save. The entry stays visible but is disabled after earning Zeni or enabling
+Classic Mode. See the [feature IDs and save rules](docs/port/zenkai-pack.md).
+
 In the first episode of *Dragon History*, Goku (Early) Kaioken Attack, Genki Dama and Kaioken ability was disabled, to be accurate with the history. It also disables Goku (Early) special Kienzan blast on Saiyan Saga, for the same reason.
 
 Character progression, Dragon World Tour changes, raised CPU difficulty, and these story move restrictions can each be enabled or disabled at compile time. See the [Zenkai build flags](docs/port/zenkai-build-flags.md).

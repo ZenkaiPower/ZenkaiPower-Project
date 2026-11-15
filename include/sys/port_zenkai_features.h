@@ -1,5 +1,11 @@
 #ifndef SYS_PORT_ZENKAI_FEATURES_H
 #define SYS_PORT_ZENKAI_FEATURES_H
+#ifndef PORT_ZENKAI_SSJ2_MOVESET
+#define PORT_ZENKAI_SSJ2_MOVESET 1
+#endif
+#ifndef PORT_ZENKAI_KAIOKEN
+#define PORT_ZENKAI_KAIOKEN 1
+#endif
 /* Override with -DNAME=0 to restore the corresponding original rules. */
 #ifndef PORT_ZENKAI_GIANTS
 #define PORT_ZENKAI_GIANTS 1

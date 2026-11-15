@@ -7,6 +7,14 @@ extern "C" {
 /* Selection is transactional: cancelling a load/new-game flow retains the
  * current game's rules and save destination. UI settings only select a future game. */
 int Port_ZenkaiEnabled(void);
+/* Per-save Classic Mode. Disabling the pack does not change save selection. */
+int Port_ZenkaiPackEnabled(void);
+int Port_ZenkaiPackCanDisable(void);
+int Port_ZenkaiPackDisable(void);
+void Port_ZenkaiPackInit(void *save);
+void Port_ZenkaiPackEarnedZeni(void *save, int amount);
+int Port_ZenkaiFeatureEnabled(const char *id);
+int Port_ZenkaiFeatureInGroup(const char *id, const char *group);
 /* Offline Zenkai giant model, collision, camera and effect helpers. */
 float Port_ZenkaiGiantScale(int type, const void *param);
 float Port_ZenkaiGiantAnimationScale(int type, const void *param);

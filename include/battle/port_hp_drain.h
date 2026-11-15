@@ -1,7 +1,8 @@
 #ifndef BATTLE_PORT_HP_DRAIN_H
 #define BATTLE_PORT_HP_DRAIN_H
+#include "../sys/port_zenkai_features.h"
 #ifndef PORT_ZENKAI_KAIOKEN
-#define PORT_ZENKAI_KAIOKEN 0
+#define PORT_ZENKAI_KAIOKEN 1
 #endif
 /* Zenkai-only HP-drain ability bits. */
 #define PORT_ABILITY_HP_DRAIN_50 0x7D
@@ -20,6 +21,7 @@ static int Port_HpDrainAmount(int hp,int rate,int lethal) {
 }
 #ifdef PORT
 extern int Port_ZenkaiEnabled(void);
+extern int Port_ZenkaiPackEnabled(void);
 int Port_BtlKaiokenTier(void *fighter);
 void Port_BtlKaiokenClear(void *fighter);
 int Port_BtlKaiokenUpgrade(void *fighter,int cost);

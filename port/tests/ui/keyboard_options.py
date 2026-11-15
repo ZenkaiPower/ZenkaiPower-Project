@@ -23,6 +23,7 @@ typedef unsigned u32;typedef int s32;typedef float f32;typedef unsigned short u1
 #define OPT_ITEM_KEYS 17
 #define OPT_ITEM_VIB 18
 #define OPT_ITEM_CTRL_RESET 19
+#define OPT_CLIP_PICK 4
 #define OPT_CLIP_BOTTOM 3
 #define OPT_CLIP_ROW_CTRL 6
 #define PADG_UP 8
@@ -36,8 +37,15 @@ typedef struct { float x,y;int moved,confirm,cancel,wheel; } PortMenuMouse;
 typedef struct {} MFlashRef;
 typedef struct { int x0,y0,x1,y1; } MFlashUv;
 static struct { int gamePressed,gameRepeat; } gPad[1];
-static struct { int state,cursor,dirty,page,voiceLine,resetStep;void *res,*dialogMsg;void *flash; } option,*gOption=&option;
+static struct { int state,cursor,dirty,page,voiceLine,resetStep,value,picker;void *res,*dialogMsg;void *flash; } option,*gOption=&option;
 static int sOptionPcGamepad,gamepadCapture=-1,pcDefaults,padDefaults;
+static int sOptionPackConfirm,clashSquare,virtualGamepad;
+extern "C" int Port_ClashSquare(void) { return clashSquare; }
+extern "C" void Port_ClashSquareApply(int on) { clashSquare=on; }
+extern "C" int Port_VirtualGamepad(void) { return virtualGamepad; }
+extern "C" void Port_VirtualGamepadApply(int on) { virtualGamepad=on; }
+int MenuTranslation_PortTextCopy(const char *,const char *fallback,char *out,int capacity) { snprintf(out,capacity,"%s",fallback);return 1; }
+
 extern "C" void PortInput_PcDefaults(void) { pcDefaults++; }
 extern "C" void PortInput_GamepadDefaults(void) { padDefaults++; }
 static int unbound,captionKind,spriteCount,lastAlpha;
@@ -93,7 +101,10 @@ void Ps_SpriteScreen(int,float x0,float y0,float x1,float,float,float,float,floa
 }
 int MsgWin_PortLineRoom(int) { return 400; }
 void Port_MsgWinDrawString43(u16 *) {}
-void Option_PortWrapHelp(const char *,u16 *,int,int) {}
+void Option_PortWrapHelp(const char *text,u16 *out,int size,int) {
+ int i;for(i=0;i<size-1 && text[i];i++) out[i]=(unsigned char)text[i];out[i]=0;
+}
+void Option_PortPickerMouse(PortMenuMouse *) {}
 void Option_UpdateReset(void);
 #include "menu/port_keyboard_options.h"
 #define PORT 1
@@ -111,14 +122,16 @@ static struct { int screenX,screenY,unk1694,unk1698,soundMode,bgmVolume,seVolume
 static int dialogAnswer,dialogStarts,dialogCursor;
 void Dialog_Init(int,void *,int) {}
 void Dialog_SetCursor(int cursor) { dialogCursor=cursor; }
-void Dialog_SetMsgTable(void *) {}
+static void *dialogTable;
+void Dialog_SetMsgTable(void *table) { dialogTable=table; }
 void Dialog_SetMsg(int) {}
 void Dialog_SetChoices(int) {}
 void Dialog_Start(int closing) { dialogStarts++; }
 int Dialog_Input(int) { int answer=dialogAnswer;dialogAnswer=0;return answer; }
 int Dialog_IsClosed(void) { return 1; }
 void SndOpt_Apply(void) {}
-void Option_PortDefaults(void) { assert(0); }
+static int packCommits;
+void Option_PortDefaults(void) { assert(sOptionPackConfirm);packCommits++;gOption->dirty=1; }
 
 ''' + menu[menu.index('void Option_UpdateReset(void) {'):menu.index('/* Gives the two text clips', menu.index('void Option_UpdateReset(void) {'))] + r'''
 ''' + 'static void prepare_viewport(void) {' + viewport_call + '}\n' + r'''
@@ -127,13 +140,12 @@ static int key(int repeat,int pressed) {
 }
 int main(void) {
     assert(!strcmp(sPortPcLabels[15],"Switch Character") && !strcmp(sPortPcLabels[16],"Transform/Progress"));
-    option.state=OPT_ITEM_CTRL;option.page=NATIVE_CONTROLLER_PAGE;option.cursor=OPT_ITEM_KEYS;
+    option.state=OPT_ITEM_CTRL;option.page=NATIVE_CONTROLLER_PAGE;option.cursor=OPT_ITEM_VIB;
     assert(PORT_PC_CONTROLLER_PAGE==NATIVE_CONTROLLER_PAGE);
-    prepare_viewport();assert(viewport==2); /* native rows must remain visible */
-    assert(key(0,PADG_CROSS)==0); /* original Controller Type picker */
-    key(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_VIB && !key(0,PADG_CROSS) && lastVoice==24 && voiceCount==1 && plateChanges==2);
+    prepare_viewport();assert(viewport==1); /* native rows must remain visible */
+    assert(key(0,PADG_CROSS)==0); /* native Vibration picker */
     key(PADG_DOWN,0);assert(option.cursor==PORT_PC_CONTROLLER_ENTRY);
-    assert(Option_PcHelp() && Option_PcDraw() && draws==2 && focuses==1);
+    assert(Option_PcHelp() && Option_PcDraw() && draws==4 && focuses==1);
     key(0,PADG_CROSS);assert(option.state==PORT_PC_OPTIONS_PAGE);
     prepare_viewport();assert(viewport==1); /* binding rows replace native list */
     draws=focuses=0;assert(Option_PcDraw() && draws==4 && focuses==1);
@@ -185,8 +197,9 @@ int main(void) {
     key(0,0);dialogAnswer=1;key(0,0);key(0,0);key(0,0);key(0,0);
     assert(!sOptionPcReset && padDefaults==1 && pcDefaults==1);
     key(0,PADG_TRIANGLE);assert(option.cursor==PORT_GAMEPAD_CONTROLLER_ENTRY);
+    key(PADG_DOWN,0);assert(option.cursor==PORT_CLASH_CONTROLLER_ENTRY);
     key(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_CTRL_RESET && lastVoice==10);
-    key(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_KEYS && lastVoice==23);
+    key(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_VIB && lastVoice==24);
     option.cursor=PORT_PC_CONTROLLER_ENTRY;key(0,PADG_CROSS);
     key(0,PADG_TRIANGLE);assert(option.state==OPT_ITEM_CTRL && lastSound==2);
     option.cursor=PORT_PC_CONTROLLER_ENTRY;key(0,PADG_CROSS);
@@ -201,6 +214,20 @@ int main(void) {
       defaults.confirm=0;defaults.cancel=1;Option_PcMouse(&defaults);Option_PcInput();
       assert(option.state==OPT_ITEM_CTRL && lastSound==2);
     }
+    /* Real native reset/confirmation lifecycle used by Classic Mode. */
+    option.state=PORT_OPTION_VIDEO_RESET;option.resetStep=0;sOptionPackConfirm=1;
+    Option_UpdateReset();assert(dialogCursor==1 && option.resetStep==1 && !packCommits);
+    assert(dialogTable && dialogTable!=option.dialogMsg);
+    { u32 *table=(u32 *)dialogTable;
+      assert(table[0]==1 && table[1]==12);
+      u16 *warning=(u16 *)((char *)dialogTable+table[1]);
+      assert(warning[0]=='E' && warning[1]=='n'); }
+    dialogAnswer=-1;Option_UpdateReset();Option_UpdateReset();Option_UpdateReset();
+    assert(!sOptionPackConfirm && !packCommits && option.state==PORT_OPTION_VIDEO_PAGE);
+    option.state=PORT_OPTION_VIDEO_RESET;option.resetStep=0;sOptionPackConfirm=1;
+    Option_UpdateReset();dialogAnswer=1;Option_UpdateReset();Option_UpdateReset();
+    assert(packCommits==1 && option.dirty);
+    Option_UpdateReset();Option_UpdateReset();assert(!sOptionPackConfirm && option.state==PORT_OPTION_VIDEO_PAGE);
     zenkai=0;option.state=OPT_ITEM_CTRL;prepare_viewport();assert(!viewport);
     assert(!key(PADG_DOWN,PADG_CROSS) && !Option_PcDraw() && !Option_PcHelp());
 }

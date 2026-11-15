@@ -7,6 +7,7 @@
 static int active, session, online;
 static u32 roll;
 int Port_ZenkaiEnabled(void) { return active; }
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 int Port_NetSession(void) { return session; }
 int Port_NetActive(void) { return online; }
 u32 Rand_Range(u32 n) { assert(n > 0); return roll % n; }

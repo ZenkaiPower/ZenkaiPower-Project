@@ -6,6 +6,11 @@ The optional [Zenkai gameplay build flags](zenkai-build-flags.md) independently
 control character progression, tournament changes, raised difficulty, and story
 move restrictions.
 
+The seven flagged features belong to [the Zenkai pack](zenkai-pack.md). Enabling
+**Classic Mode** in General Settings permanently disables that pack for the save.
+SSJ2 Goku's replacement moves and
+tiered Kaioken now default to enabled along with the other five features.
+
 **ZENKAI Power!** is enabled by default for new configurations. Start a
 **New Game** to use the features below. You can change the mode in the Escape
 settings **Misc** tab; an explicitly saved choice is preserved.

@@ -40,14 +40,16 @@ static const char *const sPortVideoFrameNameIds[]={"options/value/30","options/v
 /* Persistent ZOP row, independent of General Settings display order. */
 #define PORT_AUTOSAVE_OPTION_OFFSET 21
 #define PORT_OPTION_SETTING_COUNT 22
+/* Save-owned choice: descriptor/display row only, never part of ZOP options. */
+#define PORT_CLASSIC_OPTION_ROW 22
 static const char *const sPortOptionCategories[]={"Video Settings","Battle Effects","Visual Settings","General Settings"};
 static const char *const sPortOptionCategoryIds[]={"options/category/video","options/category/battle-effects","options/category/visual","options/category/general"};
 /* These offsets are also the persisted ZOP* row indices. Keep row 19
    (Game Edition) unchanged when moving it to General Settings. */
 #ifdef __ANDROID__
-static const int sPortOptionCounts[]={7,8,3,3};
+static const int sPortOptionCounts[]={7,8,3,4};
 #else
-static const int sPortOptionCounts[]={8,8,3,3};
+static const int sPortOptionCounts[]={8,8,3,4};
 #endif
 static const int sPortOptionOffsets[]={0,8,16,19};
 /* Display rows can omit settings without changing their backing indices. */
@@ -56,7 +58,7 @@ static int Port_OptionsCategoryRow(int category,int row) {
     if(category==0 && row>=6) return row+1; /* Graphics API is desktop-only. */
 #endif
     if(category==3 && row>=0 && row<sPortOptionCounts[3]) {
-        static const int generalRows[]={2,0,1};
+        static const int generalRows[]={2,0,1,3};
         return sPortOptionOffsets[3]+generalRows[row];
     }
     return sPortOptionOffsets[category]+row;
@@ -106,7 +108,8 @@ static const PortVideoOption sPortVisualOptions[]={
 static const PortVideoOption sPortGeneralOptions[]={
     {"Game Edition",sPortVideoToggle,sPortEditionNames,2,0,"Choose Sparking! METEOR or Budokai Tenkaichi 3.","options/setting/game-edition","options/help/game-edition",sPortEditionNameIds},
     {"Network Mode",sPortNetworkValues,sPortNetworkNames,2,1,"Choose online or LAN play.","options/setting/network-mode","options/help/network-mode",sPortNetworkNameIds},
-    {"Autosave",sPortVideoToggle,sPortVideoToggleNames,2,0,"Automatically save game progress.","options/setting/autosave","options/help/autosave",sPortVideoToggleNameIds}
+    {"Autosave",sPortVideoToggle,sPortVideoToggleNames,2,0,"Automatically save game progress.","options/setting/autosave","options/help/autosave",sPortVideoToggleNameIds},
+    {"Classic Mode",sPortVideoToggle,sPortVideoToggleNames,2,0,"Change the game to classical progress and mechanics.","options/setting/classic-mode","options/help/classic-mode",sPortVideoToggleNameIds}
 };
 static const PortVideoOption *Port_OptionsDescriptor(int row) {
     if(row<8) return &sPortVideoOptions[row];

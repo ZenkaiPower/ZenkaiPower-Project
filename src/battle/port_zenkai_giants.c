@@ -11,7 +11,7 @@ extern s32 EftCam_IsActive(void);
 float Port_ZenkaiGiantScale(int type, const void *param) {
 #if PORT_ZENKAI_GIANTS
     if (type == 0 && param != NULL && ((const u8 *)param)[2] == 4 &&
-        Port_ZenkaiEnabled() && !Port_NetSession() && !Port_NetActive()) {
+        Port_ZenkaiPackEnabled() && !Port_NetSession() && !Port_NetActive()) {
         return 2.5f;
     }
 #endif

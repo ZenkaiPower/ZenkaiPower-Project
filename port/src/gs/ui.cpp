@@ -1654,6 +1654,7 @@ extern "C" void Port_OptionsCategoryDefaults(int category) {
     SDL_LockSpinlock(&sNativeVideoLock);
     for(int i=0;i<sPortOptionCounts[category];i++) {
         int row=Port_OptionsCategoryRow(category,i);
+        if(row>=PORT_OPTION_SETTING_COUNT) continue; /* save-owned Classic Mode */
         if(Port_OptionsAvailable(row))
             sNativeVideoPending[row]=row==PORT_VISUAL_OPTION_OFFSET+2 ? 1 : Port_OptionsDescriptor(row)->defaultValue;
     }

@@ -110,7 +110,7 @@ typedef struct SaveData {
     /* 0x2EC8 */ u8 item[SAVE_ITEM_COUNT]; /* SAVE_ITEM_* per item; ids are 1-based elsewhere (0x2EC7 + id) */
     /* 0x3026 */ u8 unk3026[2];
     /* 0x3028 */ s32 money;         /* 0..SAVE_MONEY_MAX */
-    /* 0x302C */ u8 unk302C[SAVE_SIZE - 0x302C];
+    /* 0x302C */ u8 unk302C[SAVE_SIZE - 0x302C]; /* PORT: Sparking! pack record at 0x3EF0; see port_zenkai_pack.h */
 } SaveData;
 
 /* Header of common file 4 (gCommonRes->data[2]): byte offsets of its tables, rounded down to 4. */

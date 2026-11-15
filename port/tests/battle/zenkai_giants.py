@@ -53,6 +53,8 @@ static BobjObj *testOpponent;
 s32 BtlCharApi_GetOpponentObjId(s32 id) { (void)id;return testOpponent ? 1 : -1; }
 BobjObj *BtlObj_Get(s32 id) { (void)id;return testOpponent; }
 int Port_ZenkaiEnabled(void) { return active; }
+static int packOn=1;
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && packOn; }
 int Port_NetSession(void) { return session; }
 int Port_NetActive(void) { return online; }
 static int cinematic;
@@ -229,6 +231,14 @@ int main(void) {
  ((u8 *)&param)[2]=0; BtlObjXf_Reset(&o); BtlObjBody_Init(&o);
  assert(o.xf.scale==1); assert(o.body.size[0]==10); assert(o.body.radius==26);
  ((u8 *)&param)[2]=4; active=0; BtlObjXf_Reset(&o); assert(o.xf.scale==1);
+ active=1;packOn=0;BtlObjXf_Reset(&o);BtlObjBody_Init(&o);
+ assert(o.xf.scale==1 && o.body.size[0]==10 && o.body.radius==26);
+ assert(Port_ZenkaiGiantAnimationScale(0,&param)==1);
+ box.axis[0].x=4;box.axis[0].y=box.axis[0].z=0;box.unk10.x=7;
+ Port_BtlObjObbScale(&box);assert(box.axis[0].x==4 && box.unk10.x==7);
+ hurt.radius=9;hurt.radiusSq=81;Port_BtlObjBodyPartSphere(&hurt);
+ assert(hurt.radius==9 && hurt.radiusSq==81);
+
  return 0;
 }
 '''
@@ -281,6 +291,8 @@ int main(void) {
 static BtlCapiObj object;
 static int active;
 int Port_ZenkaiEnabled(void) { return active; }
+static int packOn=1;
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && packOn; }
 int Port_NetSession(void) { return 0; }
 int Port_NetActive(void) { return 0; }
 static int cinematic;
@@ -315,6 +327,8 @@ int main(void) {
 static BtlCtlObj object;
 static int active=1, online;
 int Port_ZenkaiEnabled(void) { return active; }
+static int packOn=1;
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && packOn; }
 int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return 0; }
 static int cinematic;
@@ -370,6 +384,8 @@ static BobjPart head;
 static u8 giantParam[16];
 static int active=1,online;
 int Port_ZenkaiEnabled(void) { return active; }
+static int packOn=1;
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && packOn; }
 int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return 0; }
 static int cinematic;

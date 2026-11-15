@@ -1814,7 +1814,7 @@ void BtlSkill_Apply(BtlActIChr *chr, s32 slot) {
         break;
     case 0x18:
 #ifdef PORT
-    if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiEnabled()) {
+    if (PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled()) {
             blastCost = Port_BtlKaiokenUpgrade(chr, blastCost);
             lv0 = lv1 = lv2 = lv3 = 5 * Port_BtlKaiokenTier(chr);
             add = 0;
@@ -2938,7 +2938,7 @@ int Port_BtlKaiokenTextTier(int side,int entry) {
     extern BtlActIChr *BtlChar_FindBySide(s32 side);
     BtlActIChr *chr = BtlChar_FindBySide(side);
     int tier, step, cost;
-    if (!PORT_ZENKAI_KAIOKEN || !Port_ZenkaiEnabled() || !chr || entry < 0 || entry > 1 ||
+    if (!PORT_ZENKAI_KAIOKEN || !Port_ZenkaiPackEnabled() || !chr || entry < 0 || entry > 1 ||
         BtlSkill_GetId(chr,entry) != 0x18) return 0;
     tier = Port_BtlKaiokenTier(chr);
     /* Native Kaioken announces its name before applying at the animation's end. */

@@ -10,7 +10,7 @@
 
 /* Runtime guards below restrict the replacement moveset to offline ZENKAI. */
 #ifndef PORT_ZENKAI_SSJ2_MOVESET
-#define PORT_ZENKAI_SSJ2_MOVESET 0
+#define PORT_ZENKAI_SSJ2_MOVESET 1
 #endif
 
 extern void *memcpy(void *, const void *, u32);
@@ -166,7 +166,7 @@ static u16 *make_text(const u16 *target, s32 language) {
 static s32 has_moves(void *object) {
     BObj *obj = object;
     s32 i;
-    if (!PORT_ZENKAI_SSJ2_MOVESET || obj == NULL || !sMovesReady || !Port_ZenkaiEnabled() || Port_NetSession() || Port_NetActive()) return 0;
+    if (!PORT_ZENKAI_SSJ2_MOVESET || obj == NULL || !sMovesReady || !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive()) return 0;
     for (i = 0; i < ZENKAI_OBJECTS; i++) if (obj->mdl.unk914 == sSuper[i]) return 1;
     return 0;
 }
@@ -194,7 +194,7 @@ void Port_ZenkaiMovesBind(void *object, s32 id, s32 chara, s32 type) {
     u8 *original;
     if (!PORT_ZENKAI_SSJ2_MOVESET) return;
     original = obj->mdl.unk914;
-    if (type != 0 || chara != 5 || id < 0 || id >= ZENKAI_OBJECTS || !Port_ZenkaiEnabled() ||
+    if (type != 0 || chara != 5 || id < 0 || id >= ZENKAI_OBJECTS || !Port_ZenkaiPackEnabled() ||
         Port_NetSession() || Port_NetActive() || original == NULL) return;
     if (((s16 *)(original + 0x18))[0] != 300 || ((s16 *)(original + 0x18))[2] != 602) return;
     if (!sMovesReady) {

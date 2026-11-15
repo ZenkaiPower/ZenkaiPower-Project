@@ -2403,6 +2403,18 @@ void Option_UpdateReset(void) {
             Dialog_Init(MPACK_AT(gOption->res, 35), NULL, 0);
             Dialog_SetCursor(1);
             Dialog_SetMsgTable(gOption->dialogMsg);
+#ifdef PORT
+            if(gOption->state==PORT_OPTION_VIDEO_RESET && sOptionPackConfirm) {
+                static struct {u32 count,offset,end;u16 text[256];} warning;
+                char translated[768];s32 n;
+                MenuTranslation_PortTextCopy("options/confirm/classic-on",
+                    "Enable Classic Mode?\nYou cannot turn it off again.",translated,sizeof(translated));
+                Option_PortWrapHelp(translated,warning.text,256,360);
+                for(n=0;warning.text[n];n++) {}
+                warning.count=1;warning.offset=12;warning.end=12+(n+1)*2;
+                Dialog_SetMsgTable(&warning);
+            }
+#endif
             Dialog_SetMsg(0);
             Dialog_SetChoices(1);
             Dialog_Start(0);
@@ -2500,6 +2512,7 @@ void Option_UpdateReset(void) {
                     break;
                 }
                 if(gOption->state==PORT_OPTION_VIDEO_RESET) {
+                    sOptionPackConfirm=0;
                     gOption->state=PORT_OPTION_VIDEO_PAGE;gOption->resetStep=0;
                     break;
                 }

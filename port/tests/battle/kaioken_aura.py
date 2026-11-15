@@ -22,6 +22,7 @@ typedef struct {int auraType;} Param;
 typedef struct {struct {int flags;} u;Param *param;} BtlCapiObj;
 static BtlCapiChr fighter;static BtlCapiObj object;static int zenkai=1;
 int Port_ZenkaiEnabled(void) {return zenkai;}
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
 BtlCapiChr *BtlChar_FindByObjId(int id) {return id==0 ? &fighter:NULL;}
 BtlCapiObj *BtlChar_GetObj(BtlCapiChr *c) {return &object;}
 BtlCapiObj *BtlObj_Get(int id) {return NULL;}
