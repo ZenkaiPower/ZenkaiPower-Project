@@ -99,16 +99,17 @@ s32 BtlGame_IsReplay(void) {
 int gPortTrainingHealthRegeneration=1;
 int gPortTrainingKiRegeneration=1;
 int gPortTrainingBlastRegeneration=1;
-static BtlMenu sPortTrainingMenu[2],sPortTrainingSettingsMenu,sPortTrainingRegenMenu[3];
-static BtlMenuItem sPortTrainingItems[2][32],sPortTrainingSettingsItems[4],sPortTrainingRegenItems[3][3];
+int gPortTrainingSwitchRegeneration=1;
+static BtlMenu sPortTrainingMenu[2],sPortTrainingSettingsMenu,sPortTrainingRegenMenu[4];
+static BtlMenuItem sPortTrainingItems[2][32],sPortTrainingSettingsItems[5],sPortTrainingRegenItems[4][3];
 static s32 sPortTrainingMenusReady;
 extern void Port_TrainingTextCopy(s32 index, char *out, s32 capacity);
 u16 *Port_TrainingMenuText(s32 id) {
-    static u16 text[6][128];
+    static u16 text[7][128];
     char translated[256];
     const u8 *p;
     s32 row,n=0;
-    if(id<PORT_TRAINING_REGEN_TEXT || id>PORT_TRAINING_REGEN_TEXT+5) return NULL;
+    if(id<PORT_TRAINING_REGEN_TEXT || id>PORT_TRAINING_REGEN_TEXT+6) return NULL;
     row=id-PORT_TRAINING_REGEN_TEXT;
     Port_TrainingTextCopy(row,translated,sizeof(translated));
     p=(const u8 *)translated;
@@ -125,7 +126,8 @@ u16 *Port_TrainingMenuText(s32 id) {
 }
 static s32 PauseMenu_PortRegenChoice(BtlMenuEvent *ev) {
     if(ev->selected) {
-        if(ev->arg&4) gPortTrainingBlastRegeneration=ev->arg&1;
+        if((ev->arg>>1)==3) gPortTrainingSwitchRegeneration=ev->arg&1;
+        else if(ev->arg&4) gPortTrainingBlastRegeneration=ev->arg&1;
         else if(ev->arg&2) gPortTrainingKiRegeneration=ev->arg&1;
         else gPortTrainingHealthRegeneration=ev->arg&1;
         ev->menu->state=BTL_MENU_STATE_CLOSE;
@@ -134,17 +136,17 @@ static s32 PauseMenu_PortRegenChoice(BtlMenuEvent *ev) {
 }
 static s32 PauseMenu_PortRegenOpen(BtlMenuEvent *ev) {
     if(ev->selected) sPortTrainingRegenMenu[ev->arg].cursor=
-        (ev->arg==2 ? gPortTrainingBlastRegeneration:ev->arg==1 ? gPortTrainingKiRegeneration:gPortTrainingHealthRegeneration) ? 1:2;
+        (ev->arg==3 ? gPortTrainingSwitchRegeneration:ev->arg==2 ? gPortTrainingBlastRegeneration:ev->arg==1 ? gPortTrainingKiRegeneration:gPortTrainingHealthRegeneration) ? 1:2;
     return 0;
 }
 extern BtlMenu D_002C4FD0; /* native COM Settings submenu */
 static void PauseMenu_PortTrainingInit(void) {
     BtlMenu *native[2]={&gPauseMenuMode5,&gPauseMenuMode6};
     s32 side,i,insert,kind;
-    gPortTrainingHealthRegeneration=gPortTrainingKiRegeneration=gPortTrainingBlastRegeneration=1;sPortTrainingMenusReady=0;
+    gPortTrainingHealthRegeneration=gPortTrainingKiRegeneration=gPortTrainingBlastRegeneration=gPortTrainingSwitchRegeneration=1;sPortTrainingMenusReady=0;
     if(!PORT_TRAINING_PAUSE_MENU_OPTIONS) return;
     if(!Port_ZenkaiEnabled()) return;
-    for(kind=0;kind<3;kind++) {
+    for(kind=0;kind<4;kind++) {
         BtlMenu *menu=&sPortTrainingRegenMenu[kind];
         *menu=*native[0];menu->items=sPortTrainingRegenItems[kind];
         menu->count=3;menu->open=-1;menu->cursor=1;menu->state=BTL_MENU_STATE_OPEN;
@@ -160,15 +162,15 @@ static void PauseMenu_PortTrainingInit(void) {
     }
     sPortTrainingSettingsMenu=*native[0];
     sPortTrainingSettingsMenu.items=sPortTrainingSettingsItems;
-    sPortTrainingSettingsMenu.count=4;sPortTrainingSettingsMenu.open=-1;
+    sPortTrainingSettingsMenu.count=5;sPortTrainingSettingsMenu.open=-1;
     sPortTrainingSettingsMenu.cursor=1;sPortTrainingSettingsMenu.state=BTL_MENU_STATE_OPEN;
     sPortTrainingSettingsItems[0]=(BtlMenuItem){0};
     sPortTrainingSettingsItems[0].text[0]=sPortTrainingSettingsItems[0].text[1]=~PORT_TRAINING_TITLE_PART;
     sPortTrainingSettingsItems[0].disabled=1;
-    for(kind=0;kind<3;kind++) {
+    for(kind=0;kind<4;kind++) {
         BtlMenuItem *item=&sPortTrainingSettingsItems[kind+1];
         *item=(BtlMenuItem){0};
-        item->text[0]=item->text[1]=PORT_TRAINING_REGEN_TEXT+(kind==2 ? 4:kind==1 ? 3:0);
+        item->text[0]=item->text[1]=PORT_TRAINING_REGEN_TEXT+(kind==3 ? 6:kind==2 ? 4:kind==1 ? 3:0);
         item->id=item->text[0];item->sub=&sPortTrainingRegenMenu[kind];
         item->func=PauseMenu_PortRegenOpen;item->arg=kind;
     }

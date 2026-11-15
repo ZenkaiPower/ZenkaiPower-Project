@@ -2098,6 +2098,10 @@
     "training-settings/0/5": {
       "original": "Training Settings",
       "text": "Ajustes de entrenamiento"
+    },
+    "training-settings/0/6": {
+      "original": "Switch Gauge Regeneration",
+      "text": "Regeneración del indicador de cambio"
     }
   }
 }

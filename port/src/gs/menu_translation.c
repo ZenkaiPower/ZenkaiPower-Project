@@ -640,6 +640,7 @@ static int tr_required_defaults(void) {
         {"training-settings/0/3", "Ki Regeneration"},
         {"training-settings/0/4", "Blast Stock Regeneration"},
         {"training-settings/0/5", "Training Settings"},
+        {"training-settings/0/6", "Switch Gauge Regeneration"},
         {"pause-menu/0/0", "1P PAUSE"},
         {"pause-menu/0/1", "2P PAUSE"},
         {"pause-menu/0/2", "EXIT ?"},
@@ -1429,11 +1430,11 @@ const char *MenuTranslation_MeteorSong(int slot) {
 
 /* Copy localized pause labels across the host/game boundary, with English fallback. */
 void Port_TrainingTextCopy(int index, char *out, int capacity) {
-    static const char *const defaults[]={"Health Regeneration","On","Off","Ki Regeneration","Blast Stock Regeneration","Training Settings"};
+    static const char *const defaults[]={"Health Regeneration","On","Off","Ki Regeneration","Blast Stock Regeneration","Training Settings","Switch Gauge Regeneration"};
     char id[64];
     const char *text=NULL;
     if(!out || capacity<1) return;
-    if(index<0 || index>=6) {out[0]=0;return;}
+    if(index<0 || index>=7) {out[0]=0;return;}
     snprintf(id,sizeof(id),"training-settings/0/%d",index);
     if(MenuTranslation_Ensure()) text=MenuTranslation_Text(id);
     snprintf(out,(size_t)capacity,"%s",text && text[0] ? text:defaults[index]);

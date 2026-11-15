@@ -62,7 +62,7 @@ int BtlSkill_GetBlastCost(BtlActChr *c,int slot) {return BtlMember_HasAbility(c,
 int BtlChar_TestMemberUnk70(BtlActChr *c) {return 0;}
 int BtlMember_HasBlast(BtlActChr *c,int amount) {return c->members[c->active].vitals.blast>=amount;}
 static int zenkai=1,stopped,damageCalls,ends,mode;
-int gPortTrainingHealthRegeneration=1,gPortTrainingKiRegeneration=1,gPortTrainingBlastRegeneration=1;
+int gPortTrainingHealthRegeneration=1,gPortTrainingKiRegeneration=1,gPortTrainingBlastRegeneration=1,gPortTrainingSwitchRegeneration=1;
 static u32 motionFlags;
 int Port_ZenkaiEnabled(void) {return zenkai;}
 BtlActMember *BtlMember_GetActive(BtlActChr *c) {return &c->members[c->active];}
@@ -105,7 +105,8 @@ int BtlMember_IsKiEmpty(BtlActChr *c) {return c->ki<=0;}
 void BtlMember_AddKi(BtlActChr *c,int n) {c->ki+=n;}
 void BtlMember_AddBlast(BtlActChr *c,int n) {c->members[c->active].vitals.blast+=n;}
 int Battle_GetMode(void) {return mode;}
-int BattleSide_GetUnk200(int p) {return 0;}
+static int switchEnabled;
+int BattleSide_GetUnk200(int p) {return switchEnabled;}
 int BtlAct_TestPoweredSkill(BtlActChr *c,int i) {return 0;}
 void BtlStat_EndKind3(BtlActChr *c) {}
 void BtlStat_Update(BtlActChr *c) {}
@@ -238,6 +239,27 @@ int main(void) {
  setup(&c);zenkai=0;c.flags[0x98]=1;tier(&c,PORT_ABILITY_HP_DRAIN_150);c.secTimer=29;
  BtlAct_UpdateGauges(&c);assert(c.ki==99900 && c.members[0].vitals.hp==30000);
  for(mode=5;mode<=6;mode++) {
+  setup(&c);zenkai=1;c.memberCount=2;
+  c.members[1].present=1;c.members[1].vitals.hp=19900;c.members[1].vitals.hpMax=30000;
+  gPortTrainingHealthRegeneration=1;BtlAct_UpdateGauges(&c);
+  assert(c.members[1].vitals.hp==20100);
+  gPortTrainingHealthRegeneration=0;BtlAct_UpdateGauges(&c);assert(c.members[1].vitals.hp==20100);
+  gPortTrainingHealthRegeneration=1;c.members[1].vitals.hp=29950;
+  BtlAct_UpdateGauges(&c);assert(c.members[1].vitals.hp==30000);
+  c.members[1].vitals.hp=0;BtlAct_UpdateGauges(&c);assert(c.members[1].vitals.hp==0);
+  c.members[1].vitals.hp=10000;c.members[1].present=0;
+  BtlAct_UpdateGauges(&c);assert(c.members[1].vitals.hp==10000);
+  setup(&c);zenkai=1;switchEnabled=1;c.unk99C=50000;gPortTrainingSwitchRegeneration=0;
+  int normalSwitchRefill=(s32)(100000.0f / (BtlParam_GetGauge99CTime(&c)*30.0f));
+  BtlAct_UpdateGauges(&c);assert(c.unk99C==50000+normalSwitchRefill);
+  c.unk99C=50000;gPortTrainingSwitchRegeneration=1;BtlAct_UpdateGauges(&c);
+  assert(c.unk99C==50000+normalSwitchRefill+0x457);
+  c.unk99C=99999;BtlAct_UpdateGauges(&c);assert(c.unk99C==100000);
+  zenkai=0;gPortTrainingSwitchRegeneration=0;c.unk99C=50000;
+  BtlAct_UpdateGauges(&c);assert(c.unk99C==50000+normalSwitchRefill+0x457);
+  {int trainingMode=mode;mode=0;zenkai=1;c.unk99C=50000;
+   BtlAct_UpdateGauges(&c);assert(c.unk99C==50000+normalSwitchRefill);mode=trainingMode;}
+  switchEnabled=0;gPortTrainingSwitchRegeneration=1;
   setup(&c);c.members[0].vitals.hp=20000;zenkai=1;gPortTrainingHealthRegeneration=0;BtlAct_UpdateGauges(&c);
   assert(c.members[0].vitals.hp==20000);
   gPortTrainingHealthRegeneration=1;BtlAct_UpdateGauges(&c);assert(c.members[0].vitals.hp==20200);

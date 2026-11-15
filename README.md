@@ -162,7 +162,6 @@ Ranked mode uses the game's native scoring system.
 
 <img src="./figs/ranking-points.gif" width="320"/>
 
-
 ### Training Settings
 
 Add a pause menu to the training mode, allowing players to adjust training settings like health, ki and blast stock auto regeneration.
@@ -182,6 +181,10 @@ A filter was added to stop displaying ®, ™, and © symbols.
 ### Unlockable BGM
 
 Like the original release, toggling to the Sparking! METEOR edition change the game's soundtrack to the anime's original music and allows the five unlockable BGM tracks to be available by completing specific requirements.
+
+### Auto-Skip Intro
+
+In-game options to skip the opening movie and/or logos and copyright screens on startup.
 
 ## Mobile Version
 
@@ -207,6 +210,16 @@ The virtual gamepad uses original game artwork for the buttons.
 ### Gamepad Support
 
 Gamepad support is available for Android devices, allowing players to use a controller instead of the touchscreen.
+
+## Minor Modifications
+
+Game modes raises base CPU difficulty, making the game a little more challenging. Duel retains the original five levels. Max CPU level stays the same and no CPU level or behavior was changed or added to the game.
+
+*Dragon History* episode conclusion badge (the circle with a star) now varies based on the highest difficulty level used to complete the episode. The star appears in three different sizes depending on the difficulty level (Easy, Normal, Hard).
+
+Leaving *Ultimate Battle* or *Ultimate Training* after progress was made will now prompt the player to save their progress on exit.
+
+In the first episode of *Dragon History*, Goku (Early) Kaioken Attack, Genki Dama and Kaioken ability was disabled, to be accurate with the history. It also disables Goku (Early) special Kienzan blast on Saiyan Saga, for the same reason.
 
 ## Installation
 

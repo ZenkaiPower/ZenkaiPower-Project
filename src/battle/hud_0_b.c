@@ -322,7 +322,7 @@ s32 BtlMenu_GetWidth(BtlMenu *menu) {
             s32 n;
 #ifdef PORT
             s32 part=~menu->items[i].text[pad];
-            if(part>=PORT_TRAINING_TITLE_PART && part<PORT_TRAINING_TITLE_PART+4) n=256;
+            if(part>=PORT_TRAINING_TITLE_PART && part<PORT_TRAINING_TITLE_PART+5) n=256;
             else
 #endif
             n = Font_GetWidth(BtlMenu_GetItemText(menu->items[i].text[pad]));
@@ -389,8 +389,8 @@ void BtlMenu_DrawPart(u64 **pkt, s32 x, s32 y, s32 w, s32 h, s32 tex, s32 part, 
         y1 = y + (h >> 1);
     }
 #ifdef PORT
-    if(tex==0 && part>=PORT_TRAINING_TITLE_PART && part<PORT_TRAINING_TITLE_PART+4) {
-        static const s32 titleRows[]={5,0,3,4};
+    if(tex==0 && part>=PORT_TRAINING_TITLE_PART && part<PORT_TRAINING_TITLE_PART+5) {
+        static const s32 titleRows[]={5,0,3,4,6};
         char title[256];
         s32 id;
         Port_TrainingTextCopy(titleRows[part-PORT_TRAINING_TITLE_PART],title,sizeof(title));

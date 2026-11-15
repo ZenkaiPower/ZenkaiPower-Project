@@ -124,7 +124,16 @@ void BtlAiMgr_Reset(void) {
 
 /* Resets one side's controller from its fighter. */
 void BtlAiMgr_ResetSide(s32 side) {
+#ifdef PORT
+    /* Form changes and team switches reload the character's original CPU level.
+       Training's pause-menu choice belongs to the side, not the character. */
+    s32 training = BtlAiLevel_ZenkaiEnabled() && (Battle_GetMode() == 5 || Battle_GetMode() == 6);
+    s32 level = training ? BtlAiLevel_ToBase(BtlAiMgr_GetLevel(side)) : 0;
+#endif
     AiThink_ResetSide(side, 0);
+#ifdef PORT
+    if (training) BtlAiMgr_SetLevel(side, level);
+#endif
 }
 
 /* Allocates the manager block if needed and resets it. */

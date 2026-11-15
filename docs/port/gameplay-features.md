@@ -247,13 +247,25 @@ Checks: `python3 port/tests/battle/hp_drain.py` and
 
 ### Training regeneration
 
+In ZENKAI mode, **Ultimate Training -> Training** uses team selection with up to
+five fighters per side, without a DP limit. It keeps Training's dummy opponent,
+unlimited time, and regeneration settings. Original mode retains one-on-one
+Training. Tutorial lessons keep their existing battle setups.
+The CPU difficulty selected in the pause menu is retained when a fighter
+transforms or switches to a reserve teammate.
+
 Zenkai's native Training pause menus (battle modes 5 and 6) include
-**Health Regeneration**, **Ki Regeneration**, and **Blast Stock Regeneration**
-directly after COM Settings. Each opens native **On** / **Off** choices.
+**Training Settings** directly after COM Settings, with **Health Regeneration**,
+**Ki Regeneration**, **Blast Stock Regeneration**, and **Switch Gauge Regeneration**.
+Each opens native **On** / **Off** choices.
 All start On for each new battle
 and retain their selection across pause/resume. Off suppresses Training's
 extra automatic refill (200 HP, 1,000 Ki, or 3,333 blast gauge units per frame)
-for both fighters. In ZENKAI mode, turning Health Regeneration off also removes
+for both fighters. Health Regeneration also restores 200 HP per frame to living
+reserve teammates, up to their own maximum HP, without reviving defeated members.
+Switch Gauge Regeneration Off disables Training's bonus switch-gauge refill;
+the gauge continues to refill at its normal battle rate. On adds the Training
+bonus refill. In ZENKAI mode, turning Health Regeneration off also removes
 Training's 1-HP damage floor, allowing fighters to be KO'd; with it on, the floor
 remains.
 Healing skills, character regeneration, and equipped regeneration abilities

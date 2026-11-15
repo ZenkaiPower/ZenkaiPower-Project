@@ -2,6 +2,8 @@
 #include "menu/menu_h.h"
 #ifdef PORT
 #include "menu/menu_i.h"
+#include "menu/menu_e.h"
+#include "menu/menu_f.h"
 #include "sys/port_zenkai.h"
 #endif
 
@@ -27,6 +29,27 @@ extern s32 CharSel_Run(s32 kind);  /* the character select (chunk 5, menu_e) */
 /* A Training visit survives its tutorial and practice-battle hand-offs. */
 static u32 sTrainVisitClears[TRAIN_CLASS_NUM];
 static s32 sTrainVisitActive;
+
+extern s32 TeamSel_Run(s32 section);
+
+static s32 TrainMode_Select(void) {
+    s32 result, players, battleType, loaded;
+    if (!Port_ZenkaiEnabled()) return CharSel_Run(2);
+    players = gTsProgress->players;
+    battleType = gTsProgress->battleType;
+    loaded = gMenuArc5 == NULL;
+    if (loaded) gMenuArc5 = File_LoadSync(gProgress->baseFile, NULL, 0);
+    gTsProgress->players = TEAMSEL_PLAYERS_VS_CPU;
+    gTsProgress->battleType = 1;
+    result = TeamSel_Run(2);
+    gTsProgress->players = players;
+    gTsProgress->battleType = battleType;
+    if (loaded) {
+        Heap_Free(gMenuArc5);
+        gMenuArc5 = NULL;
+    }
+    return result;
+}
 
 static s32 TrainMode_HasNewClear(void) {
     s32 i;
@@ -114,7 +137,11 @@ s32 TrainMode_Main(void) {
             }
             break;
         case MODE_TRAIN_SELECT:
+#ifdef PORT
+            if (TrainMode_Select()) {
+#else
             if (CharSel_Run(2)) {
+#endif
                 Adx_StopAll();
                 done = 1;
             } else {

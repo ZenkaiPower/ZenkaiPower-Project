@@ -927,7 +927,11 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
     }
     if (BattleSide_GetUnk200(chr->player)) {
         chr->unk99C += (s32)(100000.0f / (BtlParam_GetGauge99CTime(chr) * 30.0f));
-        if (Battle_GetMode() == 5 || Battle_GetMode() == 6) {
+        if ((Battle_GetMode() == 5 || Battle_GetMode() == 6)
+#ifdef PORT
+            && (!Port_ZenkaiEnabled() || gPortTrainingSwitchRegeneration)
+#endif
+        ) {
             chr->unk99C += 0x457;
         }
         if (chr->unk99C > 100000) {
@@ -941,6 +945,17 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
 #endif
         ) {
             BtlMember_AddHealth(chr, 200);
+#ifdef PORT
+            if (Port_ZenkaiEnabled()) {
+                for (i = 0; i < chr->memberCount; i++) {
+                    if (i == chr->active) continue;
+                    member = BtlMember_Get(chr, i);
+                    v = &member->vitals;
+                    if (member->present && v->hp > 0)
+                        v->hp = BtlUtil_Min(v->hp + 200, v->hpMax);
+                }
+            }
+#endif
         }
     }
     if (tick) {

@@ -2589,6 +2589,7 @@ s32 TeamSel_Run(s32 section) {
     s32 timeLimit;
     s32 cpuLevel;
 #ifdef PORT
+    s32 training = gProgress->mode == 45 && Port_ZenkaiEnabled();
     s32 botPicked = 0, botWait = 0;
     s32 selectFrames = PORT_SELECT_FRAMES, timerSlide = 0, stageAutoPicked = 0;
     sTeamSelTimedOut = 0;
@@ -2823,7 +2824,19 @@ s32 TeamSel_Run(s32 section) {
         handicap[1] = gSaveData->rule[4] ^ 1;
         cpuLevel = CpuLevel_FromSetting(gSaveData->rule[1]);
         cpuLevel = BtlAiLevel_DuelBase(cpuLevel);
+#ifdef PORT
+        if (training) {
+            timeLimit = 0;
+            cpuLevel = -1;
+            handicap[0] = handicap[1] = 1;
+        }
+#endif
         Battle_ClearWork();
+#ifdef PORT
+        if (training)
+            BattleSetup_SetRule(0, 6, bgm, 0, 1, gTeamSel->stage->stage, 0);
+        else
+#endif
         BattleSetup_SetRule(gTeamSel->players == TEAMSEL_PLAYERS_TWO, 0, bgm, timeLimit, gSaveData->rule[2],
                             gTeamSel->stage->stage, gSaveData->rule[5] ^ 1);
         switch (gTeamSel->players) {

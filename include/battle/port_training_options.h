@@ -7,5 +7,6 @@ extern int Port_ZenkaiEnabled(void);
 extern int gPortTrainingHealthRegeneration;
 extern int gPortTrainingKiRegeneration;
 extern int gPortTrainingBlastRegeneration;
+extern int gPortTrainingSwitchRegeneration;
 #endif
 #endif

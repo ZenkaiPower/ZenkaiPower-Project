@@ -8,6 +8,9 @@
 #include "sys/job.h"
 #include "sys/loading.h"
 #include "sys/save.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 #ifdef PORT
 /* PC build: a stage added from outside the disc (id 0x24 on) has no files on the disc. Every file id the game
@@ -1421,6 +1424,10 @@ void BattleSetup_FixForMode(void) {
             }
             break;
         case 6:
+#ifdef PORT
+            /* ZENKAI free Training keeps the teams selected in the menu. */
+            if (!Port_ZenkaiEnabled())
+#endif
             if (side->memberCount != 1) {
                 side->memberCount = 1;
             }
@@ -1433,8 +1440,8 @@ void BattleSetup_FixForMode(void) {
                 if (side->control != 2) {
                     side->control = 2;
                 }
-                if (side->members[0].cpuLevel != -1) {
-                    side->members[0].cpuLevel = -1;
+                for (j = 0; j < side->memberCount; j++) {
+                    side->members[j].cpuLevel = -1;
                 }
             }
             break;
