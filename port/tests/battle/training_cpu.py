@@ -41,7 +41,9 @@ with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / 'cpu.c'
     exe = Path(tmp) / 'cpu'
     path.write_text(source)
-    subprocess.run(['cc', '-std=gnu99', '-fsanitize=address,undefined',
-                    '-I' + str(root / 'include'), str(path), '-o', str(exe)], check=True)
-    subprocess.run([str(exe)], check=True)
+    for raised in (0, 1):
+        subprocess.run(['cc', '-std=gnu99', '-fsanitize=address,undefined',
+                        f'-DPORT_ZENKAI_RAISED_DIFFICULTY={raised}',
+                        '-I' + str(root / 'include'), str(path), '-o', str(exe)], check=True)
+        subprocess.run([str(exe)], check=True)
 print('Training CPU choice survives controller reloads; other modes and online remain isolated')

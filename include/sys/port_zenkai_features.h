@@ -1,0 +1,16 @@
+#ifndef SYS_PORT_ZENKAI_FEATURES_H
+#define SYS_PORT_ZENKAI_FEATURES_H
+/* Override with -DNAME=0 to restore the corresponding original rules. */
+#ifndef PORT_ZENKAI_STORY_UNLOCKS
+#define PORT_ZENKAI_STORY_UNLOCKS 1
+#endif
+#ifndef PORT_ZENKAI_TOURNAMENT
+#define PORT_ZENKAI_TOURNAMENT 1
+#endif
+#ifndef PORT_ZENKAI_RAISED_DIFFICULTY
+#define PORT_ZENKAI_RAISED_DIFFICULTY 1
+#endif
+#ifndef PORT_ZENKAI_STORY_RESTRICTIONS
+#define PORT_ZENKAI_STORY_RESTRICTIONS 1
+#endif
+#endif

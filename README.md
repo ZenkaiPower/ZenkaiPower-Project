@@ -221,6 +221,8 @@ Leaving *Ultimate Battle* or *Ultimate Training* after progress was made will no
 
 In the first episode of *Dragon History*, Goku (Early) Kaioken Attack, Genki Dama and Kaioken ability was disabled, to be accurate with the history. It also disables Goku (Early) special Kienzan blast on Saiyan Saga, for the same reason.
 
+Character progression, Dragon World Tour changes, raised CPU difficulty, and these story move restrictions can each be enabled or disabled at compile time. See the [Zenkai build flags](docs/port/zenkai-build-flags.md).
+
 ## Installation
 
 To install the game, you must own a copy of the North American NTSC PlayStation 2 version of **Dragon Ball Z Budokai Tenkaichi 3**. Other versions are optional to add extra content and unlock some of the features listed above, including *Dragon Net Battle*.

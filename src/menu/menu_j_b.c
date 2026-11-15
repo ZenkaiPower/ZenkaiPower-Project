@@ -55,7 +55,7 @@ void TourMenu_CheckInvite(void) {
     s32 hour = gSaveData->unkA0C;
 #ifdef PORT
     /* Locked events cannot issue invitations or stay open from an older save. */
-    if (Port_ZenkaiEnabled()) {
+    if (PortTour_Enabled()) {
         s32 tour;
         for (tour = 0; tour < TOUR_NUM; tour++)
             if (!PortTour_Available(gSaveData, tour)) gSaveData->unkA08 &= ~(1 << tour);

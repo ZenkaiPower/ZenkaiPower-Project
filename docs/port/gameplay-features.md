@@ -2,6 +2,10 @@
 
 ## ZENKAI Power! mode
 
+The optional [Zenkai gameplay build flags](zenkai-build-flags.md) independently
+control character progression, tournament changes, raised difficulty, and story
+move restrictions.
+
 **ZENKAI Power!** is enabled by default for new configurations. Start a
 **New Game** to use the features below. You can change the mode in the Escape
 settings **Misc** tab; an explicitly saved choice is preserved.

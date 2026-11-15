@@ -127,7 +127,7 @@ void Save_SetDefaults(SaveData *opt) {
     opt->unkC = 1;
     Save_ResetRules();
 #ifdef PORT
-    if (Port_ZenkaiEnabled()) {
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled()) {
         /* ZENKAI saves start with the early Dragon History roster. Saved unlocks
            replace these defaults when loading an existing game. */
         for (i = 0; i < SAVE_CHARA_COUNT; i++) {
@@ -142,7 +142,7 @@ void Save_SetDefaults(SaveData *opt) {
             case 66: /* Master Roshi */
             case 67: /* Master Roshi Full Power */
             case 60: /* Yajirobe */
-                SAVE_CHARA_WORD(opt, i) |= SAVE_CHARA_MASK(i);
+                SAVE_CHARA_WORD(opt, i) |= (u64)1 << (i % 64);
                 break;
             default:
                 break;
@@ -184,7 +184,7 @@ void Save_SetDefaults(SaveData *opt) {
             case 0xA0:
                 break;
             default:
-                SAVE_CHARA_WORD(gSaveData, i) |= SAVE_CHARA_MASK(i);
+                SAVE_CHARA_WORD(gSaveData, i) |= (u64)1 << (i % 64);
                 break;
             }
         }

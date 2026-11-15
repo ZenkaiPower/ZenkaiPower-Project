@@ -127,7 +127,8 @@ void BtlAiMgr_ResetSide(s32 side) {
 #ifdef PORT
     /* Form changes and team switches reload the character's original CPU level.
        Training's pause-menu choice belongs to the side, not the character. */
-    s32 training = BtlAiLevel_ZenkaiEnabled() && (Battle_GetMode() == 5 || Battle_GetMode() == 6);
+    s32 training = Port_ZenkaiEnabled() && !Port_NetSession() && !Port_NetActive() &&
+        (Battle_GetMode() == 5 || Battle_GetMode() == 6);
     s32 level = training ? BtlAiLevel_ToBase(BtlAiMgr_GetLevel(side)) : 0;
 #endif
     AiThink_ResetSide(side, 0);

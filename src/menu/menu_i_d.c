@@ -351,7 +351,7 @@ void EntrySel_Init(s32 section) {
             s32 n;
 
 #ifdef PORT
-            if (Port_ZenkaiEnabled()) {
+            if (PortTour_Enabled()) {
                 s32 form, color, chara;
                 gEntrySel->sel->cur = i;
                 chara = Port_EntryRandom(&n, &form, &color);
@@ -380,7 +380,7 @@ void EntrySel_Init(s32 section) {
             }
         }
 #ifdef PORT
-        if (Port_ZenkaiEnabled()) gEntrySel->sel->cur = 0;
+        if (PortTour_Enabled()) gEntrySel->sel->cur = 0;
 #endif
         break;
     }
@@ -954,7 +954,7 @@ void EntrySel_Input(s32 *result) {
             s32 slot;
 #ifdef PORT
             s32 randomChara = -1, randomCell = 0, randomForm = 0, randomColor = 0;
-            if (Port_ZenkaiEnabled()) {
+            if (PortTour_Enabled()) {
                 if (ES_CELL.id == ESEL_ID_RANDOM && !(gEntrySel->sel->flags & (ESEL_SEL_FORM | ESEL_SEL_REC))) {
                     randomChara = Port_EntryRandom(&randomCell, &randomForm, &randomColor);
                     if (randomChara < 0) { Snd_PlaySe(1, 7); break; }
@@ -993,7 +993,7 @@ void EntrySel_Input(s32 *result) {
                     s32 id;
 
 #ifdef PORT
-                    if (Port_ZenkaiEnabled()) {
+                    if (PortTour_Enabled()) {
                         slot = randomCell;
                         chara = randomChara;
                         ES_CUR.costume = randomColor;

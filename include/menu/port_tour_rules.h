@@ -174,6 +174,9 @@ static int PortTour_Owned(const SaveData *save, int chara) {
     return save && chara >= 0 && chara < SAVE_CHARA_COUNT &&
         (SAVE_CHARA_WORD(save, chara) & ((u64)1 << (chara % 64))) != 0;
 }
+static int PortTour_Enabled(void) {
+    return PORT_ZENKAI_TOURNAMENT && Port_ZenkaiEnabled();
+}
 static int PortTour_OriginalRoster(const SaveData *save) {
     static const u8 excluded[] = {7,8,9,10,24,38,54,69,70,71,72,75,76,97,110,
         120,145,149,150,151,152,153,154,155,156,157,158,159,160};
@@ -186,7 +189,7 @@ static int PortTour_OriginalRoster(const SaveData *save) {
     return 1;
 }
 static int PortTour_Available(const SaveData *save, int tour) {
-    if (!Port_ZenkaiEnabled()) return 1;
+    if (!PortTour_Enabled()) return 1;
     if (tour < 0 || tour >= 5 || !save) return 0;
     return tour == 0 || tour == 4 || PortTour_OriginalRoster(save) ||
         (save->slot[2].val[1] & 0x7F) == 0x7F;

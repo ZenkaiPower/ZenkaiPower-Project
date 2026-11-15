@@ -231,7 +231,7 @@ void Bracket_PlayCpuMatch(LBracket *b, s32 match) {
         win = 1;
     } else {
 #ifdef PORT
-        if (Port_ZenkaiEnabled()) {
+        if (PortTour_Enabled()) {
             s32 left = ChrTbl_GetCost(b->entrant[b->match_[match].ent[0]].chara);
             s32 right = ChrTbl_GetCost(b->entrant[b->match_[match].ent[1]].chara);
             if (left < 0) left = 0;
@@ -568,9 +568,17 @@ void Bracket_FillEntrants(LBracket *b) {
     s32 i;
 
 #ifdef PORT
-    if (Port_ZenkaiEnabled()) {
+    LChrCell *cpuGrid = NULL;
+    s32 cpuGridCount = 0;
+    if (PortTour_Enabled()) {
         PortTour_FillEntrants(b);
         return;
+    }
+    /* Legacy Zenkai used the full CPU roster, which can fill a bracket even
+       when the independently enabled story progression starts with ten entries. */
+    if (Port_ZenkaiEnabled()) {
+        cpuGrid = (LChrCell *)(MPACK_AT(b->res, 24) + 0x10);
+        cpuGridCount = b->res[b->res[24] >> 2];
     }
 #endif
 
@@ -602,7 +610,8 @@ void Bracket_FillEntrants(LBracket *b) {
             for (;;) {
                 /* written as integer arithmetic: `&b->grid[n]` adds the two operands the other way round */
 #ifdef PORT
-                cell = (LChrCell *)((u8 *)b->grid + Rand_Range(b->gridCount) * sizeof(LChrCell));
+                cell = cpuGrid ? &cpuGrid[Rand_Range(cpuGridCount)] :
+                    (LChrCell *)((u8 *)b->grid + Rand_Range(b->gridCount) * sizeof(LChrCell));
 #else
                 cell = (LChrCell *)(Rand_Range(b->gridCount) * sizeof(LChrCell) + (u32)b->grid);
 #endif
@@ -1036,7 +1045,7 @@ void Bracket_SetupBattle(LBracket *b) {
     case LTOUR_YAMCHA:
         announcer = 3;
 #ifdef PORT
-        if (Port_ZenkaiEnabled())
+        if (PortTour_Enabled())
             stage = b->round == 4 ? 32 : b->round == 3 ? 31 : 19;
         else
 #endif

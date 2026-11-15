@@ -1,5 +1,6 @@
 #ifndef PORT_ZENKAI_H
 #define PORT_ZENKAI_H
+#include "sys/port_zenkai_features.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

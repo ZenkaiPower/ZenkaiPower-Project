@@ -129,7 +129,7 @@ void HistResult_BuildRewards(void) {
         /* Replace Super Saiyan?!'s original Nail reward with the Frieza force,
            unless that whole group is already unlocked. In that case Nail stays
            with the original episode reward. */
-        if (Port_ZenkaiEnabled() && gProgress->subMenu == 1 && gProgress->subMenuItem == 0 && id == 24) {
+        if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() && gProgress->subMenu == 1 && gProgress->subMenuItem == 0 && id == 24) {
             static const s32 friezaForce[] = {84, 82, 83, 90, 89, 88, 87, 86};
             static const s32 friezaForms[] = {91, 92, 93};
             s32 groupAlreadyUnlocked = 1;
@@ -167,7 +167,7 @@ void HistResult_BuildRewards(void) {
     }
 #ifdef PORT
     /* Frieza Saga episode 2: Frieza's Ultimate Transformation! */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 1 && gProgress->subMenuItem == 1) {
         static const s32 characters[] = {91, 92, 93, 24};
         /* Frieza first through third forms, then Nail. */
@@ -180,7 +180,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Frieza Saga episodes 3/4: Defeat Frieza! / Legendary Super Saiyan. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 1 && (u32)(gProgress->subMenuItem - 2) < 2) {
         static const s32 characters[2][2] = {
             {1, 94}, /* Goku (Mid) base, Frieza Final Form */
@@ -195,7 +195,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Android / Cell Saga, in episode and popup order. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 2 && (u32)gProgress->subMenuItem < 7) {
         static const s32 counts[7] = {7, 7, 3, 5, 2, 2, 10};
         static const s32 characters[7][11] = {
@@ -224,7 +224,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Majin Buu Saga, in episode and popup order. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 3 && (u32)gProgress->subMenuItem < 5) {
         static const s32 counts[5] = {6, 2, 9, 1, 3};
         static const s32 characters[5][11] = {
@@ -250,7 +250,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Dragon Ball GT Saga: existing disc rewards remain in place. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 5 && (u32)gProgress->subMenuItem < 5) {
         static const s32 counts[5] = {7, 1, 0, 1, 1};
         static const s32 characters[5][7] = {
@@ -269,7 +269,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Dragon Ball Saga episodes 1/2: Ceiling Vs. Ground / Battle in Korin Tower. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 6 && (u32)gProgress->subMenuItem < 2) {
         static const s32 characters[2][3] = {
             {11, 12, 68}, /* Kid Goku, Great Ape, Grandpa Gohan */
@@ -284,7 +284,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* The normal unlock test avoids duplicates from disc rewards or a previous clear. */
-    if (Port_ZenkaiEnabled() && gProgress->subMenu == 0 && (u32)gProgress->subMenuItem < 3) {
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() && gProgress->subMenu == 0 && (u32)gProgress->subMenuItem < 3) {
         static const s32 characters[3][3] = {
             {77, 78, -1}, /* Raditz, Great Ape Raditz */
             {80, 81, 79}, /* Nappa, Great Ape Nappa, Saibamen */
@@ -299,7 +299,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Special Saga episode 1: Alone for the Final Battle. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && gProgress->subMenuItem == 0) {
         static const s32 characters[] = {99, 98, 85, 73, 74};
         /* Frieza Soldier, Appule, Cui, Bardock, Great Ape Bardock. */
@@ -312,7 +312,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Special Saga episode 3: Final Battle for Earth. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && gProgress->subMenuItem == 2) {
         for (id = 121; id <= 122; id++) { /* Turles, Great Ape Turles */
             if (!(SAVE_CHARA_WORD(gSaveData, id) & SAVE_CHARA_MASK(id))) {
@@ -322,7 +322,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Special Saga episode 4: Super Saiyan Goku. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && gProgress->subMenuItem == 3) {
         for (id = 123; id <= 124; id++) { /* Slug, Giant Slug */
             if (!(SAVE_CHARA_WORD(gSaveData, id) & SAVE_CHARA_MASK(id))) {
@@ -332,7 +332,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Special Saga episode 5: Destroy the Makyo Star. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && gProgress->subMenuItem == 4) {
         for (id = 118; id <= 119; id++) { /* Garlic Jr., Super Garlic Jr. */
             if (!(SAVE_CHARA_WORD(gSaveData, id) & SAVE_CHARA_MASK(id))) {
@@ -342,7 +342,7 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Special Saga episode 6: Strongest VS Strongest. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && gProgress->subMenuItem == 5) {
         for (id = 125; id <= 127; id++) { /* Salza, Cooler, Cooler Final Form */
             if (!(SAVE_CHARA_WORD(gSaveData, id) & SAVE_CHARA_MASK(id))) {
@@ -352,14 +352,14 @@ void HistResult_BuildRewards(void) {
         }
     }
     /* Special Saga episode 7: Clash of the Ultimate Warriors. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && gProgress->subMenuItem == 6 &&
         !(SAVE_CHARA_WORD(gSaveData, 128) & SAVE_CHARA_MASK(128))) {
         HR_ADD(0, 128); /* Metal Cooler */
         SAVE_CHARA_WORD(gSaveData, 128) |= SAVE_CHARA_MASK(128);
     }
     /* Special Saga episodes 8..16, in popup order. */
-    if (Port_ZenkaiEnabled() &&
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiEnabled() &&
         gProgress->subMenu == 4 && (u32)(gProgress->subMenuItem - 7) < 9) {
         static const s32 characters[9][3] = {
             {129, 130, -1}, /* Ultimate Battle! Three Super Saiyans: Android 13/Fusion */

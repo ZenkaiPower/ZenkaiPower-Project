@@ -111,3 +111,6 @@ assets/setup
 # Local bot authorization settings (hash only)
 /server/bot.local.json
 bot.local.json
+
+# Arquive
+archive/
