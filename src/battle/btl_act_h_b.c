@@ -2378,6 +2378,17 @@ s32 BtlDecide_Attack(BtlActIChr *chr, s32 mask) {
     if (!BtlChar_IsFree(chr)) {
         return 0;
     }
+#ifdef PORT
+    {
+        extern s32 Battle_GetMode(void);
+        extern int Port_StoryIsSaiyanEpisode(void);
+        /* Goku (Early) cannot charge the ascending/downward blast (0xB3)
+         * in the three Zenkai Saiyan Saga episodes. Keep the tapped variant (0xB2). */
+        if (Battle_GetMode() == 1 && Port_StoryIsSaiyanEpisode() &&
+            BtlMember_GetActive((BtlActHChr *)chr)->chara == 0)
+            mask &= ~0x40000;
+    }
+#endif
     if (mask & 1) {
         BtlColl_AddActionBit(chr, 0x44);
         if (TEST(0x34)) {

@@ -1219,12 +1219,12 @@ static unsigned script_buttons(void) {
  * pressed (input 51 = BTLC_DIR_P; BtlAct_ClashStruggleHandler and BtlAct_ClashBlowsHandler). Turning the stick is
  * the usual way to make them, four a turn; tapping directions makes them as well. When tapping Strike, while this
  * player's fighter is in a clash action, Strike is taken off the pad and each press of it holds the stick in the
- * next of up, right, down, left, then advances on the next three frames: four newly pressed directions, unlike a single tap of
+ * next of up, right, down, left, then advances on the next two frames: three newly pressed directions, unlike a single tap of
  * the d-pad gives. In Strike mode, stick and d-pad directions are neutralized
  * during the clash so each press of Strike is the struggle input.
  *
- * Each new Strike press emits four successive directions on consecutive input frames.
- * Holding does not repeat after the fourth direction. One tap covers a full turn.
+ * Each new Strike press emits three successive directions on consecutive input frames.
+ * Holding does not repeat after the third direction. One tap gives roughly three quarters of a turn.
  *
  * This is done to the pad's own bytes, before they reach the game or the other player of an online match: the
  * game sees an ordinary pad, so the two copies of an online match compute the same fight whoever has it on. */
@@ -1273,7 +1273,7 @@ static void clash_square(int socket, unsigned *btn, unsigned char *lx, unsigned 
         return;
     }
     int pulse = remaining[socket] > 0;
-    if (down && !was[socket]) remaining[socket] += 4;
+    if (down && !was[socket]) remaining[socket] += 3;
     if (remaining[socket] > 0) {
         dir[socket] = (dir[socket] + 1) & 3;
         remaining[socket]--;

@@ -822,4 +822,9 @@ s32 ModeMenu_Run(s32 section) {
 int Port_StoryIsFirstEpisode(void) {
     return Port_ZenkaiEnabled() && gProgress->subMenu == 0 && gProgress->subMenuItem == 0;
 }
+
+int Port_StoryIsSaiyanEpisode(void) {
+    return Port_ZenkaiEnabled() && gProgress->subMenu == 0 &&
+           (u32)gProgress->subMenuItem < 3;
+}
 #endif

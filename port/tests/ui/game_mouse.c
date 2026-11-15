@@ -427,7 +427,6 @@ int main(void) {
         keyboard[SDL_SCANCODE_N]=false;Port_PadRead(0,data);
         assert(data[4]!=0x80 || data[5]!=0x80); /* second credit survives an immediate release */
         Port_PadRead(0,data); /* third credit */
-        Port_PadRead(0,data); /* fourth credit */
         Port_PadRead(0,data);
         assert(data[4]==0x80 && data[5]==0x80);
         physicalMouse=SDL_BUTTON_LMASK;game_mouse_poll();Port_PadRead(0,data);
@@ -448,21 +447,22 @@ int main(void) {
             assert(directions[i]!=0x8080u);
             buttons=B_SQUARE;lx=ly=0x80;
             clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
-            unsigned turn[4]; turn[0]=directions[i]; turn[1]=((unsigned)lx<<8)|ly;
-            for(int step=2;step<4;step++) {
+            unsigned turn[3]; turn[0]=directions[i]; turn[1]=((unsigned)lx<<8)|ly;
+            for(int step=2;step<3;step++) {
                 buttons=B_SQUARE;lx=ly=0x80;
                 clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
                 turn[step]=((unsigned)lx<<8)|ly;
             }
-            for(int x=0;x<4;x++) for(int y=0;y<x;y++) assert(turn[x]!=turn[y]);
+            for(int x=0;x<3;x++) for(int y=0;y<x;y++) assert(turn[x]!=turn[y]);
             buttons=B_SQUARE;lx=ly=0x80;
             clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
-            assert(turn[3]==(((unsigned)lx<<8)|ly)); /* holding stops after four credits */
+            assert(turn[2]==(((unsigned)lx<<8)|ly)); /* holding stops after three credits */
             buttons=0;lx=ly=0x80;
             clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
             assert(lx==0x80 && ly==0x80); /* release adds no extra credit */
         }
-        for(int i=1;i<5;i++) assert(directions[i]==directions[0]); /* each tap is a full turn */
+        for(int i=1;i<4;i++) assert(directions[i]!=directions[0]);
+        assert(directions[4]==directions[0]); /* three-step taps cycle through all four starts */
         testClash=0;
     }
     puts("Game mouse and gamepad input checks passed");
