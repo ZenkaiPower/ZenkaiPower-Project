@@ -7,6 +7,7 @@
 #ifdef PORT
 #include <stdlib.h>
 #include "port_account.h"
+#include "sys/port_zenkai.h"
 #include "menu/port_native_keyboard.h"
 #include "port_username.h"
 #include "port_ranking.h"
@@ -159,6 +160,7 @@ typedef struct TboScreen {
     s32 wiiRanked;
     s32 resultPoints[2], resultPointDelta[2], resultHasPoints;
     s32 rewardZPoints;
+    s32 rewardSavePending; /* This menu visit changed local Z Points. */
     s32 rankingOffset, rankingRefresh;
     PortRankingPage ranking;
     s32 wiiSubCur;
@@ -708,6 +710,7 @@ static void Tb_WiiRewardUpdate(s32 live) {
         s32 amount = confirm || sTb->rewardZPoints <= 0x21 ? sTb->rewardZPoints : 0x21;
         if (gSaveData == NULL) return;
         Save_AddMoney(amount);
+        sTb->rewardSavePending = 1;
         sTb->rewardZPoints -= amount;
         if (confirm) Snd_PlaySe(1, 1);
         return;
@@ -2986,8 +2989,14 @@ s32 PortTbo_Run(void) {
     Tb_WinTerm();
     PortMenuMouse_Enable(0);
     if (sTb->mode == TB_WII_VS) Port_LobbyCancel();
-    Heap_Free(sTb);
-    sTb = NULL;
+    {
+        s32 saveRewards = Port_ZenkaiEnabled() && sTb->rewardSavePending;
+        Heap_Free(sTb);
+        sTb = NULL;
+        /* Match Ultimate Battle: prompt, or silent Autosave, after menu teardown.
+           Save or decline completes this visit; a later reward marks it again. */
+        if (saveRewards) Port_MenuSaveOnExit();
+    }
     Dma_ResetBuffers();
     return 0;
 }

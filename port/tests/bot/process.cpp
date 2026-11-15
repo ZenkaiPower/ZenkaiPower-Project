@@ -36,6 +36,24 @@ int main(int argc, char **argv) {
     }
     auto temporary = std::filesystem::temp_directory_path() / ("zenkaipower-bot-test-" + std::to_string(SDL_GetPerformanceCounter()));
     std::filesystem::create_directories(temporary);
+    {
+        std::string credential, error;
+        assert(BotCredential(nullptr, temporary, credential, error) && credential.empty());
+        const auto config = temporary / "bot.local.json";
+        const std::string secret(64, 'a'), overrideSecret(64, 'b');
+        { std::ofstream out(config); out << "{\"ZENKAIPOWER_BOT_CREDENTIAL\":\"" << secret << "\"}"; }
+        assert(BotCredential(nullptr, temporary, credential, error) && credential == secret);
+        assert(BotCredential(overrideSecret.c_str(), temporary, credential, error) && credential == overrideSecret);
+        { std::ofstream out(config); out << "{invalid"; }
+        assert(!BotCredential(nullptr, temporary, credential, error));
+        assert(BotCredential(overrideSecret.c_str(), temporary, credential, error));
+        { std::ofstream out(config); out << "{\"BOT_CREDENTIAL_SHA256\":\"" << secret << "\"}"; }
+        assert(!BotCredential(nullptr, temporary, credential, error));
+        assert(!BotCredential("invalid", temporary, credential, error));
+        { std::ofstream out(config); out << std::string(4097, ' '); }
+        assert(!BotCredential(nullptr, temporary, credential, error));
+        std::filesystem::remove(config);
+    }
     auto game = temporary / "game";
     std::filesystem::copy_file(std::filesystem::absolute(argv[0]), game);
     std::filesystem::permissions(game, std::filesystem::perms::owner_all);

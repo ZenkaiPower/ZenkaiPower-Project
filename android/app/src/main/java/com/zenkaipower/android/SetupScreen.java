@@ -36,9 +36,9 @@ final class SetupScreen {
     private final TextView[] states=new TextView[4];
     private final ImageView[] icons=new ImageView[4];
     private final View[] rims=new View[4];
-    private final View[] discDetails=new View[4];
-    private final Button[] discToggles=new Button[4];
-    private final boolean[] discExpanded=new boolean[4];
+    private final LinearLayout discList;
+    private final Button discToggle;
+    private boolean discsExpanded;
     private final SharedPreferences preferences;
     private final ImageView cover;
     private final LauncherActivity activity;
@@ -46,10 +46,13 @@ final class SetupScreen {
     private File root;
     private int mask;
     private int generation;
+    private final Bitmap[] logoCovers=new Bitmap[2];
+    private int selectedLogo;
 
     SetupScreen(LauncherActivity activity, ExecutorService artwork, String[] descriptions) {
         this.activity=activity; this.artwork=artwork;
         preferences=activity.getSharedPreferences("setup",Context.MODE_PRIVATE);
+        selectedLogo=preferences.getBoolean("japanese-logo",true) ? 1 : 0;
         layout=column(); layout.setPadding(dp(20), dp(20), dp(20), dp(20));
         layout.setBackgroundColor(PAPER);
         LinearLayout header=new LinearLayout(activity); header.setGravity(Gravity.CENTER_VERTICAL);
@@ -59,11 +62,23 @@ final class SetupScreen {
         header.addView(heading,new LinearLayout.LayoutParams(0,-2,1));
         ImageView logo=new ImageView(activity); logo.setImageResource(R.mipmap.ic_launcher);
         logo.setContentDescription(activity.getString(R.string.app_name)); header.addView(logo,new LinearLayout.LayoutParams(dp(56),dp(56)));
-        layout.addView(header); section("Game folder");
+        layout.addView(header);
+        status=text("",16,DIM); status.setTextIsSelectable(true);
+        status.setPadding(dp(12),dp(12),dp(12),dp(12));
+        status.setVisibility(View.GONE); layout.addView(status);
+        section("Game folder");
         folder=text("",12,DIM); folder.setTextIsSelectable(true); folder.setPadding(dp(10),dp(8),dp(10),dp(8));
         folder.setBackground(box(Color.WHITE,BORDER)); layout.addView(folder);
         choose=button("Choose game folder",false); layout.addView(choose);
-        section("Disc images");
+        discToggle=button("",false); layout.addView(discToggle);
+        discList=column(); layout.addView(discList);
+        discsExpanded=preferences.getBoolean("discs-expanded",true);
+        discToggle.setOnClickListener(v -> {
+            discsExpanded=!discsExpanded;
+            preferences.edit().putBoolean("discs-expanded",discsExpanded).apply();
+            updateDiscExpansion();
+        });
+        updateDiscExpansion();
         for(int i=0;i<4;i++) {
             LinearLayout card=new LinearLayout(activity); card.setBackgroundColor(CARD);
             View rim=new View(activity); rim.setBackgroundColor(BORDER); rims[i]=rim;
@@ -79,26 +94,24 @@ final class SetupScreen {
             TextView edition=text(TITLES[i],15,INK); edition.setTypeface(null,android.graphics.Typeface.BOLD); title.addView(edition);
             states[i]=text("Not installed  |  "+IDS[i],12,DIM); title.addView(states[i]);
             top.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-            Button toggle=button("",false); toggle.setTextSize(22); toggle.setPadding(0,0,0,0);
-            discToggles[i]=toggle;
-            top.addView(toggle,new LinearLayout.LayoutParams(dp(48),dp(48)));
-            top.setOnClickListener(v -> toggleDisc(disc));
-            toggle.setOnClickListener(v -> toggleDisc(disc));
             content.addView(top);
-            LinearLayout details=column(); discDetails[i]=details; content.addView(details);
+            LinearLayout details=column(); content.addView(details);
             TextView description=text(descriptions[i],13,DIM); description.setPadding(0,dp(5),0,dp(3)); details.addView(description);
             install[i]=button("Install",false); details.addView(install[i]);
-            discExpanded[i]=preferences.getBoolean("disc-expanded-"+IDS[i],true);
-            updateDiscExpansion(i);
-            LinearLayout.LayoutParams row=new LinearLayout.LayoutParams(-1,-2); row.bottomMargin=dp(10); layout.addView(card,row);
+            LinearLayout.LayoutParams row=new LinearLayout.LayoutParams(-1,-2); row.bottomMargin=dp(10); discList.addView(card,row);
         }
         play=button("Play",true); play.setTextSize(18); layout.addView(play);
         // The cover always follows Play, including when the screen is scrolled.
         cover=new ImageView(activity); cover.setAdjustViewBounds(true); cover.setMaxHeight(dp(600));
         cover.setScaleType(ImageView.ScaleType.FIT_CENTER); cover.setContentDescription("Game cover"); cover.setVisibility(View.GONE);
         LinearLayout.LayoutParams art=new LinearLayout.LayoutParams(-1,-2); art.topMargin=dp(12); layout.addView(cover,art);
+        cover.setOnClickListener(v -> {
+            if(logoCovers[0]==null || logoCovers[1]==null) return;
+            selectedLogo=1-selectedLogo;
+            preferences.edit().putBoolean("japanese-logo",selectedLogo==1).apply();
+            showLogoCover();
+        });
         cancel=button("Cancel installation",false); layout.addView(cancel);
-        status=text("",14,DIM); status.setTextIsSelectable(true); status.setPadding(0,dp(12),0,dp(12)); layout.addView(status);
         TextView version=text("",12,DIM);
         try { version.setText("Version "+activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionName); }
         catch(android.content.pm.PackageManager.NameNotFoundException ignored) { }
@@ -127,16 +140,23 @@ final class SetupScreen {
         activity.getWindow().setStatusBarColor(PAPER); activity.getWindow().setNavigationBarColor(PAPER);
         activity.getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
     }
-    private void toggleDisc(int disc) {
-        discExpanded[disc]=!discExpanded[disc];
-        preferences.edit().putBoolean("disc-expanded-"+IDS[disc],discExpanded[disc]).apply();
-        updateDiscExpansion(disc);
+    private void updateDiscExpansion() {
+        discList.setVisibility(discsExpanded ? View.VISIBLE : View.GONE);
+        discToggle.setText((discsExpanded ? "\u25be " : "\u25b8 ")+"Disc images");
+        discToggle.setContentDescription((discsExpanded ? "Hide" : "Show")+" all disc images");
     }
-    private void updateDiscExpansion(int disc) {
-        boolean expanded=discExpanded[disc];
-        discDetails[disc].setVisibility(expanded ? View.VISIBLE : View.GONE);
-        discToggles[disc].setText(expanded ? "\u25be" : "\u25b8");
-        discToggles[disc].setContentDescription((expanded ? "Collapse " : "Expand ")+TITLES[disc]);
+    void clearError() {
+        status.setBackgroundColor(Color.TRANSPARENT);
+        status.setTextColor(DIM); status.setTypeface(null,android.graphics.Typeface.NORMAL);
+        status.setVisibility(View.VISIBLE);
+    }
+    void showError(String message) {
+        status.setText("Installation failed\n"+message);
+        status.setTextColor(0xff8b1515); status.setTypeface(null,android.graphics.Typeface.BOLD);
+        status.setBackground(box(0xffffe8e5,0xffb3261e)); status.setVisibility(View.VISIBLE);
+        layout.post(() -> { if(layout.getParent() instanceof ScrollView) ((ScrollView)layout.getParent()).smoothScrollTo(0,0); });
+        new AlertDialog.Builder(activity).setTitle("Installation failed").setMessage(message)
+            .setPositiveButton("OK",null).show();
     }
     private int dp(int n) { return Math.round(n*activity.getResources().getDisplayMetrics().density); }
     private TextView linkedText(String prefix,String[] labels,String[] urls,String suffix) {
@@ -174,27 +194,42 @@ final class SetupScreen {
             install[i].setText(installed[i]?"Reinstall":"Install");
         }
     }
+    private void showLogoCover() {
+        boolean both=logoCovers[0]!=null && logoCovers[1]!=null;
+        Bitmap bitmap=logoCovers[selectedLogo];
+        if(bitmap==null) bitmap=logoCovers[1-selectedLogo];
+        cover.setImageBitmap(bitmap);
+        cover.setVisibility(bitmap==null ? View.GONE : View.VISIBLE);
+        cover.setClickable(both);
+        cover.setContentDescription(both ? "Game logo. Tap to switch logo" : "Game cover");
+    }
     void artwork(File selected,int verified) {
         root=selected; mask=verified; final int ticket=++generation;
         cover.setImageDrawable(null); cover.setVisibility(View.GONE);
+        logoCovers[0]=logoCovers[1]=null; cover.setClickable(false);
         for(ImageView icon:icons) icon.setImageDrawable(new Disc());
         if(selected==null) return;
         artwork.execute(() -> {
-            Bitmap banner=SetupArtwork.load(selected,0,0);
-            if((verified&1)!=0) banner=coverWithLogo(banner,selected,(verified&8)!=0);
-            final Bitmap coverBitmap=banner;
+            Bitmap[] banners=new Bitmap[2];
+            for(int i=0;i<2;i++) {
+                if(i==1 && (verified&8)==0) continue;
+                Bitmap banner=SetupArtwork.load(selected,0,0);
+                banners[i]=(verified&1)!=0 ? coverWithLogo(banner,selected,i==1) : banner;
+            }
+            if(banners[0]==null && banners[1]==null) banners[0]=SetupArtwork.load(selected,0,0);
             Bitmap[] discs=new Bitmap[4];
             for(int i=0;i<4;i++) if((verified&(1<<i))!=0) discs[i]=SetupArtwork.load(selected,i,1);
             activity.runOnUiThread(() -> {
                 if(ticket!=generation || activity.isDestroyed()) return;
-                if(coverBitmap!=null) { cover.setImageBitmap(coverBitmap); cover.setVisibility(View.VISIBLE); }
+                logoCovers[0]=banners[0]; logoCovers[1]=banners[1];
+                showLogoCover();
                 for(int i=0;i<4;i++) if(discs[i]!=null) icons[i].setImageBitmap(discs[i]);
             });
         });
     }
     private static Bitmap coverWithLogo(Bitmap banner,File root,boolean japanese) {
         Bitmap logo=null;
-        for(String name:japanese ? new String[]{"title-sm.png","title-zenkaipower.png"} : new String[]{"title-zenkaipower.png"}) {
+        for(String name:japanese ? new String[]{"title-sm.png"} : new String[]{"title-zenkaipower.png"}) {
             try {
                 byte[] bytes=GamePak.read(GameIO.file(root,"gamedata/game-text.pak"),name);
                 try { logo=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length); }
@@ -202,7 +237,10 @@ final class SetupScreen {
             } catch(java.io.IOException ignored) { }
             if(logo!=null) break;
         }
-        if(logo==null) return banner;
+        if(logo==null) {
+            if(banner!=null) banner.recycle();
+            return null;
+        }
         int left=logo.getWidth(),top=logo.getHeight(),right=0,bottom=0;
         for(int y=0;y<logo.getHeight();y++) for(int x=0;x<logo.getWidth();x++) {
             if((logo.getPixel(x,y)>>>24)!=0) {

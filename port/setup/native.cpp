@@ -800,18 +800,40 @@ bool Native_Installed(const std::string &root) {
     return SDL_GetPathInfo((root + "gamedata/.installed").c_str(), &info);
 }
 
-bool Native_EuInstalled(const std::string &root) {
-    struct stat info;
-    if (Port_PackStat((root + "gamedata/pzs3eu0/00001.bin").c_str(), &info) != 0) return false;
-    if (Port_PackStat((root + "gamedata/disc/DATA/ZS3EUOP.ADX").c_str(), &info) != 0) return false;
-    for (Uint32 e : eu_entries()) {
-        char name[48];
-        snprintf(name, sizeof(name), "gamedata/pzs3eu1/%05u.bin", e);
-        if (Port_PackStat((root + name).c_str(), &info) != 0) {
-            return false;
+// Read an optional subset archive table once, instead of reopening it for every
+// entry through Android's document provider. Loose and mixed installs still work.
+static bool installed_subset(const std::string &directory, const std::vector<Uint32> &ids) {
+    std::unique_ptr<FILE,decltype(&fclose)> archive(fopen((directory+".afs").c_str(),"rb"),fclose);
+    std::vector<Uint8> table;
+    Uint32 count=0;
+    int64_t total=0;
+    if (archive) {
+        Uint8 header[8];
+        if (!Port_PackSeek(archive.get(),0,SEEK_END)) total=Port_PackTell(archive.get());
+        if (total>=8 && !Port_PackSeek(archive.get(),0,SEEK_SET) && fread(header,1,8,archive.get())==8 && !memcmp(header,"AFS\0",4)) {
+            count=Port_PackU32(header+4);
+            if (count<=1000000 && 8+(Uint64)count*8<=(Uint64)total) {
+                table.resize((size_t)count*8);
+                if (fread(table.data(),1,table.size(),archive.get())!=table.size()) table.clear();
+            }
         }
     }
+    for (Uint32 id:ids) {
+        if (!table.empty() && id<count) {
+            Uint32 offset=Port_PackU32(table.data()+id*8), bytes=Port_PackU32(table.data()+id*8+4);
+            if (offset>=8+(Uint64)count*8 && (Uint64)offset<=(Uint64)total && bytes<=(Uint64)total-offset) continue;
+        }
+        char name[32]; snprintf(name,sizeof(name),"/%05u.bin",id);
+        struct stat info;
+        if (stat((directory+name).c_str(),&info)!=0 || !S_ISREG(info.st_mode)) return false;
+    }
     return true;
+}
+bool Native_EuInstalled(const std::string &root) {
+    if (!installed_subset(root+"gamedata/pzs3eu0",{1}) ||
+        !installed_subset(root+"gamedata/pzs3eu1",eu_entries())) return false;
+    struct stat info;
+    return Port_PackStat((root+"gamedata/disc/DATA/ZS3EUOP.ADX").c_str(),&info)==0;
 }
 
 // Installed state comes from extracted data, independently of a newly selected image.

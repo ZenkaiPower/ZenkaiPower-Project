@@ -251,16 +251,11 @@ static unsigned ut_append_wii_fragment(FILE *fp, const char *data, const char *l
 /* An English catalog this program extracted in an earlier version, or the unedited bundled override copy. */
 static int ut_files_same(const char *aPath, const char *bPath);
 static int ut_stale(const char *path) {
-    char head[512], bundled[1200];
-    size_t n;
-    FILE *fp = Port_PackFopen(path, "rb");
-    if (fp == NULL) return 0;
-    n = fread(head, 1, sizeof(head) - 1, fp);
-    fclose(fp);
-    head[n] = 0;
-    if ((strstr(head, "\"source\": \"extracted USA game text\"") != NULL ||
-         strstr(head, "\"source\": \"extracted USA game text, version ") != NULL) &&
-        strstr(head, "\"source\": \"" UT_SOURCE "\"") == NULL) return 1;
+    char source[160], bundled[1200];
+    if (MenuTranslation_UiCatalogSource(path, source, sizeof(source))) {
+        if (!strcmp(source, "ZENKAI Power!") || strstr(source, "bundled UI overrides, based on extracted USA game text, version ") == source) return 1;
+        if ((!strcmp(source, "extracted USA game text") || strstr(source, "extracted USA game text, version ") == source) && strcmp(source, UT_SOURCE)) return 1;
+    }
     /* The short catalog bundled with the program is an override layer, not the disc base. */
     return MenuTranslation_BundledUiCatalogPath("en", bundled, sizeof(bundled)) &&
         ut_files_same(path, bundled);
@@ -405,16 +400,11 @@ static int ut_collect(const char *data, int bank, UtWriter *w) {
 /* A catalog of ours that is current (made by this version from the disc), or one that is someone else's (written by
    a person, or by an older tool): left as it is. Missing, or ours from another version: made. */
 static int ut_eu_wanted(const char *path, const char *locale) {
-    char head[512];
-    char bundled[1200];
-    size_t n;
-    FILE *fp = Port_PackFopen(path, "rb");
-    if (fp == NULL) return 1;
-    n = fread(head, 1, sizeof(head) - 1, fp);
-    fclose(fp);
-    head[n] = 0;
-    if (strstr(head, "\"source\": \"European disc, version ") != NULL)
-        return strstr(head, "\"source\": \"" UT_EU_SOURCE "\"") == NULL;
+    char source[160], bundled[1200];
+    if (MenuTranslation_UiCatalogSource(path, source, sizeof(source))) {
+        if (!strcmp(source, "ZENKAI Power!") || strstr(source, "bundled UI overrides, based on extracted USA game text, version ") == source) return 1;
+        if (strstr(source, "European disc, version ") == source) return strcmp(source, UT_EU_SOURCE) != 0;
+    }
     return MenuTranslation_BundledUiCatalogPath(locale, bundled, sizeof(bundled)) &&
         ut_files_same(path, bundled);
 }

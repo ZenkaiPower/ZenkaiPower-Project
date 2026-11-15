@@ -46,8 +46,8 @@ $version = (Get-Content -Raw game-info.json | ConvertFrom-Json).version
 $policyOutput = & docker run --rm --platform linux/amd64 --entrypoint python3 `
   --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
   port/tools/make_online_signature.py --stdout `
-  --build build/linux-x64/ZenkaiPower `
-  --build build/windows-x64/ZenkaiPower.exe `
+  --build build/ZenkaiPower-Linux/ZenkaiPower `
+  --build build/ZenkaiPower-Windows/ZenkaiPower.exe `
   --build "release/ZenkaiPower-v$version-android-arm64.apk"
 if ($LASTEXITCODE -ne 0) { throw 'Signature generation failed; policy was not changed.' }
 $policyJson = $policyOutput -join "`n"
@@ -111,8 +111,40 @@ Release description follows the format:
 
 ### Bot
 
+Compile the bot for all platforms.
+
 ```Powershell
-docker run --rm --platform linux/amd64 --entrypoint /bin/sh --mount "type=bind,source=${PWD},target=/src" -w /src zenkaipower port/bot/build.sh all
+docker run --rm --platform linux/amd64 --entrypoint /bin/sh -e ZENKAIPOWER_BOT_CREDENTIAL --mount "type=bind,source=${PWD},target=/src" -w /src zenkaipower port/bot/build.sh all
+```
+
+Generate a new bot credential. This will generate [bot.local.json](server/bot.local.json) with the new credential.
+
+```powershell
+docker run --rm --entrypoint python3 -e ZENKAIPOWER_BOT_CREDENTIAL `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  server/tools/bot_config.py --username SparkingBot
+```
+
+Deploy the bot to the server.
+
+```powershell
+docker run --rm -it --platform linux/amd64 --entrypoint python3 `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  server/tools/deploy_portable.py
+```
+
+Copy the [bot.local.json](server/bot.local.json) to the same directory as the bot executable. The bot will read the credential from this file.
+
+### Server Credentials ⚠️
+
+Server credentials are stored in `server/cloudflare.local.json`. This file is not included in the repository for security reasons. To deploy the server, you must create this file with the following structure:
+
+```json
+{
+  "account_id": <account_id>,
+  "api_token": <api_token>,
+  "database_id": <database_id>
+}
 ```
 
 ### Factory Reset Server ⚠️

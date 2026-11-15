@@ -31,6 +31,21 @@ def settings(path, name=None):
     if local.exists():
         existing = json.loads(local.read_text())
         config.update(existing)
+    bot_path = HERE / 'bot.local.json'
+    if bot_path.exists():
+        bot = json.loads(bot_path.read_text(encoding='utf-8'))
+        identity = 'BOT_ACCOUNT_USERNAME' if 'BOT_ACCOUNT_USERNAME' in bot else 'BOT_ACCOUNT_UID'
+        pattern = r'[a-z][a-z0-9_-]{1,14}[a-z0-9]' if identity == 'BOT_ACCOUNT_USERNAME' else r'[1-9][0-9]*'
+        if (set(bot) != {identity, 'BOT_CREDENTIAL_SHA256'} or
+                not isinstance(bot.get(identity), str) or not re.fullmatch(pattern, bot[identity]) or
+                not isinstance(bot.get('BOT_CREDENTIAL_SHA256'), str) or
+                not re.fullmatch(r'[a-f0-9]{64}', bot['BOT_CREDENTIAL_SHA256'])):
+            raise ValueError('Invalid bot.local.json')
+        config['vars'] = {**config.get('vars', {}), **bot}
+    triggers = config.setdefault('triggers', {})
+    crons = triggers.setdefault('crons', [])
+    if '*/5 * * * *' not in crons:
+        crons.append('*/5 * * * *')
     config['main'] = 'src/worker.js'
     config['account_id'] = account
     config['name'] = name or config['name']
@@ -80,6 +95,22 @@ def main(argv=None):
         remote_env = dict(base_env, CLOUDFLARE_ACCOUNT_ID=config['account_id'], CLOUDFLARE_API_TOKEN=token)
         print('Applying additive migrations to the selected remote database...', flush=True)
         run(wrangler + ['d1', 'migrations', 'apply', 'DB', '--remote', *config_arg], remote_env)
+        bot_name = config.get('vars', {}).get('BOT_ACCOUNT_USERNAME')
+        if bot_name:
+            # Username is restricted to ASCII account characters above; no SQL quotes allowed.
+            query = "SELECT uid FROM accounts WHERE username='" + bot_name + "' AND active=1"
+            result = subprocess.run(wrangler + ['d1', 'execute', 'DB', '--remote', '--command', query,
+                                                '--json', *config_arg], cwd=HERE, env=remote_env,
+                                    check=True, capture_output=True, text=True)
+            response = json.loads(result.stdout)
+            rows = response[0]['results']
+            if len(rows) != 1 or not re.fullmatch(r'[1-9][0-9]*', str(rows[0]['uid'])):
+                print('Bot username does not identify an active account. Worker was not deployed.', file=sys.stderr)
+                return 1
+            config['vars']['BOT_ACCOUNT_UID'] = str(rows[0]['uid'])
+            del config['vars']['BOT_ACCOUNT_USERNAME']
+            config_path.write_text(json.dumps(config, indent=2) + '\n')
+            print('Resolved bot username to its permanent account UID.', flush=True)
         print('Deploying the full Worker...', flush=True)
         run(wrangler + ['deploy', *config_arg], remote_env)
         print('Deployment complete. Use the workers.dev URL printed above as ZENKAIPOWER_MATCH_URL.')

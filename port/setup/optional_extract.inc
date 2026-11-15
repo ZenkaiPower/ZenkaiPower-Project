@@ -580,10 +580,14 @@ void publish_catalogs(const CatalogUpdates &catalogs) {
         require(SDL_CreateDirectory(parent.c_str()),SetupText("error.cannot_create_ui_catalog_directory"));
         // Rename must stay on the destination filesystem (the disc scratch
         // directory may be on /tmp or another drive). Keep replacement atomic.
-        TemporaryDirectory staging(parent);
-        std::string temp=staging.path+"/catalog.json"; SDL_IOStream *out=SDL_IOFromFile(temp.c_str(),"wb");
+        // Android document providers cannot atomically move-and-rename from a
+        // subdirectory. A sibling temporary file permits same-parent replacement.
+        std::string temp=entry.first+".zenkai-catalog.tmp"; SDL_IOStream *out=SDL_IOFromFile(temp.c_str(),"wb");
         require(out!=nullptr,SetupText("error.cannot_update_ui_catalog")); bool ok=SDL_WriteIO(out,entry.second.data(),entry.second.size())==entry.second.size();
-        bool closed=SDL_CloseIO(out); require(ok && closed && SDL_RenamePath(temp.c_str(),entry.first.c_str()),SetupText("error.cannot_publish_ui_catalog"));
+        bool closed=SDL_CloseIO(out);
+        bool published=ok && closed && SDL_RenamePath(temp.c_str(),entry.first.c_str());
+        if (!published) SDL_RemovePath(temp.c_str());
+        require(published,SetupText("error.cannot_publish_ui_catalog"));
     }
 }
 void extract_wii(const std::string &root,const std::string &source) {

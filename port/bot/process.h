@@ -1,6 +1,7 @@
 #ifndef ZENKAI_BOT_PROCESS_H
 #define ZENKAI_BOT_PROCESS_H
 #include <SDL3/SDL.h>
+#include "credential.h"
 #include <atomic>
 #include <array>
 #include <filesystem>
@@ -107,11 +108,18 @@ public:
         if (account.empty()) return error("Cannot locate the bot directory");
         std::filesystem::create_directories(account, ec);
         if (ec) return error("Cannot create the bot account directory");
+        std::string credential, credentialError;
+        const char *executableDirectory = SDL_GetBasePath();
+        if (!executableDirectory) return error("Cannot locate the bot executable directory");
+        if (!BotCredential(SDL_getenv("ZENKAIPOWER_BOT_CREDENTIAL"),
+                           std::filesystem::u8path(executableDirectory), credential, credentialError))
+            return error(credentialError);
         SDL_Environment *env = SDL_CreateEnvironment(true);
         if (!env) return error(SDL_GetError());
         for (const char *key : {"ZENKAIPOWER_REPLAY", "ZENKAIPOWER_DEMO", "ZENKAIPOWER_NET_HOST", "ZENKAIPOWER_NET_JOIN", "ZENKAIPOWER_LOBBY", "ZENKAIPOWER_BOT_ACCESS_CODE"})
             SDL_UnsetEnvironmentVariable(env, key);
         auto set = [&](const char *key, const std::string &value) { SDL_SetEnvironmentVariable(env, key, value.c_str(), true); };
+        if (!credential.empty()) set("ZENKAIPOWER_BOT_CREDENTIAL", credential);
         set("ZENKAIPOWER_ACCOUNT_FILE", (account / "net_account_bot.dat").u8string());
         if (!options.access.empty()) set("ZENKAIPOWER_BOT_ACCESS_CODE", options.access);
         set("ZENKAIPOWER_NET_BOT", "1"); set("ZENKAIPOWER_NET_BOT_LEVEL", std::to_string(options.level - 1));

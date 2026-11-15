@@ -98,7 +98,7 @@ Both game and bot builds use the root `Dockerfile` and the `zenkaipower` image.
 To build both bots from PowerShell using that image:
 
 ```powershell
-docker run --rm --platform linux/amd64 --entrypoint /bin/sh --mount "type=bind,source=${PWD},target=/src" -w /src zenkaipower port/bot/build.sh all
+docker run --rm --platform linux/amd64 --entrypoint /bin/sh -e ZENKAIPOWER_BOT_CREDENTIAL --mount "type=bind,source=${PWD},target=/src" -w /src zenkaipower port/bot/build.sh all
 ```
 
 Pass `--release` to compile out cheats. Launch with `--settings` to enable the F1

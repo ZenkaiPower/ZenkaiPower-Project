@@ -781,11 +781,26 @@ static int http_post_once(const char *what, const char *json, char *out, size_t 
 }
 
 static int http_post(const char *what, const char *json, char *out, size_t size) {
-    char authenticated[4096], token[65];
+    char authenticated[4096], botBody[4608], token[65];
     int ok;
     if (strncmp(what, "account/", 8) && strcmp(what, "hello") && strcmp(what, "queues") && strcmp(what, "data-check")) {
         account_token_copy(token);
         if (account_body(json, token, authenticated, sizeof(authenticated))) json = authenticated;
+    }
+    /* Operator-only credential: inherited by the bot, never saved in account files. */
+    if (SDL_getenv("ZENKAIPOWER_NET_BOT") != NULL) {
+        const char *credential = SDL_getenv("ZENKAIPOWER_BOT_CREDENTIAL");
+        size_t n = SDL_strlen(json), i;
+        if (!credential) credential = ""; /* LAN can run without online credentials. */
+        if (credential[0]) {
+            if (SDL_strlen(credential) != 64) return 0;
+            for (i = 0; i < 64; i++) if (!((credential[i] >= '0' && credential[i] <= '9') ||
+                    (credential[i] >= 'a' && credential[i] <= 'f'))) return 0;
+        }
+        if (n < 2 || json[n - 1] != '}' || n + 100 >= sizeof(botBody)) return 0;
+        SDL_snprintf(botBody, sizeof(botBody), "%.*s,\"bot\":true,\"bot_credential\":\"%s\"}",
+                     (int)n - 1, json, credential);
+        json = botBody;
     }
     ok = http_post_once(what, json, out, size);
     /* refused for the time it was signed for: the answer says the service's time; once more by that */

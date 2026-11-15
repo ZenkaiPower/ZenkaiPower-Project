@@ -34,5 +34,10 @@
   "observability": {
     "enabled": true
   },
-  "keep_vars": true
+  "keep_vars": true,
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
 }

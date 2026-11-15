@@ -130,6 +130,8 @@ static int load(ArchiveIndex *index,FILE *file,const char *path,const struct sta
         if (fread(record,1,named ? 20 : 8,file)!=(size_t)(named ? 20 : 8)) return 0;
         offset=named ? Port_PackU64(record+4) : Port_PackU32(record);
         size=named ? Port_PackU64(record+12) : Port_PackU32(record+4);
+        // Regional subset packs retain original indexes with (0,0) holes.
+        if (!named && offset == 0 && size == 0) continue;
         if (offset>(uint64_t)stamp->st_size || size>(uint64_t)stamp->st_size-offset ||
             (!named && offset<8+(uint64_t)count*8)) return 0;
         entry->offset=(int64_t)offset; entry->size=(int64_t)size;
@@ -182,7 +184,7 @@ FILE *Port_ArchiveLookup(const char *archive,const char *relative,unsigned long 
     }
     index->used=++clock_use;
     if (!relative) {
-        if (id<index->count) entry=&index->entries[id];
+        if (id<index->count && index->entries[id].size>0) entry=&index->entries[id];
     } else if (listIndex>=0) {
         size_t n=strlen(relative);
         for (i=0;i<index->count;i++) {

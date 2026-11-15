@@ -71,10 +71,31 @@ export class FullService {
         const row = await this.stmt('INSERT INTO used(what,slot,n) VALUES(?,?,1) ON CONFLICT(what,slot) DO UPDATE SET n=n+1 RETURNING n', key, slot).first();
         if (row.n > max) throw new ApiError('too many account requests; try again later', 429);
     }
+    async pruneAddresses(now) {
+        const seconds = Math.floor(now / 1000);
+        await this.commit([
+            this.stmt('DELETE FROM rooms WHERE made < ?', seconds - 600),
+            this.stmt("DELETE FROM used WHERE (what LIKE 'host:%' OR what LIKE 'quick:%' OR what LIKE 'miss:%') AND slot <= ?", seconds - 3600),
+            this.stmt("DELETE FROM used WHERE what LIKE 'relay:%' AND slot <= ?", seconds - 86400),
+            this.stmt("DELETE FROM used WHERE what LIKE 'account:ip:%' AND slot <= ?", seconds - 900),
+            this.stmt("DELETE FROM used WHERE (what LIKE 'account:hash:ip:%' OR what LIKE 'report:ip:%') AND slot <= ?", seconds - 60),
+        ]);
+    }
+    async botAccess(user, body) {
+        const protectedAccount = user && String(this.env.BOT_ACCOUNT_UID || '') === String(user.uid);
+        if (body.bot !== undefined && typeof body.bot !== 'boolean') throw new ApiError('invalid bot mode');
+        if (!protectedAccount && body.bot === true) throw new ApiError('bot access denied', 403);
+        if (!protectedAccount) return;
+        const digest = this.env.BOT_CREDENTIAL_SHA256;
+        if (!/^[a-f0-9]{64}$/.test(digest || '') ||
+            typeof body.bot_credential !== 'string' || !/^[a-f0-9]{64}$/.test(body.bot_credential) ||
+            !secretEqual(await hash(body.bot_credential), digest)) throw new ApiError('bot access denied', 403);
+    }
     async auth(body, now) {
         if (!/^[a-f0-9]{64}$/.test(body.account_token || '')) throw new ApiError('initialize your player data before matchmaking', 403);
         const user = await this.first('SELECT a.* FROM accounts a JOIN account_tokens t ON t.user_uid=a.uid WHERE t.token_hash=? AND t.expires_datetime>? AND a.active=1', await hash(body.account_token), now);
         if (!user) throw new ApiError('account login expired or inactive; initialize your data again', 403);
+        await this.botAccess(user, body);
         return user;
     }
     async token(user, now, writes = []) {
@@ -99,6 +120,7 @@ export class FullService {
         if (!['login', 'prepare', 'register'].includes(action)) throw new ApiError('unknown account endpoint', 404);
         await this.accountLimits(action, body, ip, now);
         const name = username(body.username), user = await this.first('SELECT * FROM accounts WHERE username=?', name.toLowerCase());
+        await this.botAccess(user, body);
         if (action === 'login' && (typeof body.code !== 'string' || !/^[A-Za-z0-9]{6}$/.test(body.code)))
             throw new ApiError('code must contain six letters or numbers');
         if (action !== 'login' && user) throw new ApiError('username already exists', 409);
@@ -106,7 +128,7 @@ export class FullService {
         // Persisted budgets precede expensive work, including failed logins.
         await this.limit('account:hash:ip:' + await hash(ip), slot, 10);
         await this.limit('account:hash:global', slot, 30);
-        return {action, body: {username: name}, ip, code: action === 'login' ? body.code.toUpperCase() : accessCode(),
+        return {action, body: {username: name, bot: body.bot, bot_credential: body.bot_credential}, ip, code: action === 'login' ? body.code.toUpperCase() : accessCode(),
             salt: action === 'login' ? user?.code_salt || '00'.repeat(16) : random(16), verifier: user?.code_hash ?? null};
     }
     async account(action, body, ip, now, prepared = null) {
@@ -123,9 +145,11 @@ export class FullService {
             const pending = await this.first('SELECT * FROM account_registrations WHERE ticket_hash=? AND expires_datetime>?', ticketHash, now);
             if (!pending) throw new ApiError('registration expired; generate a new access code', 403);
             username(pending.display_name);
+            await this.botAccess({uid: pending.user_uid}, body);
             if (pending.user_uid !== null) {
                 const user = await this.first('SELECT * FROM accounts WHERE uid=? AND active=1', pending.user_uid);
                 if (!user) throw new ApiError('inactive account', 403);
+                await this.botAccess(user, body);
                 return this.token(user, now);
             }
             if (await this.first('SELECT 1 FROM accounts WHERE username=?', pending.username)) throw new ApiError('username already exists', 409);
@@ -144,6 +168,7 @@ export class FullService {
         if (action === 'login') {
             if (!user || !user.active || user.code_salt !== prepared.salt || user.code_hash !== prepared.verifier ||
                 !secretEqual(prepared.computed, user.code_hash)) throw new ApiError('invalid username or code, or inactive account', 403);
+            await this.botAccess(user, body);
             return this.token(user, now);
         }
         if (user) throw new ApiError('username already exists', 409);

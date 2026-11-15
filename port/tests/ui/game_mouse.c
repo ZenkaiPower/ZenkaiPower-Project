@@ -46,6 +46,7 @@ void Port_UiNotice(const char *message) {}
 SDL_Window *GsDraw_Window(void) { return (SDL_Window *)1; }
 SDL_WindowFlags SDL_GetWindowFlags(SDL_Window *w) { return focused ? SDL_WINDOW_INPUT_FOCUS : 0; }
 bool SDL_GetWindowSize(SDL_Window *w,int *x,int *y) { *x=1000; *y=700; return true; }
+int GsDraw_OutputSize(int *x,int *y) { (void)x; (void)y; return 0; }
 bool SDL_GetWindowSizeInPixels(SDL_Window *w,int *x,int *y) { return SDL_GetWindowSize(w,x,y); }
 static void button(Uint32 type, Uint8 which, int consumed) {
     SDL_Event ev={0}; ev.type=type; ev.button.button=which;
@@ -424,11 +425,16 @@ int main(void) {
         assert(data[4]!=0x80 || data[5]!=0x80); /* keyboard Strike becomes a stick direction */
         assert((((unsigned)data[1]<<8)|data[0])==0xFFFFu);
         keyboard[SDL_SCANCODE_N]=false;Port_PadRead(0,data);
+        assert(data[4]!=0x80 || data[5]!=0x80); /* second credit survives an immediate release */
+        Port_PadRead(0,data); /* third credit */
+        Port_PadRead(0,data); /* fourth credit */
+        Port_PadRead(0,data);
         assert(data[4]==0x80 && data[5]==0x80);
         physicalMouse=SDL_BUTTON_LMASK;game_mouse_poll();Port_PadRead(0,data);
         assert(data[4]!=0x80 || data[5]!=0x80); /* mouse Strike works in Rotate Stick mode too */
         assert((((unsigned)data[1]<<8)|data[0])==0xFFFFu);
         physicalMouse=0;game_mouse_poll();Port_PadRead(0,data);
+        Port_PadRead(0,data);Port_PadRead(0,data);Port_PadRead(0,data);
         buttons=B_SQUARE;lx=0xFF;ly=0x80;
         clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
         assert(buttons==B_SQUARE && lx==0xFF && ly==0x80); /* gamepad still rotates */
@@ -442,13 +448,21 @@ int main(void) {
             assert(directions[i]!=0x8080u);
             buttons=B_SQUARE;lx=ly=0x80;
             clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
-            assert(directions[i]==(((unsigned)lx<<8)|ly)); /* holding adds no direction */
+            unsigned turn[4]; turn[0]=directions[i]; turn[1]=((unsigned)lx<<8)|ly;
+            for(int step=2;step<4;step++) {
+                buttons=B_SQUARE;lx=ly=0x80;
+                clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
+                turn[step]=((unsigned)lx<<8)|ly;
+            }
+            for(int x=0;x<4;x++) for(int y=0;y<x;y++) assert(turn[x]!=turn[y]);
+            buttons=B_SQUARE;lx=ly=0x80;
+            clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
+            assert(turn[3]==(((unsigned)lx<<8)|ly)); /* holding stops after four credits */
             buttons=0;lx=ly=0x80;
             clash_square(0,&buttons,&lx,&ly,0,B_SQUARE);
             assert(lx==0x80 && ly==0x80); /* release adds no extra credit */
         }
-        for(int i=1;i<4;i++) for(int j=0;j<i;j++) assert(directions[i]!=directions[j]);
-        assert(directions[4]==directions[0]); /* four taps complete one turn */
+        for(int i=1;i<5;i++) assert(directions[i]==directions[0]); /* each tap is a full turn */
         testClash=0;
     }
     puts("Game mouse and gamepad input checks passed");

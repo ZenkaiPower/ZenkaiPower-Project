@@ -107,3 +107,7 @@ assets/setup
 # Website build output
 /.pages-source/
 /.pages-output/
+
+# Local bot authorization settings (hash only)
+/server/bot.local.json
+bot.local.json

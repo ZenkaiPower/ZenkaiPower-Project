@@ -541,7 +541,7 @@ const workerHandler = {
         let user = null;
         if (what.startsWith('account/')) return reply(await service.account(what.slice(8), body, ip, Date.now()));
         if (what === 'ranking') return reply(await service.ranking(body));
-        if (full && what !== 'queues') {
+        if ((full || body.bot === true) && what !== 'queues') {
             user = await service.auth(body, Date.now());
             if (entry) {
                 if (body.name !== undefined && (typeof body.name !== 'string' || body.name.toLowerCase() !== user.username))
@@ -767,8 +767,12 @@ export class MatchCoordinator {
         }
     }
     async fetch(request) {
-        return this.state.blockConcurrencyWhile(() => {
+        return this.state.blockConcurrencyWhile(async () => {
             const DB = this.env.DB.withSession ? this.env.DB.withSession('first-primary') : this.env.DB;
+            if (new URL(request.url).pathname === '/_privacy/cleanup') {
+                await new FullService({...this.env, DB}).pruneAddresses(Date.now());
+                return reply({cleaned: true});
+            }
             if (['/_account/prepare', '/_account/finish'].includes(new URL(request.url).pathname))
                 return this.accountJob(request, new FullService({...this.env, DB}));
             return handled(request, {...this.env, DB});
@@ -781,7 +785,7 @@ export default {
     async fetch(request, env) {
         const path = new URL(request.url).pathname;
         // These routes exist only on the private binding. Never forward them from HTTP.
-        if (path.startsWith('/_account/')) return reply({error: 'bad request'}, 404);
+        if (path.startsWith('/_account/') || path.startsWith('/_privacy/')) return reply({error: 'bad request'}, 404);
         if (env.COORDINATOR) {
             // Receive bounded uploads before taking the shared coordination gate;
             // a slow client must not hold up every other player's request.
@@ -820,6 +824,11 @@ export default {
         return reply({error: 'matchmaking coordinator binding missing'}, 503);
     },
     async scheduled(event, env, ctx) {
+        // Always clean up, including idle servers without relay/admin configuration.
+        if (env.COORDINATOR) {
+            ctx.waitUntil(env.COORDINATOR.get(env.COORDINATOR.idFromName('global-v1'))
+                .fetch(new Request('https://internal/_privacy/cleanup', {method: 'POST'})));
+        } else ctx.waitUntil(new FullService(env).pruneAddresses(Date.now()));
         // Cron runs through the same coordinator to avoid races with relay limits.
         if (env.COORDINATOR && env.ADMIN_KEY) {
             ctx.waitUntil(env.COORDINATOR.get(env.COORDINATOR.idFromName('global-v1')).fetch(new Request('https://internal/v1/status', {

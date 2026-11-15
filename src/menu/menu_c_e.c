@@ -2269,8 +2269,7 @@ s32 CharSel_Run(s32 section) {
                     s32 k;
                     for (k = 0; k < gCharSel->masterCount[side]; k++) {
                         s32 cell = (start + k) % gCharSel->masterCount[side];
-                        if (gCharSel->cells[side][cell].id >= 0 && gCharSel->cells[side][cell].id < MCHR_RANDOM &&
-                            gCharSel->cells[side][cell].formCount == 0) {
+                        if (gCharSel->cells[side][cell].id >= 0 && gCharSel->cells[side][cell].id < MCHR_RANDOM) {
                             CharSel_ClipGoto(side + 1, side, CHARSEL_CLIP_CHIP, "fl_off_start");
                             gCharSel->side[side]->col = cell % 7;
                             gCharSel->side[side]->row = cell / 7;
@@ -2284,6 +2283,21 @@ s32 CharSel_Run(s32 section) {
                     }
                 }
                 if (botPicked && ++botWait >= 20) {
+                    if (gCharSel->side[side]->state == CHARSEL_ST_FORM) {
+                        s32 form, chosen = -1, choices = 0;
+                        s32 cell = gCharSel->side[side]->col + gCharSel->side[side]->row * 7;
+                        for (form = 0; form < gCharSel->cells[side][cell].formCount; form++)
+                            if (gCharSel->side[side]->chip[form] >= 0 &&
+                                gCharSel->side[side]->chip[form] < MCHR_RANDOM && Rand_Range(++choices) == 0)
+                                chosen = form;
+                        if (chosen >= 0) {
+                            CharSel_ClipGoto(side + 1, side, CHARSEL_CLIP_FORM_CHIP, "fl_off_start");
+                            gCharSel->side[side]->form = chosen;
+                            gCharSel->side[side]->chara = gCharSel->side[side]->chip[chosen];
+                            CharSel_RequestFace(side);
+                            CharSel_ClipGoto(side + 1, side, CHARSEL_CLIP_FORM_CHIP, "fl_on_start");
+                        }
+                    }
                     if (gCharSel->side[side]->state == CHARSEL_ST_ITEMSET) {
                         CharSel_ClipGoto(side + 3, side, CHARSEL_CLIP_CUSTOM_PLATE, "fl_off_start");
                         gCharSel->side[side]->customPlate = Rand_Range(gCharSel->customRows[side]);

@@ -425,3 +425,115 @@ Run `python3 port/tools/test_net_save_mode.py` for session capture/restore,
 JSON validation/storage and player authorization in the LAN and Worker paths.
 Run the save encryption regression `port/tests/save/zenkai.c` for ID persistence,
 new-game regeneration, hash determinism and authenticated tamper rejection.
+
+
+## Allow one online bot account
+
+Bot permission belongs to one existing account UID, not its display name. The
+protected account requires its normal access code plus a private 256-bit credential.
+Existing account tokens also require that credential on every authenticated request.
+Other accounts cannot request bot mode. No database migration is needed.
+
+1. Create the dedicated bot account normally (for example `SparkingBot`) and keep
+   its access code private. Setup accepts the username; deployment looks up the
+   active account in D1 and authorizes its permanent UID automatically.
+
+2. Generate the credential and a local JSON file using Docker in PowerShell.
+   Replace `SparkingBot` with your bot account username. Keep this PowerShell window open:
+
+   ```powershell
+   $env:ZENKAIPOWER_BOT_CREDENTIAL = docker run --rm --entrypoint python3 zenkaipower -c "import secrets; print(secrets.token_hex(32))"
+   if ($LASTEXITCODE -ne 0) { throw 'Credential generation failed' }
+   docker run --rm --entrypoint python3 -e ZENKAIPOWER_BOT_CREDENTIAL `
+     --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+     server/tools/bot_config.py --username SparkingBot
+   if ($LASTEXITCODE -ne 0) { throw 'Bot configuration generation failed' }
+   ```
+
+   This creates ignored `server/bot.local.json` containing only `BOT_ACCOUNT_USERNAME`
+   and `BOT_CREDENTIAL_SHA256`. It refuses to overwrite an existing configuration.
+   Store the raw credential from `$env:ZENKAIPOWER_BOT_CREDENTIAL` in your password
+   manager before closing PowerShell. Never commit or distribute the raw credential.
+   Do not rerun the random-generation line unless you intend to rotate the credential.
+
+3. Apply the JSON to Cloudflare using your existing local credentials:
+
+   ```powershell
+   docker run --rm -it --platform linux/amd64 --entrypoint python3 `
+     --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+     server/tools/deploy_portable.py
+   ```
+
+   This resolves the username to an active account UID, deploys the updated Worker,
+   and merges the authorization hash into its variables,
+   preserving other local variables. It authenticates with `server/cloudflare.local.json`
+   and applies pending database migrations through the normal deploy process.
+   Keep `bot.local.json` for subsequent deployments. Only the hash is uploaded.
+
+4. Rebuild the game containing the updated network client. Start the bot from the
+   PowerShell window where the credential is set:
+
+   ```powershell
+   & .\release\bot\ZenkaiPower-bot.exe
+   ```
+
+   Choose the rebuilt game executable and enter the dedicated username and normal
+   access code. The bot passes the inherited credential to the game automatically;
+   it is not saved in bot preferences or the account file. Use HTTPS for online service.
+
+5. To rotate access, generate a new credential, replace the server hash, and restart
+   the bot with the new environment value. Old credentials immediately stop working
+   for new authenticated requests. To revoke access, remove the hash but retain the UID.
+
+This protects the dedicated account even when a client pretends to be a human.
+It controls declared bot mode; modified clients that hide automation are not
+attested, and this does not add server-authorized CPU flags to the peer handshake.
+LAN service behavior is unchanged. The normal account/IP login rate limits still apply.
+
+
+### Launch the bot without an environment variable
+
+Place a private file named `bot.local.json` in the same folder as
+`ZenkaiPower-bot.exe` (or the Linux bot executable):
+
+```json
+{
+  "ZENKAIPOWER_BOT_CREDENTIAL": "YOUR_ORIGINAL_64_CHARACTER_PRIVATE_CREDENTIAL"
+}
+```
+
+Use the original raw credential that produced the deployed hash, replacing the
+placeholder. You can then double-click the bot launcher. A nonempty
+`ZENKAIPOWER_BOT_CREDENTIAL` environment variable takes priority over the file.
+Rebuild the bot launcher once to enable this fallback; no additional game change
+is required for it. Missing files remain allowed for LAN use; malformed files
+produce an error before launching the game.
+
+This launcher file contains a secret. Keep it private, do not commit it, and do
+not include it in release archives. It is different from `server/bot.local.json`,
+which contains the account identity and hash for deployment. Copying that server
+file beside the launcher will not provide the private credential.
+
+
+The bot build automatically creates `release/bot/bot.local.json` beside the
+executable, including when the executable is already up to date. Pass
+`-e ZENKAIPOWER_BOT_CREDENTIAL` to the Docker build command to populate it with
+your current private credential. Without that variable, the build creates an
+empty template you must fill before online use. Existing files are preserved;
+credential rotation requires updating the launcher file yourself. The build
+cannot recover a raw credential from `server/bot.local.json`'s hash. This private
+file is for your local bot installation only; exclude it from distributed releases.
+
+
+## Network address retention
+
+A scheduled cleanup runs every five minutes, even without matchmaking traffic.
+Expired rooms and their host IP / player connection addresses are deleted after
+the existing ten-minute room lifetime (normally within fifteen minutes of creation).
+IP-based rate-limit records are removed after their enforcement window: one minute
+for connection reports and account hashing, fifteen minutes for account requests,
+one hour for room/search limits, and one day for relay limits, plus scheduling delay.
+Active rate-limit windows and battle history are preserved. Normal deployments
+ensure the five-minute Cron Trigger exists, including with older local Wrangler files.
+This removes records from the live application database; Cloudflare logs and
+backup retention are separate and are not changed by this cleanup.

@@ -56,6 +56,17 @@ int main(void) {
     a=fopen("test.pak","wb"); fwrite("BT3TEXT1",1,8,a); word(a,100000,4); fclose(a);
     for(i=0;i<16;i++) indexes[i].checked=0;
     assert(!Port_ArchiveLookup("test.pak","dir/a.j",0,&base,&size,-1,NULL,0));
+    a=fopen("sparse.afs","wb"); assert(a);
+    fwrite("AFS\0",1,4,a); word(a,3,4);
+    word(a,0,4); word(a,0,4); // Omitted entry zero.
+    word(a,32,4); word(a,1,4); // Retained selector/resource entry.
+    word(a,0,4); word(a,0,4); // Omitted trailing entry.
+    fputc('E',a); fclose(a);
+    a=Port_ArchiveLookup("sparse.afs",NULL,1,&base,&size,-1,NULL,0);
+    assert(a && size==1 && fgetc(a)=='E'); fclose(a);
+    assert(!Port_ArchiveLookup("sparse.afs",NULL,0,&base,&size,-1,NULL,0));
+    assert(!Port_ArchiveLookup("sparse.afs",NULL,2,&base,&size,-1,NULL,0));
+    remove("sparse.afs");
     remove("test.afs"); remove("test.pak");
     puts("PASS: archive indexes, independent/concurrent readers, replacement, bounds, listing and malformed packages");
     return 0;

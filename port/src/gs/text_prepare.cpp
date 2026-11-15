@@ -124,13 +124,13 @@ bool applyBundledUiOverrides(const std::string &dataDir,const char *locale) {
         if (!readJson(targetPath,extracted)) return strcmp(locale,"en") != 0;
         if (!extracted.contains("source") || !extracted["source"].is_string()) return true;
         const std::string targetSource=extracted["source"].get<std::string>();
-        const bool generated=targetSource=="extracted USA game text, version 2" ||
+        const bool generated=(targetSource=="extracted USA game text, version 2" || targetSource=="extracted USA game text, version 3") ||
             targetSource.rfind("European disc, version ",0)==0 ||
             targetSource=="bundled UI overrides, based on extracted USA game text, version 2";
         if (!generated) return true;
     } else {
         if (!strcmp(locale,"en") || !readJson(englishPath,extracted) ||
-            !extracted.contains("source") || extracted["source"]!="extracted USA game text, version 2" ||
+            !extracted.contains("source") || (extracted["source"]!="extracted USA game text, version 2" && extracted["source"]!="extracted USA game text, version 3") ||
             !extracted.contains("labels") || !extracted["labels"].is_object()) return !strcmp(locale,"en");
         extracted["locale"]=locale;
         extracted["name"]=source["name"];

@@ -140,6 +140,7 @@ static bool sDiscChecked[4], sDiscInstalled[4];
 
 static ImFontAtlasRectId sTitleLogo[2]={ImFontAtlasRectId_Invalid,ImFontAtlasRectId_Invalid};
 static Uint64 sTitleLogoCheck;
+static int sSelectedTitleLogo=-1;
 static std::future<NativeTitleLogo> sTitlePreview[2];
 static std::string sTitlePreviewPath[2];
 
@@ -1217,14 +1218,19 @@ static void build_ui() {
         }
         if(usDiscReady) load_title_logos();
         ImFontAtlasRect logo;
-        int region=(sDiscChecked[3] || sDiscInstalled[3]) ? 1 : 0;
-        if(sTitleLogo[region]==ImFontAtlasRectId_Invalid) region=0;
+        int region=sSelectedTitleLogo>=0 ? sSelectedTitleLogo : (sDiscChecked[3] || sDiscInstalled[3]) ? 1 : 0;
+        if(sTitleLogo[region]==ImFontAtlasRectId_Invalid) region=1-region;
         if(sTitleLogo[region]!=ImFontAtlasRectId_Invalid && ImGui::GetIO().Fonts->GetCustomRect(sTitleLogo[region],&logo)) {
             float w=panel-4,h=w*logo.h/logo.w;
             if(h>170) { w*=170/h; h=170; }
             float top=hasCover ? footer-h-10 : (footer-h)*0.5f;
             draw->AddImage(ImGui::GetIO().Fonts->TexRef,ImVec2((panel-w)*0.5f,top),
                 ImVec2((panel+w)*0.5f,top+h),logo.uv0,logo.uv1);
+            if(sTitleLogo[0]!=ImFontAtlasRectId_Invalid && sTitleLogo[1]!=ImFontAtlasRectId_Invalid) {
+                ImGui::SetCursorScreenPos(ImVec2((panel-w)*0.5f,top));
+                if(ImGui::InvisibleButton("switch-title-logo",ImVec2(w,h))) sSelectedTitleLogo=1-region;
+                if(ImGui::IsItemHovered()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            }
         }
     }
     /* Keep the cover column reserved on other pages even when its artwork is hidden. */

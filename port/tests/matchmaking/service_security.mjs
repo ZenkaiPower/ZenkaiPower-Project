@@ -11,10 +11,14 @@ import {FullService, hash, codeHash} from '../../../server/src/full_service.js';
 const project = new URL('../../../server/', import.meta.url);
 const require = createRequire(new URL('package.json', project));
 const {build} = require('esbuild');
+// Use a synthetic accepted build so authorization tests never depend on local release outputs.
+const policy = {scheme: 'zenkaipower-binaries-v2', files: 1,
+    signatures: {['ab'.repeat(32)]: 'test-only'}};
 const bundle = await build({entryPoints: [fileURLToPath(new URL('src/worker.js', project))], bundle: true,
-    write: false, format: 'esm', platform: 'node'});
+    write: false, format: 'esm', platform: 'node', plugins: [{name: 'test-build-policy', setup(build) {
+        build.onLoad({filter: /game_data_signature\.json$/}, () => ({contents: JSON.stringify(policy), loader: 'json'}));
+    }}]});
 const {workerHandler, MatchCoordinator, default: edgeWorker} = await import('data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].text).toString('base64'));
-const policy = JSON.parse(readFileSync(new URL('data/game_data_signature.json', project)));
 const wire = '00000000-0000-4000-8000-000000000002';
 
 async function fixture(t) {
@@ -142,8 +146,12 @@ test('account and participant ownership remain required independently of build f
     assert.equal(check.expected, Object.hasOwn(policy.signatures, data) ? data : '');
     assert.equal(check.build_attestation, false);
     assert.equal(check.check, 'compatibility');
-    for (const path of ['host', 'quick'])
+    for (const path of ['host', 'quick']) {
         await assert.rejects(call(path, {data, queue: 'RS'}), e => e.status === 403);
+        const refused = await call(path, {data: 'unknown-build', queue: 'RS'});
+        assert.equal(refused.status, 403);
+        assert.deepEqual(await refused.json(), {error: 'game data'});
+    }
 });
 
 test('inactive opponent prevents settlement', async t => {
@@ -252,4 +260,51 @@ test('login completion rechecks account credentials and jobs cannot replay', asy
     const finish = () => coordinator.fetch(accountRequest('_account/finish', {job: plan.job, computed}));
     assert.equal((await finish()).status, 403);
     assert.equal((await finish()).status, 409);
+});
+
+
+test('bot account requires private credential for login and existing tokens', async t => {
+    const {service} = await fixture(t);
+    const credential = 'ab'.repeat(32);
+    service.env.BOT_ACCOUNT_UID = '1';
+    service.env.BOT_CREDENTIAL_SHA256 = await hash(credential);
+    const token = {account_token: '1'.repeat(64)};
+    await assert.rejects(service.auth(token, Date.now()), /bot access denied/);
+    await assert.rejects(service.auth({...token, bot_credential: 'cd'.repeat(32)}, Date.now()), /bot access denied/);
+    assert.equal((await service.auth({...token, bot_credential: credential}, Date.now())).uid, 1);
+    await assert.rejects(service.auth({account_token: '2'.repeat(64), bot: true, bot_credential: credential}, Date.now()), /bot access denied/);
+    assert.equal((await service.auth({account_token: '2'.repeat(64)}, Date.now())).uid, 2);
+    await assert.rejects(service.prepareAccount('login', {username: 'user1', code: 'ABC123'}, '127.0.0.1', Date.now()), /bot access denied/);
+    const plan = await service.prepareAccount('login', {username: 'user1', code: 'ABC123', bot: true, bot_credential: credential}, '127.0.0.1', Date.now());
+    assert.equal(plan.body.bot_credential, credential);
+    service.env.BOT_CREDENTIAL_SHA256 = await hash('ef'.repeat(32));
+    await assert.rejects(service.auth({...token, bot_credential: credential}, Date.now()), /bot access denied/);
+    delete service.env.BOT_CREDENTIAL_SHA256;
+    await assert.rejects(service.auth({...token, bot_credential: credential}, Date.now()), /bot access denied/);
+    delete service.env.BOT_ACCOUNT_UID;
+    await assert.rejects(service.auth({...token, bot: true, bot_credential: credential}, Date.now()), /bot access denied/);
+});
+
+
+test('address cleanup expires rooms and IP limits without resetting active windows', async t => {
+    const {db, service} = await fixture(t);
+    const now = Date.now(), seconds = Math.floor(now / 1000);
+    const insert = db.prepare('INSERT INTO rooms(code,made,version,ip,host_key,host_name,host_addrs) VALUES(?,?,1,?,?,?,?)');
+    insert.run('OLD123', seconds - 601, '192.0.2.1', 'old-key', 'User1', '192.0.2.1:1234');
+    insert.run('NEW123', seconds - 599, '192.0.2.2', 'new-key', 'User2', '192.0.2.2:1234');
+    db.prepare('INSERT INTO account_rooms(code,host_uid) VALUES(?,1)').run('OLD123');
+    const limits = [['host:192.0.2.1',3600], ['quick:192.0.2.1',3600], ['miss:192.0.2.1',3600],
+        ['relay:192.0.2.1',86400], ['account:ip:hash',900], ['account:hash:ip:hash',60], ['report:ip:hash',60]];
+    for (const [key, window] of limits) {
+        db.prepare('INSERT INTO used VALUES(?,?,3)').run(key, seconds - window);
+        db.prepare('INSERT INTO used VALUES(?,?,4)').run(key, seconds - window + 1);
+    }
+    db.prepare('INSERT INTO used VALUES(?,?,5)').run('relayoff', 1);
+    await service.pruneAddresses(now);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM rooms').get().n, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM account_rooms').get().n, 0);
+    for (const [key] of limits) assert.deepEqual(db.prepare('SELECT n FROM used WHERE what=?').all(key).map(r=>r.n), [4]);
+    assert.equal(db.prepare("SELECT n FROM used WHERE what='relayoff'").get().n, 5);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM battles').get().n, 2);
+    await service.pruneAddresses(now); // Repeated cleanup is safe.
 });

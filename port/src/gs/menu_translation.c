@@ -867,6 +867,34 @@ static int tr_bundled_dir(char *out, size_t size) {
     }
     return 0;
 }
+/* Read source metadata independent of formatting and object key order. */
+int MenuTranslation_UiCatalogSource(const char *path, char *out, size_t capacity) {
+    FILE *fp = Port_PackFopen(path, "rb");
+    char *data, *key, *value;
+    long size;
+    int found = 0;
+    if (!capacity) { if (fp) fclose(fp); return 0; }
+    out[0] = 0;
+    if (!fp) return 0;
+    if (fseek(fp, 0, SEEK_END) || (size = ftell(fp)) < 2 || size > 32 * 1024 * 1024 ||
+        fseek(fp, 0, SEEK_SET) || !(data = malloc((size_t)size))) { fclose(fp); return 0; }
+    if (fread(data, 1, size, fp) != (size_t)size) { free(data); fclose(fp); return 0; }
+    fclose(fp);
+    { TrParser parser = {data, data + size};
+      if (tr_take(&parser, '{')) do {
+        key = tr_string(&parser);
+        if (!key || !tr_take(&parser, ':')) { free(key); break; }
+        if (!strcmp(key, "source")) {
+            value = tr_string(&parser);
+            if (value) { snprintf(out, capacity, "%s", value); found = 1; }
+            free(value); free(key); break;
+        }
+        free(key);
+        if (!tr_skip(&parser, 0)) break;
+      } while (tr_take(&parser, ','));
+    }
+    free(data); return found;
+}
 int MenuTranslation_BundledUiCatalogPath(const char *locale, char *path, size_t size) {
     char bundled[1100];
     if (locale == NULL || path == NULL || size == 0 || strlen(locale) > 15 ||

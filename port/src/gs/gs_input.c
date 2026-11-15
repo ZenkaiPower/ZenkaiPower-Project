@@ -1219,11 +1219,12 @@ static unsigned script_buttons(void) {
  * pressed (input 51 = BTLC_DIR_P; BtlAct_ClashStruggleHandler and BtlAct_ClashBlowsHandler). Turning the stick is
  * the usual way to make them, four a turn; tapping directions makes them as well. When tapping Strike, while this
  * player's fighter is in a clash action, Strike is taken off the pad and each press of it holds the stick in the
- * next of up, right, down, left for as long as it is held: one press, one newly pressed direction, as a tap of
+ * next of up, right, down, left, then advances on the next three frames: four newly pressed directions, unlike a single tap of
  * the d-pad gives. In Strike mode, stick and d-pad directions are neutralized
  * during the clash so each press of Strike is the struggle input.
  *
- * Each new Strike press moves the virtual stick to the next direction exactly once. Four taps cover a full turn.
+ * Each new Strike press emits four successive directions on consecutive input frames.
+ * Holding does not repeat after the fourth direction. One tap covers a full turn.
  *
  * This is done to the pad's own bytes, before they reach the game or the other player of an online match: the
  * game sees an ordinary pad, so the two copies of an online match compute the same fight whoever has it on. */
@@ -1251,13 +1252,13 @@ static void clash_square(int socket, unsigned *btn, unsigned char *lx, unsigned 
     extern void *BtlChar_FindByObjId(int objId); /* the game: the fighter of a side, NULL outside a fight */
     extern int BtlAct_GetCurrent(void *chr);     /* its action */
     extern int Port_NetActive(void), Port_NetMe(void);
-    static int dir[2], was[2];
+    static int dir[2], was[2], remaining[2];
     int side = Port_NetActive() ? Port_NetMe() : socket, in = 0;
-    int enabled = Port_ClashSquare() || pcStrike, down = Port_ClashSquare() ? (*btn & strikeBit) != 0 : pcStrike;
+    int enabled = Port_ClashSquare() || pcStrike || remaining[socket], down = Port_ClashSquare() ? (*btn & strikeBit) != 0 : pcStrike;
     void *chr;
 
     if (!enabled) {
-        was[socket] = 0;
+        was[socket] = remaining[socket] = 0;
         return;
     }
     if (getenv("ZENKAIPOWER_CLASH_TEST") != NULL) {
@@ -1267,16 +1268,21 @@ static void clash_square(int socket, unsigned *btn, unsigned char *lx, unsigned 
         in = (action >= 0x130 && action <= 0x132) || action == 0xFA || action == 0xFB || action == 0xFC;
     }
     if (!in) {
+        remaining[socket] = 0;
         was[socket] = down; /* (a Square held into the clash is not a press in it) */
         return;
     }
-    if (down && !was[socket]) {
+    int pulse = remaining[socket] > 0;
+    if (down && !was[socket]) remaining[socket] += 4;
+    if (remaining[socket] > 0) {
         dir[socket] = (dir[socket] + 1) & 3;
+        remaining[socket]--;
+        pulse = 1;
     }
     was[socket] = down;
     *btn &= ~(strikeBit|B_UP|B_RIGHT|B_DOWN|B_LEFT);
     *lx = *ly = 0x80;
-    if (down) {
+    if (down || pulse) {
         switch (dir[socket]) {
         case 0: *ly = 0x00; break; /* up */
         case 1: *lx = 0xFF; break; /* right */

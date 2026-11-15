@@ -130,7 +130,7 @@ The remaining characters in the game's full roster of 161 are unlocked as usual,
 
 <img src="./figs/initial-characters.gif" width="320"/>
 
-⚠️ An optional fresh save file restores the original starting roster of 132 unlocked characters.
+💾 An optional [fresh save file](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/tag/savegame-startcharacters) restores the original starting roster of 132 unlocked characters. Download and place it in the `savegame` directory.
 
 ### LAN and Online Multiplayer
 
@@ -138,7 +138,9 @@ The remaining characters in the game's full roster of 161 are unlocked as usual,
 
 For LAN play, both players only need to set a player name and connect to the same local network. Casual game modes are available over LAN.
 
-Online play allows players to connect over the internet for casual or ranked matches. Players must create a username and receive a user code for their account. Keep your username and user code somewhere safe, as both are required to log in to online mode.
+Online play allows players to connect over the internet for casual or ranked matches. Players must create a username and receive a user code for their account. 
+
+⚠️ Keep your username and user code somewhere safe, as both are required to log in to online mode. Do not share your user code or `savegame/net_account.dat` file.
 
 <img src="./figs/dragon-net-battle.gif" width="320"/>
 
@@ -154,9 +156,12 @@ Online mode includes:
   - 1 vs 1
 - Global player rankings
 
+<img src="./figs/dragon-net-battle-menu.gif" width="320"/>
+
 Ranked mode uses the game's native scoring system.
 
-<img src="./figs/dragon-net-battle-menu.gif" width="320"/>
+<img src="./figs/ranking-points.gif" width="320"/>
+
 
 ### Training Settings
 
@@ -173,6 +178,10 @@ The *Character Reference* menu now include both Japanese and US voice actors cre
 ### Character Names
 
 A filter was added to stop displaying ®, ™, and © symbols.
+
+### Unlockable BGM
+
+Like the original release, toggling to the Sparking! METEOR edition change the game's soundtrack to the anime's original music and allows the five unlockable BGM tracks to be available by completing specific requirements.
 
 ## Mobile Version
 
@@ -203,15 +212,19 @@ Gamepad support is available for Android devices, allowing players to use a cont
 
 To install the game, you must own a copy of the North American NTSC PlayStation 2 version of **Dragon Ball Z Budokai Tenkaichi 3**. Other versions are optional to add extra content and unlock some of the features listed above, including *Dragon Net Battle*.
 
-⚠️ No game files are distributed with the **ZENKAI Power!** project.
+⚠️ No game files are distributed with the **ZENKAI Power!** project. The logo shown below on the setups is extracted from the original game discs.
 
 ### Desktop
 
 Download the installation files for your platform (Windows or Linux), extract them, and follow the installer's instructions. The installation files are available on the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/latest).
 
+<img src="./figs/setup-desktop.gif" alt="Installer" width="320"/>
+
 ### Android
 
 Download the `.apk` file from the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/latest), install it on your Android device, and follow the instructions in the app.
+
+<img src="./figs/setup-android.gif" alt="Installer" width="320"/>
 
 ### Versions Supported
 

@@ -35,7 +35,7 @@ if [ "$1" = win ]; then
                    docker image inspect zenkaipower >/dev/null || exit "$?"
                fi
                exec docker run --rm --platform linux/amd64 --entrypoint /bin/sh -u "$(id -u):$(id -g)" -e HOME=/tmp \
-                   -e ZENKAIPOWER_BOT_CONTAINER=1 -e ZENKAIPOWER_JOBS -e ZENKAIPOWER_FULL_REBUILD \
+                   -e ZENKAIPOWER_BOT_CREDENTIAL -e ZENKAIPOWER_BOT_CONTAINER=1 -e ZENKAIPOWER_JOBS -e ZENKAIPOWER_FULL_REBUILD \
                    -v "$PWD":/src -w /src zenkaipower port/bot/build.sh win
            fi
            SDL="-I$S/include -L$S/lib" ;;
@@ -72,6 +72,7 @@ for o in "$O"/*.o; do
 done
 if [ "$link" = false ]; then
     echo "up to date: $OUT"
+    python3 port/bot/write_config.py "$OUT"
     exit 0
 fi
 # -Wl,-Bdynamic for SDL3 only: the rest (C++ runtime, threads) is linked in.
@@ -81,3 +82,4 @@ else
     $CXX -o "$OUT" "$O"/*.o $LIBS
 fi
 echo "built $OUT"
+python3 port/bot/write_config.py "$OUT"

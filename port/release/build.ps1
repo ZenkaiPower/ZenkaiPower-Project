@@ -138,7 +138,8 @@ try {
             New-Item -ItemType Directory -Force (Join-Path $repoRoot "release") | Out-Null
             foreach ($exportPlatform in $exportPlatforms) {
                 $folder = "$exportPlatform-x64"
-                $destination = Join-Path $repoRoot "build/$folder"
+                $buildFolder = if ($exportPlatform -eq 'linux') { 'ZenkaiPower-Linux' } else { 'ZenkaiPower-Windows' }
+                $destination = Join-Path $repoRoot "build/$buildFolder"
                 New-Item -ItemType Directory -Force $destination | Out-Null
                 & docker cp "${releaseContainer}:/src/release/$folder/." $destination
                 if ($LASTEXITCODE -ne 0) { throw 'Release built, but exporting the game folder failed. Outputs remain in the Docker artifacts volume.' }

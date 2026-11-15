@@ -2456,12 +2456,17 @@ static s32 TeamSel_BotNextCell(s32 side) {
             used += ChrTbl_GetCost(gTeamSel->side[side]->member[k].chara);
     }
     for (k = 0; k < gTeamSel->masterCount[side]; k++) {
-        s32 chara = gTeamSel->cells[side][k].id;
-        s32 cost;
-        if (chara < 0 || chara >= TS_RANDOM || gTeamSel->cells[side][k].formCount != 0 ||
-            !TeamSel_IsCharaFree(side, chara)) continue;
-        cost = ChrTbl_GetCost(chara);
-        if (gTeamSel->battleType == 2 && used + cost > gTeamSel->dpMax) continue;
+        TsCell *entry = &gTeamSel->cells[side][k];
+        s32 form, legal = 0;
+        if (entry->id < 0 || entry->id >= TS_RANDOM) continue;
+        for (form = 0; form < (entry->formCount ? entry->formCount : 1); form++) {
+            s32 chara = entry->formCount ? entry->form[form] : entry->id;
+            if (chara < 0 || chara >= TS_RANDOM || !TeamSel_IsCharaFree(side, chara)) continue;
+            if (gTeamSel->battleType == 2 && used + ChrTbl_GetCost(chara) > gTeamSel->dpMax) continue;
+            legal = 1;
+            break;
+        }
+        if (!legal) continue;
         if (Rand_Range(++choices) == 0) best = k;
     }
     return best;
@@ -2672,6 +2677,23 @@ s32 TeamSel_Run(s32 section) {
                 }
             }
             if ((botPicked || gTeamSel->side[side]->state == TEAMSEL_ST_TEAM) && ++botWait >= 20) {
+                if (gTeamSel->side[side]->state == TEAMSEL_ST_FORM) {
+                    TsMember *member = &gTeamSel->side[side]->member[gTeamSel->side[side]->cur];
+                    TsCell *entry = &gTeamSel->cells[side][member->col + member->row * TS_COLS];
+                    s32 form, chosen = -1, choices = 0;
+                    for (form = 0; form < entry->formCount; form++) {
+                        s32 chara = gTeamSel->side[side]->chip[0][form];
+                        if (chara >= 0 && chara < TS_RANDOM && TeamSel_IsCharaFree(side, chara) &&
+                            TeamSel_FitsDp(side, chara) && Rand_Range(++choices) == 0) chosen = form;
+                    }
+                    if (chosen >= 0) {
+                        TeamSel_ClipGoto(side + 3, side, TEAMSEL_CLIP_FORM_CHIP, "fl_off_start");
+                        member->form = chosen;
+                        gTeamSel->side[side]->chara = gTeamSel->side[side]->chip[0][chosen];
+                        TeamSel_RequestFace(side);
+                        TeamSel_ClipGoto(side + 3, side, TEAMSEL_CLIP_FORM_CHIP, "fl_on_start");
+                    }
+                }
                 if (gTeamSel->side[side]->state == TEAMSEL_ST_PLATE) {
                     TsMember *member = &gTeamSel->side[side]->member[gTeamSel->side[side]->cur];
                     TeamSel_ClipGoto(side + 5, side, TEAMSEL_CLIP_CUSTOM_PLATE, "fl_off_start");

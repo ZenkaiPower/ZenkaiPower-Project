@@ -138,6 +138,7 @@ public final class LauncherActivity extends Activity {
         });
     }
     private void setBusy(String text) {
+        screen.clearError();
         folderPreparationPercent = -1;
         busy = true; refresh(); progressMessage(text);
         progressScreen.setVisibility(View.VISIBLE);
@@ -170,10 +171,12 @@ public final class LauncherActivity extends Activity {
         cancel.setVisibility(busy && installer != null ? View.VISIBLE : View.GONE); cancel.setEnabled(busy);
     }
     private void updateDiscState(File selected) {
-        DiscInstaller probe = new DiscInstaller(this, selected);
-        installed[0] = GameFiles.ready(selected);
-        for (int i = 1; i < installed.length; i++) installed[i] = probe.installed(selected.getAbsolutePath(), i);
+        // Initialize the installer JNI library and SDL context before verification.
+        // Verification already checks optional-disc completeness; reuse its result.
+        new DiscInstaller(this, selected);
         verifiedMask = SetupArtwork.verify(selected.getAbsolutePath());
+        installed[0] = GameFiles.ready(selected);
+        for (int i = 1; i < installed.length; i++) installed[i] = (verifiedMask & (1 << i)) != 0;
     }
     void installProgress(String line) {
         runOnUiThread(() -> {
@@ -196,7 +199,11 @@ public final class LauncherActivity extends Activity {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
     private void showError(Exception error) {
-        runOnUiThread(() -> finishWork(error.getMessage() == null ? "Installation failed." : error.getMessage()));
+        runOnUiThread(() -> {
+            String message=error.getMessage() == null ? "Installation failed." : error.getMessage();
+            finishWork(message);
+            screen.showError(message);
+        });
     }
     private void copyAsset(String asset, File target) throws IOException {
         if (target.isFile() && assetMatches(asset, target)) return;

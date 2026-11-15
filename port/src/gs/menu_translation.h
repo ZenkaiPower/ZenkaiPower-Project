@@ -20,6 +20,7 @@ typedef struct MenuTranslationOption {
    ZENKAIPOWER_MENU_LANG or the saved menu_lang setting (English if neither is set). */
 int MenuTranslation_Load(const char *outDir, char *why, size_t whyLen);
 int MenuTranslation_Ensure(void);
+int MenuTranslation_UiCatalogSource(const char *path, char *out, size_t size);
 int MenuTranslation_BundledUiCatalogPath(const char *locale, char *path, size_t size);
 int MenuTranslation_List(const char *outDir, MenuTranslationOption *out, int capacity);
 int MenuTranslation_Available(MenuTranslationOption *out, int capacity);
