@@ -1,5 +1,9 @@
 #include "common.h"
 #include "battle/btl_char_cam_int.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#include "battle/bobj_a.h"
+#endif
 
 /* The fighter's own camera, 0x1C4BF8-0x1C7B30. See battle/btl_char_cam.h for the structures and the frame flow.
  *
@@ -46,6 +50,21 @@ f32 ChrCam_GetOffset(ChrCamChr *chr, Vec4 *out, s32 mode) {
             pitch = scale * -0.001f + -0.05f;
             break;
     }
+#ifdef PORT
+    {
+        Vec4 focus;
+        BobjObj *own = BtlChar_GetObj(chr);
+        if ((own == NULL || Port_ZenkaiGiantScale(own->type, own->mdl.param) == 1.0f) &&
+            Port_ZenkaiGiantFocus(BtlOpp_GetObj(chr), &focus)) {
+            /* An enlarged viewer already has height-scaled camera distance.
+             * Apply opponent compensation only to a normal-size viewer. */
+            f32 lookY = -scale * 0.7f;
+            out->x *= 3.0f;
+            out->y = lookY + (out->y - lookY) * 3.0f;
+            out->z *= 3.0f;
+        }
+    }
+#endif
     out->w = 1.0f;
     return pitch;
 }

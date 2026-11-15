@@ -14,10 +14,16 @@
  */
 #include "common.h"
 #include "battle/bobj_a.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 memcmp(const void *a, const void *b, u32 n);
 extern s32 rand(void);
+#ifdef PORT
+extern f32 sqrtf(f32 x);
+#endif
 
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);
@@ -1051,6 +1057,37 @@ void BtlObjBody_Swap(BobjBody *body) {
     }
 }
 
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+/* SAT collision needs unit axes and world-space half extents. Corners already
+ * include model scaling; use local corners so repeated updates cannot compound it. */
+static void Port_BtlObjObbScale(BobjObb *box) {
+    s32 i;
+    for (i = 0; i < 3; i++) {
+        Vec4 *axis = &box->axis[i];
+        f32 lengthSq = axis->x * axis->x + axis->y * axis->y + axis->z * axis->z;
+        ((f32 *)&box->unk10)[i] = ((f32 *)&box->local[0])[i];
+        if (lengthSq > 1.001f) {
+            f32 length = sqrtf(lengthSq);
+            axis->x /= length;
+            axis->y /= length;
+            axis->z /= length;
+            ((f32 *)&box->unk10)[i] = ((f32 *)&box->local[0])[i] * length;
+        }
+    }
+}
+#endif
+
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+/* Projectiles sweep against the sphere at part + 0x20, independently of the
+ * melee OBB. Rebuild it from the box's world half extents on every pose update,
+ * including a return to normal size; never multiply the previous frame's radius. */
+static void Port_BtlObjBodyPartSphere(BobjBodyPart *part) {
+    Vec4 *half = &part->box.unk10;
+    part->radiusSq = half->x * half->x + half->y * half->y + half->z * half->z;
+    part->radius = sqrtf(part->radiusSq);
+}
+#endif
+
 /* Places an oriented box: stores the matrix, its rows as axes and centre, and the eight world corners. */
 void BtlObjObb_SetMtx(BobjObb *box, Mtx44 *m) {
     Mtx_Copy(&box->mtx, m);
@@ -1063,6 +1100,9 @@ void BtlObjObb_SetMtx(BobjObb *box, Mtx44 *m) {
     box->axis[2].x = box->mtx.m[2][0];
     box->axis[2].y = box->mtx.m[2][1];
     box->axis[2].z = box->mtx.m[2][2];
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+    Port_BtlObjObbScale(box);
+#endif
     box->center.x = box->mtx.m[3][0];
     box->center.y = box->mtx.m[3][1];
     box->center.z = box->mtx.m[3][2];
@@ -1121,6 +1161,9 @@ void BtlObjBody_UpdateParts(BobjBody *body) {
         Vec4_Copy((Vec4 *)m.m[3], &center);
         BtlObjObb_SetMtx(&part->box, &m);
         BtlObjBody_SetCenter(&part->center, (Vec4 *)m.m[3]);
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+        Port_BtlObjBodyPartSphere(part);
+#endif
         ColBox_AddPoint(&body->box, &part->box.world[0]);
         ColBox_AddPoint(&body->box, &part->box.world[1]);
         ColBox_AddPoint(&body->box, &part->box.world[2]);
@@ -1159,8 +1202,19 @@ void BtlObjBody_Init(BobjObj *obj) {
     } else {
         body->radius = 4.1f;
     }
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+    {
+        f32 scale = Port_ZenkaiGiantScale(obj->type, param);
+        s32 i;
+        for (i = 0; i < 4; i++) body->size[i] *= scale;
+        body->radius *= scale;
+    }
+#endif
     if (BtlObjBody_Exists(obj)) {
         body->unkA0 = mdl->body->unk04;
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+        body->unkA0 *= Port_ZenkaiGiantScale(obj->type, param);
+#endif
         body->unkB8 = 4.1f;
         body->parts = mdl->body->part;
         body = (BobjBody *)body->parts;
@@ -1227,6 +1281,41 @@ void BtlObjBody_Warp(BobjObj *obj, Vec4 *pos) {
     }
 }
 
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+/* Bridge the original and enlarged strike bounds. Enlarging limb placement
+ * creates a close-range dead zone in X/Z as well as Y. This covers that gap
+ * only during an existing hit window against a non-giant opponent. */
+static void Port_BtlObjMeleeReachBounds(BobjObj *obj, BobjAabb *box) {
+    f32 scale = obj->xf.scale;
+    s32 i;
+    if (scale <= 1.0f) return;
+    for (i = 0; i < 3; i++) {
+        f32 root = ((f32 *)&obj->xf.rootPos)[i];
+        f32 originalMin = root + (box->min[i] - root) / scale;
+        f32 originalMax = root + (box->max[i] - root) / scale;
+        if (originalMin < box->min[i]) box->min[i] = originalMin;
+        if (originalMax > box->max[i]) box->max[i] = originalMax;
+    }
+}
+
+static void Port_BtlObjMeleeWorldBox(BobjObb *out, BobjAabb *bounds) {
+    Mtx44 m;
+    Vec4 center;
+    s32 i, j;
+    for (i = 0; i < 4; i++)
+        for (j = 0; j < 4; j++) m.m[i][j] = i == j ? 1.0f : 0.0f;
+    center.x = (bounds->min[0] + bounds->max[0]) * 0.5f;
+    center.y = (bounds->min[1] + bounds->max[1]) * 0.5f;
+    center.z = (bounds->min[2] + bounds->max[2]) * 0.5f;
+    center.w = 1.0f;
+    Vec4_Copy((Vec4 *)m.m[3], &center);
+    ColObb_Init(out, &center, (bounds->max[0] - bounds->min[0]) * 0.5f,
+                (bounds->max[1] - bounds->min[1]) * 0.5f,
+                (bounds->max[2] - bounds->min[2]) * 0.5f);
+    ColObb_Update(out, &m);
+}
+#endif
+
 /* Rebuilds the body part boxes and this frame's attack volumes: one sphere or oriented box per attack node of
    the open hit window, plus their bounding box. Clears the top byte of the stage contact word. */
 void BtlObjHit_BuildVolumes(BobjObj *obj) {
@@ -1238,6 +1327,9 @@ void BtlObjHit_BuildVolumes(BobjObj *obj) {
     BobjWork *work;
     s32 i;
     BobjPart *part;
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+    s32 assist = Port_ZenkaiGiantVsSmall(obj);
+#endif
 
     hit = &obj->hit;
     work = obj->work;
@@ -1261,9 +1353,21 @@ void BtlObjHit_BuildVolumes(BobjObj *obj) {
                 offset.z = hit->z;
                 offset.w = 1.0f;
                 Mtx_MulVec4(&center, &part->mtx, &offset);
-                ColSphere_Set(&work->atkSphere[work->atkSphereCount], &center, hit->r0);
+                ColSphere_Set(&work->atkSphere[work->atkSphereCount], &center,
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+                              hit->r0 * obj->xf.scale
+#else
+                              hit->r0
+#endif
+                );
                 ColBounds_OfSphere(&box, &work->atkSphere[work->atkSphereCount]);
                 work->atkSphereCount++;
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+                if (assist && work->atkObbCount < BOBJ_ATK_NODE_MAX) {
+                    Port_BtlObjMeleeReachBounds(obj, &box);
+                    Port_BtlObjMeleeWorldBox(&work->atkObb[work->atkObbCount++], &box);
+                }
+#endif
                 ColBox_AddPointKeepW(&work->atkBox, box.min);
                 ColBox_AddPointKeepW(&work->atkBox, box.max);
             } else {
@@ -1276,7 +1380,16 @@ void BtlObjHit_BuildVolumes(BobjObj *obj) {
                 Vec4_Copy((Vec4 *)m.m[3], &center);
                 ColObb_Init(&work->atkObb[work->atkObbCount], &center, hit->r0, hit->r1, hit->r2);
                 ColObb_Update(&work->atkObb[work->atkObbCount], &m);
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+                Port_BtlObjObbScale(&work->atkObb[work->atkObbCount]);
+#endif
                 ColBounds_OfObb(&box, &work->atkObb[work->atkObbCount]);
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+                if (assist) {
+                    Port_BtlObjMeleeReachBounds(obj, &box);
+                    Port_BtlObjMeleeWorldBox(&work->atkObb[work->atkObbCount], &box);
+                }
+#endif
                 work->atkObbCount++;
                 ColBox_AddPointKeepW(&work->atkBox, box.min);
                 ColBox_AddPointKeepW(&work->atkBox, box.max);
@@ -1328,6 +1441,9 @@ void BtlObjXf_Reset(BobjObj *obj) {
     Vec4_Copy(&xf->pos, &D_002EC2C0);
     Vec4_Copy(&obj->xf.rot, &D_002EC2C0);
     xf->scale = 1.0f;
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+    xf->scale = Port_ZenkaiGiantScale(obj->type, obj->mdl.param);
+#endif
     BtlObjXf_Update(obj);
     Vec4_Copy(&obj->xf.rootPos, &xf->pos);
 }
@@ -1359,6 +1475,14 @@ void BtlObjXf_Update(BobjObj *obj) {
     Vu0Cur_Translate(mtxPos);
     Vu0Cur_StoreMtx(mtx);
     Mtx_InverseRT(&obj->xf.inv, mtx);
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+    if (scale != 1.0f && scale > 0.0f) {
+        s32 r, c;
+        f32 invScaleSq = 1.0f / (scale * scale);
+        for (r = 0; r < 4; r++)
+            for (c = 0; c < 3; c++) obj->xf.inv.m[r][c] *= invScaleSq;
+    }
+#endif
     obj->xf.same = ~changed;
 }
 
@@ -1368,6 +1492,17 @@ void BtlObjXf_SetMtx(BobjObj *obj, Mtx44 *m) {
 
     Mtx_Copy(dst, m);
     Mtx_InverseRT(&obj->xf.inv, dst);
+#if defined(PORT) && PORT_ZENKAI_GIANTS
+    {
+        f32 scaleSq = dst->m[0][0] * dst->m[0][0] + dst->m[0][1] * dst->m[0][1] +
+                      dst->m[0][2] * dst->m[0][2];
+        if (scaleSq > 1.001f) {
+            s32 r, c;
+            for (r = 0; r < 4; r++)
+                for (c = 0; c < 3; c++) obj->xf.inv.m[r][c] /= scaleSq;
+        }
+    }
+#endif
 }
 
 /* World matrix of every node, parents first, on the VU0 matrix stack: node = local * parent. Stores the root

@@ -1,6 +1,6 @@
 # Zenkai gameplay build flags
 
-The four independent switches below are defined in
+The five independent switches below are defined in
 [`include/sys/port_zenkai_features.h`](../../include/sys/port_zenkai_features.h).
 They default to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
 the compiler, then rebuild the game. These are build choices, not menu options.
@@ -8,6 +8,7 @@ Original mode retains its original behavior regardless of these switches.
 
 | Flag | Enabled (`1`) | Disabled (`0`) |
 |---|---|---|
+| `PORT_ZENKAI_GIANTS` | Enables 2.5× giant models, collision/effect/prop scaling, camera and aiming adjustments, and temporary original model/effect sizing during technique cinematics. | Uses original giant sizing and behavior, including original cinematic sizing, cameras, aiming, effects, and props. |
 | `PORT_ZENKAI_STORY_UNLOCKS` | New Zenkai games start with ten entries and use additional Dragon History character rewards. | New games start with the original 132 entries; story rewards use the original character list, including Nail's original reward. |
 | `PORT_ZENKAI_TOURNAMENT` | Enables the documented Dragon World Tour progression pools, tournament locks, boss eligibility, identity/incarnation/form priorities, individual participant slots, DP-weighted CPU results, and fixed Yamcha stages. | Restores legacy tournament behavior: full-roster Zenkai CPU generation, original boss selection and exact-ID duplicate rules, no new Cell-completion lock, 50/50 CPU results, and random Yamcha maps. |
 | `PORT_ZENKAI_RAISED_DIFFICULTY` | Applies Zenkai's +10 CPU rebase (capped at 29) and its -5/0/+5 story difficulty offsets. | Uses original CPU levels and original 0/+6/+9 story offsets. |
@@ -35,7 +36,7 @@ For the desktop port build driven by `port/tools/undefined.py`, extra compiler
 definitions can be supplied through `ZENKAIPOWER_PORT_CFLAGS`. For example:
 
 ```powershell
-$env:ZENKAIPOWER_PORT_CFLAGS = '-DPORT_ZENKAI_STORY_UNLOCKS=0 -DPORT_ZENKAI_TOURNAMENT=0 -DPORT_ZENKAI_RAISED_DIFFICULTY=0 -DPORT_ZENKAI_STORY_RESTRICTIONS=0'
+$env:ZENKAIPOWER_PORT_CFLAGS = '-DPORT_ZENKAI_GIANTS=0 -DPORT_ZENKAI_STORY_UNLOCKS=0 -DPORT_ZENKAI_TOURNAMENT=0 -DPORT_ZENKAI_RAISED_DIFFICULTY=0 -DPORT_ZENKAI_STORY_RESTRICTIONS=0'
 ```
 
 Run the normal build in that environment. Other build pipelines must likewise

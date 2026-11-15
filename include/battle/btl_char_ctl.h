@@ -131,7 +131,10 @@ typedef struct BtlCtlParam {
 
 /* Partial view of the battle object a fighter drives (BtlChar_GetObj). */
 typedef struct BtlCtlObj {
-    /* 0x000 */ u8 unk0[0x940];
+    /* 0x000 */ s32 type;
+    /* 0x004 */ u8 unk004[0x91C - 0x004];
+    /* 0x91C */ void *fighterParam; /* size class and fighter parameters */
+    /* 0x920 */ u8 unk920[0x940 - 0x920];
     /* 0x940 */ BtlCtlParam *param;
     /* 0x944 */ u8 unk944[0x950 - 0x944];
     /* 0x950 */ Vec4 pos;      /* written from the pose by BtlChar_PoseToObj */

@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_capi_a.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Fighter interface, first part: 0x204E78..0x207020. 81 accessors keyed by battle object id (a few by roster
@@ -887,7 +890,24 @@ f32 BtlCharApi_GetRadius(s32 objId) {
         }
         if (r <= 0.0f) {
             r = obj->unkFF0 * 1.8f;
+#ifdef PORT
+            /* Undo Body_Init's scaling for the fallback. Animated geometry
+             * below supplies the actual contact distance when available. */
+            r /= Port_ZenkaiGiantScale(*(s32 *)obj, obj->param);
+#endif
         }
+#ifdef PORT
+        if (Port_ZenkaiGiantScale(*(s32 *)obj, obj->param) != 1.0f) {
+            BtlCapiChr *chr = BtlChar_FindByObjId(objId);
+            if (chr != NULL) {
+                s32 opponentId = BtlOpp_GetObjId(chr);
+                BtlCapiObj *opponent = opponentId >= 0 ? BtlObj_Get(opponentId) : NULL;
+                if (opponent != NULL) {
+                    r = Port_ZenkaiGiantContactRadius(obj, opponent->bodyPos, r);
+                }
+            }
+        }
+#endif
         return r;
     }
     return 0.0f;
@@ -984,6 +1004,28 @@ void BtlCharApi_CalcAimDir(s32 objId, s32 node, Vec4 *from, Vec4 *out, f32 minPi
 
 /* The same for node 0x11 and 45 degrees up or down. */
 void BtlCharApi_CalcAimDir45(s32 objId, Vec4 *from, Vec4 *out) {
+#ifdef PORT
+    if (Port_ZenkaiGiantVsSmall(BtlObj_Get(objId))) {
+        s32 opponent = BtlCharApi_GetOpponentObjId(objId);
+        Vec4 target;
+        f32 length;
+        if (opponent >= 0 && from != NULL) {
+            /* Aim from the enlarged launch node, not the fighter's root.
+             * Native yaw correction can reverse this ray when the mouth or
+             * hand has moved past a small opponent at close range. */
+            BtlCharApi_GetNodePos(opponent, 0x11, &target);
+            Vec4_Sub(out, &target, from);
+            length = Vec3_Length(out);
+            if (length > 0.0001f) {
+                Vec4_Scale(out, out, 1.0f / length);
+                out->w = 0.0f;
+                return;
+            }
+        }
+        BtlCharApi_CalcAimDir(objId, 0x11, from, out, -1.5707963f, 1.5707963f);
+        return;
+    }
+#endif
     BtlCharApi_CalcAimDir(objId, 0x11, from, out, -0.78539816f, 0.78539816f);
 }
 

@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 #include "battle/btl_char_member.h"
 
 /*
@@ -1358,6 +1361,11 @@ void BtlFx_FireKiBlast(FxChr *chr) {
         arg.unk20 = BtlKiBlast_GetSpeed(chr);
         arg.unk24 = BtlKiBlast_GetTurnRate(chr);
         arg.unk28 = BtlKiBlast_GetUnk28(chr);
+#ifdef PORT
+        /* Shared launch size drives the ordinary ki emitter and its swept
+         * collision radius (also forwarded to prop/disc variants). */
+        arg.unk28 *= Port_ZenkaiGiantEffectScale(chr->objId);
+#endif
         arg.unk2C = BtlKiBlast_GetUnk2C(chr);
         arg.unk34 = 1;
         arg.unk38 = 1;

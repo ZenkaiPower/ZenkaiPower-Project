@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/eft_det_a.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * 0x1AE2A8..0x1B16F0: effect texture tail, volley aim, fighter-against-fighter volumes, the hit detection over
@@ -527,6 +530,9 @@ void EftVolleyAim_Steer(EftVolleyAimShot *shot, s32 objId, EftDetVec *offset, s3
         return;
     }
     BtlCharApi_GetNodePos(opp, 0x11, &target);
+#ifdef PORT
+    Port_ZenkaiGiantFocus(BtlObj_Get(opp), &target);
+#endif
     if (offset != NULL) {
         Vec3_Add(&target, &target, offset);
     }

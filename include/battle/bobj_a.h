@@ -217,7 +217,9 @@ typedef struct BobjBodyPart {
     /* 0x00C */ BobjPart *part;  /* filled by BtlObjBody_Init */
     /* 0x010 */ Vec4 offset;     /* centre in model space; minus the bone's rest translation = node space */
     /* 0x020 */ Vec4 center;     /* world centre of this frame */
-    /* 0x030 */ u8 unk30[0x10];
+    /* 0x030 */ f32 radius;    /* projectile hurt sphere at center */
+    /* 0x034 */ f32 radiusSq;
+    /* 0x038 */ u8 unk38[8];
     /* 0x040 */ BobjObb box;
 } BobjBodyPart; /* size 0x1D0 */
 

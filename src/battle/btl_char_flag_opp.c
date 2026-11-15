@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_flag.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Opponent helpers: 0x1DB048..0x1DBF20. Each takes a fighter and answers about the other one
@@ -41,6 +44,9 @@ extern f32 BtlParam_GetUnkC7Scale(BtlFlagChr *chr);
 
 /* Where to aim at the opponent: its override position 6 when set, else its position. */
 void BtlOpp_GetTargetPos(BtlFlagChr *chr, Vec4 *out) {
+#ifdef PORT
+    if (Port_ZenkaiGiantFocus(BtlChar_GetObj(OPPONENT(chr)), out)) return;
+#endif
     BtlChar_GetSnapPos(OPPONENT(chr), out, 6);
 }
 
@@ -174,6 +180,13 @@ f32 BtlOpp_GetHalfHeightDiff(BtlFlagChr *chr) {
     BtlFlagChr *opp = OPPONENT(chr);
     f32 own = BtlCharApi_GetHeight(chr->objId);
 
+#ifdef PORT
+    {
+        Vec4 focus;
+        /* Giant targets are already at the body/face midpoint, rather than the feet. */
+        if (Port_ZenkaiGiantFocus(BtlChar_GetObj(opp), &focus)) return own * 0.5f;
+    }
+#endif
     return own * 0.5f - BtlCharApi_GetHeight(opp->objId) * 0.5f;
 }
 

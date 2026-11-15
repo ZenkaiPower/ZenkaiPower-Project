@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 #include "battle/battle.h"
 #include "battle/battle_setup.h"
 #include "battle/btl_pool.h"
@@ -745,7 +748,11 @@ f32 BtlScene_GetCharScale(s32 idx) {
         return 1.0f;
     }
     rate = &gBtlScene->rates[idx];
+#ifdef PORT
+    return rate->scale * Port_ZenkaiGiantEffectScale(idx);
+#else
     return rate->scale;
+#endif
 }
 
 /* Init callback of the root task: creates the group list (5 tasks) and the layers. */

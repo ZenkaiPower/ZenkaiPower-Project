@@ -1,6 +1,9 @@
 #include "common.h"
 #include "battle/btl_char_ctl.h"
 #include "sys/mathf.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Pose <-> object, placement, holds and per-frame snapshots: 0x1D70E8..0x1D8330.
@@ -103,6 +106,11 @@ void BtlChar_PoseToObj(BtlCtlChr *chr, s32 keepRoot) {
     Vec4_Add(&obj->pos, &pose->pos, &pose->move);
     Vec4_Copy(&obj->rot, &pose->rot);
     obj->scale = chr->scale;
+#ifdef PORT
+    /* Pose updates replace the object's scale every frame, including placement
+     * and transformations. Apply the multiplier before compensating root motion. */
+    obj->scale *= Port_ZenkaiGiantAnimationScale(obj->type, obj->fighterParam);
+#endif
     if (BtlChar_TestFlag(chr, 0x2B)) {
         apply = 0;
     } else {

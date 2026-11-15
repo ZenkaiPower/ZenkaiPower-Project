@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/eft_j.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Technique effect modules of scene layer 1, 0x1532A0..0x157398 (65 functions, all matching). Layer 1 keeps,
@@ -695,6 +698,7 @@ void EftPropShot_UpdateProp(EftJTask *task) {
     EftProp *prop;
     f32 pitch;
     f32 yaw;
+    f32 scale;
 
     memset(&m, 0, sizeof(Mtx44));
     prop = &w->prop;
@@ -731,7 +735,13 @@ void EftPropShot_UpdateProp(EftJTask *task) {
         pitch = EftMath_WrapAngle(Mathf_Asin(-w->dir.y));
         yaw = EftMath_WrapAngle(atan2f(w->dir.x, w->dir.z));
         Mtx_StoreIdentity(&m);
-        Mtx_ScaleDiagUniform(&m, &m, prop->scale);
+        scale = prop->scale;
+#ifdef PORT
+        /* Prop models (such as thrown rocks) bypass the particle emitters.
+         * Apply owner scale at draw time so held/flying updates cannot stack it. */
+        scale *= Port_ZenkaiGiantEffectScale(src->objId);
+#endif
+        Mtx_ScaleDiagUniform(&m, &m, scale);
         if (prop->flags & 8) {
             Mtx_RotateY(&m, &m, 3.14159265f);
         }

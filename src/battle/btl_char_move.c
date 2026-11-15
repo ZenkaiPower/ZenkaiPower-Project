@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_move.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /* Fighter movement, 0x1DC9A0-0x1E0290 (see battle/btl_char_move.h for the model and the structures).
  *
@@ -96,6 +99,16 @@ extern void StgCol_GetHitPos(Vec4 *out);
 
 /* Late per-frame voice triggers: with flags 0x12F..0x133 the current animation's attribute bits pick a voice kind
    (0xE, 0x34..0x37) or a stream (0x8D35, 0x8D37, 0x8D41, 0x8D42). Called from BtlChar_UpdateLate. */
+/* Steering uses the original giant animation height against small fighters;
+ * camera focus, stage clearance and body collision keep their visual sizes. */
+static f32 BtlMove_GetApproachHeightDiff(BtlMoveChr *chr) {
+    f32 diff = BtlOpp_GetHalfHeightDiff(chr);
+#ifdef PORT
+    diff += Port_ZenkaiGiantApproachOffset(BtlChar_GetObj(chr));
+#endif
+    return diff;
+}
+
 void BtlMove_UpdateAnimVoice(BtlMoveChr *chr) {
     s32 kind = -1;
 
@@ -477,7 +490,7 @@ void BtlMove_TurnPitch(BtlMoveChr *chr, s32 mode, f32 maxStep) {
             f32 oppSpeed;
 
             BtlOpp_GetDelta(chr, &to);
-            to.y += BtlOpp_GetHalfHeightDiff(chr);
+            to.y += BtlMove_GetApproachHeightDiff(chr);
             if (mode == 4) {
                 f32 len = Vec3_Length(&to);
 
@@ -575,7 +588,7 @@ void BtlMove_SteerAtOpponent(BtlMoveChr *chr, f32 closeSpeed, f32 yawAccel, f32 
         return;
     }
     BtlOpp_GetDelta(chr, &to);
-    to.y += BtlOpp_GetHalfHeightDiff(chr);
+    to.y += BtlMove_GetApproachHeightDiff(chr);
     dist = Vec3_Length(&to);
     dist -= BtlCharApi_GetRadius(chr->objId) * 0.5f;
     dist -= BtlOpp_GetRadius(chr) * 0.5f;
@@ -814,7 +827,7 @@ void BtlMove_WarpAheadOfOpponent(BtlMoveChr *chr, f32 lead) {
         Vec4_Copy(&old, &pose->pos);
         min = BTL_KMH(500.0f);
         BtlOpp_GetTargetPos(chr, &opp);
-        opp.y += BtlOpp_GetHalfHeightDiff(chr);
+        opp.y += BtlMove_GetApproachHeightDiff(chr);
         BtlOpp_GetPoseVec30(chr, &oppVel);
         if (Vec3_Length(&oppVel) < min) {
             BtlOpp_GetTargetRot(chr, &rot);
@@ -929,7 +942,7 @@ s32 BtlMove_CircleOpponent(BtlMoveChr *chr, s32 side, s32 lead, f32 baseYaw, f32
     f32 a;
 
     BtlOpp_GetTargetPos(chr, &opp);
-    opp.y += BtlOpp_GetHalfHeightDiff(chr);
+    opp.y += BtlMove_GetApproachHeightDiff(chr);
     radius = 200.0f;
     diff = 0.0f;
     Vec4_Sub(&d, &opp, &pose->pos);
@@ -1006,7 +1019,7 @@ void BtlMove_CalcApproachPoint(BtlMoveChr *chr, Vec4 *out, Vec4 *outTarget, f32 
     Vec4_Add(&tgt, &opp, &vel);
     scale = BtlCharApi_GetHeight(chr->objId);
     oppScale = BtlOpp_GetHeight(chr);
-    tgt.y += BtlOpp_GetHalfHeightDiff(chr);
+    tgt.y += BtlMove_GetApproachHeightDiff(chr);
     ColSeg_Set(&seg, &opp, &tgt);
     if (StgCol_TraceSegment(&seg)) {
         f32 len3;
@@ -1446,9 +1459,9 @@ void BtlMove_AimVerticalAtOpponent(BtlMoveChr *chr, s32 lead) {
     BtlOpp_GetDelta(chr, &to);
     if (lead) {
         BtlOpp_GetVelocity(chr, &vel);
-        v = BtlMove_CalcVerticalSpeed(to.y + BtlOpp_GetHalfHeightDiff(chr), vel.y * 0.5f);
+        v = BtlMove_CalcVerticalSpeed(to.y + BtlMove_GetApproachHeightDiff(chr), vel.y * 0.5f);
     } else {
-        v = BtlMove_CalcVerticalSpeed(to.y + BtlOpp_GetHalfHeightDiff(chr), 0.0f);
+        v = BtlMove_CalcVerticalSpeed(to.y + BtlMove_GetApproachHeightDiff(chr), 0.0f);
     }
     BtlChar_GetPos(chr)->fallSpeed = v;
 }

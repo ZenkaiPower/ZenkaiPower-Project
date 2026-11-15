@@ -28,6 +28,30 @@ remain readable and migrate on the next successful write without
 changing their ID or content hash. Read-only loads leave the file untouched.
 Older game releases cannot load v3. The common save keeps its original format.
 
+## Giant characters
+
+Controlled by `PORT_ZENKAI_GIANTS` (default **1**). Compile with
+`-DPORT_ZENKAI_GIANTS=0` to restore original giant behavior, including cinematics.
+
+Offline ZENKAI battles enlarge giant characters to **2.5× their original size**.
+Collision volumes, projectile hurt bounds, melee coverage, effects, and technique
+hit widths follow the enlarged models. Held and thrown prop models, including
+rocks, also inherit the giant multiplier. Pose updates preserve animation root motion.
+
+Camera and targeting use an animated midpoint focus. Normal fighters' cameras
+gain 3× distance against giants; giant-versus-giant fights do not stack that
+compensation. Giant-versus-small fights also adjust approach height and blast
+aiming from the actual launch position.
+
+During super-attack cinematics, giants temporarily use their original **1? model
+size** and their props/effects use original scaling. The 2.5? multiplier returns
+when the cinematic ends. Camera offsets retain their original behavior. See the
+[giant-compatible attack list](giant-compatible-attacks.md).
+
+Restored from `archive/zenkai-giants-2026-11-02`, with regression expectations
+updated for its 2.5× tuning. Giant-versus-small Ultimate Blasts remain experimental
+and need in-game verification.
+
 ## Dragon History difficulty records
 
 For episode prerequisites and Special Saga branches grouped by their originating

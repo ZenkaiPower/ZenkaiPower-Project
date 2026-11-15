@@ -1,5 +1,17 @@
 #include "common.h"
 #include "battle/btl_char_cam_int.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+/* The normal camera adds half-height offsets to a feet-based target. A body/face midpoint
+ * target already has its full world height, so only offset the viewer's origin. */
+static void Port_ChrCamGiantFocus(ChrCamChr *chr, Vec4 *pos, Vec4 *delta, f32 ownHeight) {
+    Vec4 focus;
+    if (Port_ZenkaiGiantFocus(BtlOpp_GetObj(chr), &focus)) {
+        Vec4_Sub(delta, &focus, pos);
+        delta->y += ownHeight * 0.5f;
+    }
+}
+#endif
 
 /* The fighter camera's modes, per-frame update and cut control, 0x1C5840-0x1C7B30: the last part of
  * btl_char_cam.c (see the note at the top of that file). */
@@ -37,6 +49,9 @@ void ChrCam_CalcFixed(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     BtlOpp_GetTargetPos(chr, &opp);
     Vec4_Sub(&toOpp, &opp, &pos);
     toOpp.y += BtlOpp_GetHalfHeightDiff(chr);
+#ifdef PORT
+    Port_ChrCamGiantFocus(chr, &pos, &toOpp, scale);
+#endif
     len = Vec3_Length(&toOpp);
     if (len < 0.01f) {
         Vec4_Set(&dir, 0.0f, 0.0f, 1.0f, 0.0f);
@@ -159,6 +174,9 @@ void ChrCam_CalcLockOn(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     BtlOpp_GetTargetPos(chr, &opp);
     Vec4_Sub(&toOpp, &opp, &pos);
     toOpp.y += BtlOpp_GetHalfHeightDiff(chr);
+#ifdef PORT
+    Port_ChrCamGiantFocus(chr, &pos, &toOpp, scale);
+#endif
     len = Vec3_Length(&toOpp);
     if (len < 0.01f) {
         Vec4_Set(&dir, 0.0f, 0.0f, 1.0f, 0.0f);

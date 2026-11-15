@@ -1,12 +1,20 @@
 #ifndef PORT_ZENKAI_H
 #define PORT_ZENKAI_H
-#include "sys/port_zenkai_features.h"
+#include "port_zenkai_features.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 /* Selection is transactional: cancelling a load/new-game flow retains the
  * current game's rules and save destination. UI settings only select a future game. */
 int Port_ZenkaiEnabled(void);
+/* Offline Zenkai giant model, collision, camera and effect helpers. */
+float Port_ZenkaiGiantScale(int type, const void *param);
+float Port_ZenkaiGiantAnimationScale(int type, const void *param);
+float Port_ZenkaiGiantEffectScale(int objId);
+float Port_ZenkaiGiantContactRadius(void *object, const void *target, float fallback);
+int Port_ZenkaiGiantFocus(void *object, void *position);
+int Port_ZenkaiGiantVsSmall(void *object);
+float Port_ZenkaiGiantApproachOffset(void *object);
 /* Startup-only check: reads Autosave from .options before the card load. */
 int Port_BootAutoSaveEnabled(void);
 int Port_ZenkaiSelected(void);

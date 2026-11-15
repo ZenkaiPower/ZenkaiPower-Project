@@ -5,6 +5,7 @@
 #include "sys/gfx_ot.h"
 
 #ifdef PORT
+#include "sys/port_zenkai.h"
 extern f32 Port_WideFactor(void); /* widescreen on PC: 1, or 4/3 for a 16:9 picture (port/src/plat_stub.c) */
 #endif
 
@@ -115,6 +116,22 @@ EftHitRec *EftHit_GetNew(void) {
     return &gEftHitList->rec[gEftHitList->count];
 }
 
+#ifdef PORT
+/* Technique emitters use the extra giant visual scale. Match their collision
+ * width before the hit pass, without enlarging ordinary height-scaled ki shots. */
+static void Port_EftHitScaleGiant(EftHitRec *rec) {
+    f32 scale;
+    if (rec->src == NULL || rec->shape.a == NULL || rec->shape.b == NULL ||
+        (rec->shape.type != 0 && rec->shape.type != 1)) return;
+    scale = Port_ZenkaiGiantEffectScale(rec->src->objId);
+    if (scale == 1.0f) return;
+    EftHit_SetRadiusA(rec, EftHit_GetRadiusA(rec) * scale);
+    /* Some producers reuse one volume for both ends of a stationary shot. */
+    if (rec->shape.b != rec->shape.a)
+        EftHit_SetRadiusB(rec, EftHit_GetRadiusB(rec) * scale);
+}
+#endif
+
 /* Completes a record from its source (technique) or attack (blast) and appends it; nothing while time is stopped. */
 void EftHit_Add(EftHitRec *rec) {
     if (BtlScene_IsTimeStopped()) {
@@ -149,6 +166,9 @@ void EftHit_Add(EftHitRec *rec) {
         rec->seenByAi = 0;
         rec->shape.scale = EftHit_GetScale(rec);
     }
+#ifdef PORT
+    Port_EftHitScaleGiant(rec);
+#endif
     *(gEftHitList->rec + gEftHitList->count) = *rec;
     gEftHitList->count++;
 }
@@ -1019,7 +1039,7 @@ s32 EftCam_IsPaused(void) {
 
 /* Returns 1 while a cut is playing. */
 s32 EftCam_IsActive(void) {
-    return gEftCam->active;
+    return gEftCam != NULL && gEftCam->active;
 }
 
 /* Ends the cut and releases the demo camera. */
@@ -1450,6 +1470,16 @@ s32 EftAim_GetDirKeep(EftHitSrc *src, EftVec *out, s32 arg, s32 objId) {
     fwd.z = cosf(rot.y);
     fwd.w = 1.0f;
     if (BtlCharApi_IsLockedOn(objId)) {
+#ifdef PORT
+        if (Port_ZenkaiGiantVsSmall(BtlObj_Get(objId))) {
+            /* Refresh at release: an aim cached during charging can refer to
+             * an earlier mouth/hand pose. Keep the true muzzle-to-target ray,
+             * including targets below or just behind the enlarged node. */
+            BtlCharApi_CalcAimDir45(objId, arg, out);
+            Vec3_Normalize(out, out);
+            return 1;
+        }
+#endif
         if (src != NULL) {
             if (src->def->aimMode == 0) {
                 BtlCharApi_CalcAimDir45(objId, arg, out);
@@ -1463,6 +1493,18 @@ s32 EftAim_GetDirKeep(EftHitSrc *src, EftVec *out, s32 arg, s32 objId) {
             Vec3_Normalize(out, out);
             Vec4_Copy(&flat, out);
             flat.y = 0.0f;
+#ifdef PORT
+            if (Port_ZenkaiGiantVsSmall(BtlObj_Get(objId))) {
+                f32 horizontal = sqrtf(flat.x * flat.x + flat.z * flat.z);
+                /* Compare yaw only: a steep pitch is not a shot behind us. */
+                if (horizontal > 0.0001f) {
+                    flat.x /= horizontal;
+                    flat.z /= horizontal;
+                } else {
+                    Vec4_Copy(&flat, &fwd);
+                }
+            }
+#endif
             if (Vec3_Dot(&flat, &fwd) < 0.5f) {
                 Vec4_Copy(out, &fwd);
             }

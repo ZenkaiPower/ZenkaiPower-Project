@@ -1,6 +1,9 @@
 #include "common.h"
 #include "battle/port_effect_vector.h"
 #include "battle/eft_i.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Technique effects, third part: 0x14F230..0x1532A0. See include/battle/eft_i.h.
@@ -577,6 +580,10 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
 /* EftEmit_Spawn for the set's own fighter: object id and node come from the set's owner, arg7 is 1. */
 void EftEmit_SpawnOwn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes, Vec4 *pos, Vec4 *dir, s32 type,
                       s32 idx, s32 flags, f32 scale) {
+#ifdef PORT
+    /* Body-scaled effects select their size separately through the scene API. */
+    scale *= Port_ZenkaiGiantEffectScale(set->owner->objId);
+#endif
     EftEmit_Spawn(set, state, nodes, pos, dir, set->owner->objId, set->owner->param->node, 1, type, idx, flags,
                   scale);
 }
