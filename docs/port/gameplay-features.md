@@ -26,6 +26,9 @@ Older game releases cannot load v3. The common save keeps its original format.
 
 ## Dragon History difficulty records
 
+For episode prerequisites and Special Saga branches grouped by their originating
+saga, see the [Dragon History progression map](dragon-history-progression.md).
+
 Each completed story episode records the highest difficulty on which it has been
 beaten: Easy, Normal or Hard. Replaying an episode on a lower difficulty does not
 replace a higher record.
@@ -161,9 +164,15 @@ also record episode completion. Previously unlocked characters remain unlocked.
 
 Character unlocks are stored when saving. Further unlocks use the existing
 progression system.
-Tournament CPU entrants use the full roster, so the smaller starting
-roster does not prevent the bracket from being filled. Player selection still
-requires unlocked characters.
+Tournament CPU entrants use actual unlocks plus the reward groups of available
+main sagas and their assigned Special branches. Owning the original 132-entry
+starting roster disables the preview additions. Bosses use the same pool;
+selection prefers different identities, then incarnations, then forms, with
+individual slots for Saibamen, Cell Juniors, Frieza Soldier, and Appule.
+Player selection still requires actual unlocks. World Martial Arts Big Tournament,
+Cell Games, and Otherworld Tournament require all seven Cell episodes cleared,
+unless the original 132-entry roster is owned. See the
+[Dragon World Tour rules](dragon-world-tour-changes.md) for details.
 
 This starting roster applies to new games. Loading an existing save restores its
 own unlocked characters. Changing the starting defaults does not modify existing

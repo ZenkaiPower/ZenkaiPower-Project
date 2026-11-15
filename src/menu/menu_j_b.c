@@ -5,6 +5,7 @@
 #include "sys/save.h"
 #ifdef PORT
 #include "menu/port_ultimate_mouse.h"
+#include "menu/port_tour_rules.h"
 #endif
 
 /*
@@ -52,6 +53,18 @@ extern void StreamSe_FadeOutStep(s32 se);
 /* Which tournament is held at the current hour of the mode's clock (gSaveData->unkA0C, 0..23). */
 void TourMenu_CheckInvite(void) {
     s32 hour = gSaveData->unkA0C;
+#ifdef PORT
+    /* Locked events cannot issue invitations or stay open from an older save. */
+    if (Port_ZenkaiEnabled()) {
+        s32 tour;
+        for (tour = 0; tour < TOUR_NUM; tour++)
+            if (!PortTour_Available(gSaveData, tour)) gSaveData->unkA08 &= ~(1 << tour);
+        tour = hour >= 7 && hour <= 12 ? TOUR_WORLD :
+            hour >= 13 && hour <= 18 ? TOUR_BIG : hour >= 19 ? TOUR_CELL :
+            hour <= 4 ? TOUR_OTHERWORLD : TOUR_YAMCHA;
+        if (!PortTour_Available(gSaveData, tour)) return;
+    }
+#endif
 
     if (hour >= 7 && hour <= 12) {
         TOUR_INVITE(TOUR_WORLD);
@@ -238,7 +251,11 @@ void TourMenu_Draw(void) {
         uv.x1 = 0x200;
         sprintf(name, "mc_taikai_plate_%02d", i + 1);
         Flash_FindLabel(flash, NULL, name, &ref);
-        if (gTourMenu->cursor[TOURMENU_LV_TOP] != 1 && !(gSaveData->unkA08 & (s32)(1U << i))) {
+        if (
+#ifdef PORT
+            !PortTour_Available(gSaveData, i) ||
+#endif
+            (gTourMenu->cursor[TOURMENU_LV_TOP] != 1 && !(gSaveData->unkA08 & (s32)(1U << i)))) {
             Flash_ClipSetColor(flash, &ref, 0.5f);
         } else {
             Flash_ClipSetColor(flash, &ref, 1.0f);
@@ -460,6 +477,9 @@ void TourMenu_Input(s32 *result) {
             if (TM_CUR < 0) {
                 TM_CUR = TOUR_NUM - 1;
             }
+#ifdef PORT
+            while (!PortTour_Available(gSaveData, TM_CUR)) TM_CUR = (TM_CUR + TOUR_NUM - 1) % TOUR_NUM;
+#endif
             TourMenu_ClipGoto(0, 1, "fl_on_start");
             Snd_PlaySe(1, 0);
         } else if (gPad[0].gameRepeat & 4) {
@@ -468,9 +488,18 @@ void TourMenu_Input(s32 *result) {
             if (TM_CUR >= TOUR_NUM) {
                 TM_CUR = 0;
             }
+#ifdef PORT
+            while (!PortTour_Available(gSaveData, TM_CUR)) TM_CUR = (TM_CUR + 1) % TOUR_NUM;
+#endif
             TourMenu_ClipGoto(0, 1, "fl_on_start");
             Snd_PlaySe(1, 0);
         } else if (gPad[0].gamePressed & 0x200) {
+#ifdef PORT
+            if (!PortTour_Available(gSaveData, TM_CUR)) {
+                Snd_PlaySe(1, 7);
+                break;
+            }
+#endif
             switch (gTourMenu->cursor[TOURMENU_LV_TOP]) {
             case 0:
                 /* only the open tournament can be entered for prizes */

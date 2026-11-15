@@ -6,6 +6,7 @@
 #include "sys/save.h"
 #ifdef PORT
 #include "menu/port_ultimate_mouse.h"
+#include "menu/port_tour_rules.h"
 #endif
 
 ESel *gEntrySel = NULL; /* 0x3B5910 */
@@ -19,6 +20,43 @@ ESel *gEntrySel = NULL; /* 0x3B5910 */
 
 #define ES_CUR (gEntrySel->sel->entry[gEntrySel->sel->cur])
 #define ES_CELL (gEntrySel->grid[ES_CUR.row * ESEL_COLS + ES_CUR.col])
+
+#ifdef PORT
+/* Player selections consume the same individual slots as generated entrants. */
+static s32 Port_EntrySlotAvailable(s32 chara, s32 costume) {
+    s32 i, copies = 0;
+    for (i = 0; i < gEntrySel->sel->cur; i++) {
+        ESelEntry *entry = &gEntrySel->sel->entry[i];
+        if (entry->chara != chara) continue;
+        copies++;
+        if ((chara == 98 || chara == 99) && entry->costume == costume) return 0;
+    }
+    if (chara == 79 || chara == 109) return copies < 5;
+    if (chara == 98 || chara == 99) return 1;
+    return copies == 0;
+}
+
+/* Random/Yamcha selection also honors the slots; scan rather than retry. */
+static s32 Port_EntryRandom(s32 *cellOut, s32 *formOut, s32 *costumeOut) {
+    s32 cell, form, color, chara, colors, picked = -1, choices = 0;
+    for (cell = 0; cell < gEntrySel->gridCount; cell++) {
+        ESelCell *entry = &gEntrySel->grid[cell];
+        if (entry->id > 160) continue;
+        for (form = 0; form < (entry->formCount ? entry->formCount : 1); form++) {
+            chara = entry->formCount ? entry->form[form] : entry->id;
+            if (!PortTour_Owned(gSaveData, chara)) continue;
+            colors = ChrTbl_WrapCostume(chara, NULL);
+            for (color = 0; color < colors; color++) {
+                if (!Port_EntrySlotAvailable(chara, color)) continue;
+                if (Rand_Range(++choices) == 0) {
+                    picked = chara; *cellOut = cell; *formOut = form; *costumeOut = color;
+                }
+            }
+        }
+    }
+    return picked;
+}
+#endif
 
 /* The cursor moved to another grid row: the seven chips take the characters of the new row. */
 void EntrySel_SwapRowTex(void) {
@@ -312,6 +350,21 @@ void EntrySel_Init(s32 section) {
             s32 cols = ESEL_COLS;
             s32 n;
 
+#ifdef PORT
+            if (Port_ZenkaiEnabled()) {
+                s32 form, color, chara;
+                gEntrySel->sel->cur = i;
+                chara = Port_EntryRandom(&n, &form, &color);
+                if (chara >= 0) {
+                    gEntrySel->sel->entry[i].chara = chara;
+                    gEntrySel->sel->entry[i].col = n % cols;
+                    gEntrySel->sel->entry[i].row = n / cols;
+                    gEntrySel->sel->entry[i].form = form;
+                    gEntrySel->sel->entry[i].costume = color;
+                }
+                continue;
+            }
+#endif
             while (1) {
                 n = Rand_Range(gEntrySel->gridCount);
                 if (gEntrySel->grid[n].id <= 0xA0) {
@@ -326,6 +379,9 @@ void EntrySel_Init(s32 section) {
                 }
             }
         }
+#ifdef PORT
+        if (Port_ZenkaiEnabled()) gEntrySel->sel->cur = 0;
+#endif
         break;
     }
     EntrySel_SwapRowTex();
@@ -896,6 +952,17 @@ void EntrySel_Input(s32 *result) {
         } else if (gPad[0].gamePressed & 0x200) {
             /* the entrant is decided: fix the character and take the item set along */
             s32 slot;
+#ifdef PORT
+            s32 randomChara = -1, randomCell = 0, randomForm = 0, randomColor = 0;
+            if (Port_ZenkaiEnabled()) {
+                if (ES_CELL.id == ESEL_ID_RANDOM && !(gEntrySel->sel->flags & (ESEL_SEL_FORM | ESEL_SEL_REC))) {
+                    randomChara = Port_EntryRandom(&randomCell, &randomForm, &randomColor);
+                    if (randomChara < 0) { Snd_PlaySe(1, 7); break; }
+                } else if (!Port_EntrySlotAvailable(gEntrySel->sel->image, ES_CUR.costume)) {
+                    Snd_PlaySe(1, 7); break;
+                }
+            }
+#endif
 
             gEntrySel->sel->rowAnim = 0;
             Snd_PlaySe(1, 1);
@@ -925,6 +992,13 @@ void EntrySel_Input(s32 *result) {
                     s32 chara;
                     s32 id;
 
+#ifdef PORT
+                    if (Port_ZenkaiEnabled()) {
+                        slot = randomCell;
+                        chara = randomChara;
+                        ES_CUR.costume = randomColor;
+                    } else {
+#endif
                     do {
                         slot = Rand_Range(gEntrySel->gridCount);
                         id = gEntrySel->grid[slot].id;
@@ -934,6 +1008,9 @@ void EntrySel_Input(s32 *result) {
                         cell = &gEntrySel->grid[slot];
                         chara = cell->form[Rand_Range(cell->formCount)];
                     }
+#ifdef PORT
+                    }
+#endif
                     ES_CUR.chara = chara;
                 } else {
                     ES_CUR.chara = gEntrySel->sel->rowChara[ES_CUR.col];

@@ -5,6 +5,7 @@
 #include "menu/menu_l.h"
 #ifdef PORT
 #include "sys/save.h"
+#include "menu/port_tour_bracket.h"
 #endif
 
 /*
@@ -207,7 +208,8 @@ void Bracket_Load(LBracket *b) {
 }
 
 /*
- * Decides a match between two CPU entrants: a coin toss (Rand_Range(2)), the loser is marked, the winner takes the
+ * Decides a match between two CPU entrants: Zenkai weights the draw by DP;
+ * Original uses a coin toss. The loser is marked, the winner takes the
  * match's tree position and its slot in the next match. If one of the two is already marked lost no toss is made
  * and the MARKED one moves on (the original's logic; it cannot happen, losers never reach a later match).
  */
@@ -228,6 +230,15 @@ void Bracket_PlayCpuMatch(LBracket *b, s32 match) {
     } else if (b->entrant[b->match_[match].ent[1]].flags & LTOUR_ENT_LOST) {
         win = 1;
     } else {
+#ifdef PORT
+        if (Port_ZenkaiEnabled()) {
+            s32 left = ChrTbl_GetCost(b->entrant[b->match_[match].ent[0]].chara);
+            s32 right = ChrTbl_GetCost(b->entrant[b->match_[match].ent[1]].chara);
+            if (left < 0) left = 0;
+            if (right < 0) right = 0;
+            win = left + right > 0 ? (Rand_Range(left + right) < (u32)left ? 0 : 1) : Rand_Range(2);
+        } else
+#endif
         win = Rand_Range(2);
         b->entrant[b->match_[match].ent[win ^ 1]].flags |= LTOUR_ENT_LOST;
     }
@@ -557,10 +568,10 @@ void Bracket_FillEntrants(LBracket *b) {
     s32 i;
 
 #ifdef PORT
-    /* Player selection uses the unlock-filtered grid. CPU entrants need the
-       original roster: a new save can have fewer unique fighters than the bracket. */
-    LChrCell *cpuGrid = (LChrCell *)(MPACK_AT(b->res, 24) + 0x10);
-    s32 cpuGridCount = b->res[b->res[24] >> 2];
+    if (Port_ZenkaiEnabled()) {
+        PortTour_FillEntrants(b);
+        return;
+    }
 #endif
 
     switch (LTOUR_PROG->tour) {
@@ -591,8 +602,7 @@ void Bracket_FillEntrants(LBracket *b) {
             for (;;) {
                 /* written as integer arithmetic: `&b->grid[n]` adds the two operands the other way round */
 #ifdef PORT
-                cell = Port_ZenkaiEnabled() ? &cpuGrid[Rand_Range(cpuGridCount)] :
-                    (LChrCell *)((u8 *)b->grid + Rand_Range(b->gridCount) * sizeof(LChrCell));
+                cell = (LChrCell *)((u8 *)b->grid + Rand_Range(b->gridCount) * sizeof(LChrCell));
 #else
                 cell = (LChrCell *)(Rand_Range(b->gridCount) * sizeof(LChrCell) + (u32)b->grid);
 #endif
@@ -1025,6 +1035,11 @@ void Bracket_SetupBattle(LBracket *b) {
         break;
     case LTOUR_YAMCHA:
         announcer = 3;
+#ifdef PORT
+        if (Port_ZenkaiEnabled())
+            stage = b->round == 4 ? 32 : b->round == 3 ? 31 : 19;
+        else
+#endif
         stage = Bracket_PickStage(1);
         bgm = Rand_Range(9) + 8;
         break;
