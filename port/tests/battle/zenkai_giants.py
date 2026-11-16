@@ -59,6 +59,9 @@ int Port_NetSession(void) { return session; }
 int Port_NetActive(void) { return online; }
 static int cinematic;
 s32 EftCam_IsActive(void) { return cinematic; }
+static int battleMode, storyEvent;
+s32 Battle_GetMode(void) { return battleMode; }
+s32 BtlScript_IsEventRunning(void) { return storyEvent; }
 extern void *memset(void *, int, u32);
 extern int memcmp(const void *, const void *, u32);
 static Vec4 D_002EC2C0;
@@ -103,6 +106,13 @@ int main(void) {
  cinematic=1;assert(Port_ZenkaiGiantAnimationScale(0,&param)==1);
  assert(Port_ZenkaiGiantEffectScale(0)==1);assert(Port_ZenkaiGiantScale(0,&param)==2.5f);
  cinematic=0;assert(Port_ZenkaiGiantEffectScale(0)==2.5f);
+ battleMode=1;storyEvent=1;
+ assert(Port_ZenkaiGiantAnimationScale(0,&param)==1);
+ assert(Port_ZenkaiGiantEffectScale(0)==1);
+ assert(Port_ZenkaiGiantScale(0,&param)==2.5f);
+ storyEvent=0;assert(Port_ZenkaiGiantAnimationScale(0,&param)==2.5f);
+ storyEvent=1;battleMode=0;assert(Port_ZenkaiGiantAnimationScale(0,&param)==2.5f);
+ storyEvent=0;
 
  assert(Port_ZenkaiGiantEffectScale(-1)==1.0f);
  session=1; assert(Port_ZenkaiGiantEffectScale(0)==1.0f);session=0;
@@ -297,6 +307,9 @@ int Port_NetSession(void) { return 0; }
 int Port_NetActive(void) { return 0; }
 static int cinematic;
 s32 EftCam_IsActive(void) { return cinematic; }
+static int battleMode, storyEvent;
+s32 Battle_GetMode(void) { return battleMode; }
+s32 BtlScript_IsEventRunning(void) { return storyEvent; }
 BtlCapiObj *BtlObj_Get(s32 id) { return id==0 ? &object : 0; }
 BtlCapiChr *BtlChar_FindByObjId(s32 id) { (void)id;return 0; }
 s32 BtlOpp_GetObjId(BtlCapiChr *c) { (void)c;return -1; }
@@ -333,6 +346,9 @@ int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return 0; }
 static int cinematic;
 s32 EftCam_IsActive(void) { return cinematic; }
+static int battleMode, storyEvent;
+s32 Battle_GetMode(void) { return battleMode; }
+s32 BtlScript_IsEventRunning(void) { return storyEvent; }
 BtlCtlObj *BtlChar_GetObj(BtlCtlChr *c) { return &object; }
 BtlCtlPose *BtlChar_GetPos(BtlCtlChr *c) { return &c->pose; }
 s32 BtlChar_TestFlag(BtlCtlChr *c,s32 f) { return 0; }
@@ -390,6 +406,9 @@ int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return 0; }
 static int cinematic;
 s32 EftCam_IsActive(void) { return cinematic; }
+static int battleMode, storyEvent;
+s32 Battle_GetMode(void) { return battleMode; }
+s32 BtlScript_IsEventRunning(void) { return storyEvent; }
 BtlFlagChr *BtlChar_Get(s32 i) { return &chars[i]; }
 void *BtlChar_GetObj(BtlFlagChr *c) { return &objects[c->player]; }
 void BtlChar_GetSnapPos(BtlFlagChr *c,Vec4 *v,s32 slot) { v->x=1000+c->player;v->y=v->z=0;v->w=1; }

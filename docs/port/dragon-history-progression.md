@@ -26,6 +26,24 @@ are needed to generate the save. The native and v3 envelope checksums are rebuil
 
 Regression check: `python port/tests/save/dragon_history_generator.py`.
 
+For a separate save with all **161 characters**, all **35 stage entries**,
+all **48 Dragon History episodes**, all **100 missions**, **Survival**, and
+maximum shop stock available, run:
+
+```powershell
+python port/tools/generate_all_content_save.py
+```
+
+Output: `port/build/generated-saves/all-content/zenkaipower.sav`.
+Episodes and missions remain uncleared, Survival records remain empty, and shop
+items stay unowned so they can be bought. Zeni starts at zero and the Zenkai pack
+stays enabled. This unlocks stock sold by the shop; reward-only/hidden items do
+not become shop merchandise. The same `--output`, `--force`, `--common-file4`
+and installation guidance above apply.
+
+Regression check: `python port/tests/save/all_content_generator.py`.
+
+
 - A new game starts with **Saiyan 1: Common Enemy** available.
 - Winning an episode grants its episode-unlock rewards. Opening an episode is enough to list its saga; completing an entire saga is not a separate prerequisite.
 - The main route is a single chain: **Saiyan -> Frieza -> Android / Cell -> Majin Buu -> Dragon Ball GT -> Dragon Ball -> What If**.

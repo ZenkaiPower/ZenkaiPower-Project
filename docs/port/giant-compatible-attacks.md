@@ -44,11 +44,13 @@ The giant changes below require `PORT_ZENKAI_GIANTS=1` (the default). Setting it
 to `0` restores original giant behavior; the attack compatibility table is unchanged.
 
 Offline Zenkai giants use a 2.5x model multiplier during normal gameplay. During
-an active scripted technique camera cut, their model multiplier temporarily
+a Dragon History scripted event (including dialogs) or an active scripted
+technique camera cut, their model multiplier temporarily
 returns to 1x (the original giant size, not a human-sized replacement). Both sides
 follow this rule, including giant-versus-giant fights. Props and technique effects
 also use the original multiplier during the cut. Normal scaling returns on the
-next pose/effect update after the cut ends, including a held cut being released.
+next pose/effect update after the event or cut ends, including skipped dialogs
+and a held cut being released.
 
 Camera offsets use their original values. Gameplay body dimensions remain stable;
 the temporary change affects model poses and effect sizing. Original mode and

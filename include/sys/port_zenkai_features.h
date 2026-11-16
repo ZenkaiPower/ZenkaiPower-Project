@@ -8,7 +8,7 @@
 #endif
 /* Override with -DNAME=0 to restore the corresponding original rules. */
 #ifndef PORT_ZENKAI_GIANTS
-#define PORT_ZENKAI_GIANTS 1
+#define PORT_ZENKAI_GIANTS 0
 #endif
 #ifndef PORT_ZENKAI_STORY_UNLOCKS
 #define PORT_ZENKAI_STORY_UNLOCKS 1

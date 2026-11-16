@@ -3,6 +3,8 @@
 #ifdef PORT
 #include "sys/port_zenkai.h"
 #include "battle/bobj_a.h"
+#include "battle/battle.h"
+#include "battle/btl_script.h"
 extern f32 sqrtf(f32);
 extern int Port_NetSession(void);
 extern int Port_NetActive(void);
@@ -18,11 +20,12 @@ float Port_ZenkaiGiantScale(int type, const void *param) {
     return 1.0f;
 }
 
-/* Scripted technique cuts use the original authored model dimensions. Keep
+/* Story events and scripted technique cuts use authored model dimensions. Keep
  * gameplay dimensions separate, so cinematic transitions cannot alter them. */
 float Port_ZenkaiGiantAnimationScale(int type, const void *param) {
     f32 scale = Port_ZenkaiGiantScale(type, param);
-    if (scale != 1.0f && EftCam_IsActive()) return 1.0f;
+    if (scale != 1.0f && (EftCam_IsActive() ||
+        (Battle_GetMode() == 1 && BtlScript_IsEventRunning()))) return 1.0f;
     return scale;
 }
 
