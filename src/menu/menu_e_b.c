@@ -1795,7 +1795,10 @@ f32 TeamSel_Input(s32 *result) {
                 } else hit=-1;
             }
             if (CUR_SIDE->state == TEAMSEL_ST_TEAM) {
-                hit=Port_SelectionMouseHit(&mouse,scope,"mc_team_%d",0,CUR_SIDE->memberCount,64,32,pivot);
+                /* Native navigation permits existing members and the next empty
+                 * slot. Include that slot for mouse/touch on either side. */
+                s32 slots=CUR_SIDE->memberCount<TS_MEMBER_MAX ? CUR_SIDE->memberCount+1 : TS_MEMBER_MAX;
+                hit=Port_SelectionMouseHit(&mouse,scope,"mc_team_%d",0,slots,64,32,pivot);
                 if(Port_SelectionMouseHit(&mouse,scope,"mc_menu_plate",0,1,256,32,pivot)>=0) hit=TS_MEMBER_MAX;
                 if(hit>=0 && hit!=CUR_SIDE->cur) {
                     TeamSel_ClipGoto(CUR_N+1,CUR_N,TEAMSEL_CLIP_TEAM,"fl_off_start");
