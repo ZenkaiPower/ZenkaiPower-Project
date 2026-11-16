@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "labels_version": 2,
-  "translation_version": 6,
-  "labels_count": 420,
+  "labels_version": 4,
+  "translation_version": 8,
+  "labels_count": 424,
   "locale": "en",
   "name": "English",
   "order": 1,
@@ -774,6 +774,14 @@
     "controls/column/mouse-keyboard": {
       "original": "Mouse/Keyboard",
       "text": "Mouse/Keyboard"
+    },
+    "controls/player1/title": {
+      "original": "1P Controller",
+      "text": "1P Controller"
+    },
+    "controls/player2/title": {
+      "original": "2P Controller",
+      "text": "2P Controller"
     },
     "controls/column/gamepad": {
       "original": "Gamepad",
@@ -1686,6 +1694,14 @@
     "options/confirm/classic-on": {
       "original": "Enable Classic Mode?\nYou cannot turn it off again.",
       "text": "Enable Classic Mode?\nYou cannot turn it off again."
+    },
+    "controls/player1/help": {
+      "original": "Configure 1P controller.",
+      "text": "Configure 1P controller."
+    },
+    "controls/player2/help": {
+      "original": "Configure 2P controller.",
+      "text": "Configure 2P controller."
     }
   }
 }

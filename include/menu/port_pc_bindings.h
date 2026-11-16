@@ -10,6 +10,8 @@
 #define PORT_GAMEPAD_CONTROLLER_ENTRY 21
 #define PORT_CLASH_CONTROLLER_ENTRY 22
 #define PORT_VIRTUAL_CONTROLLER_ENTRY 23
+#define PORT_PLAYER1_CONTROLLER_ENTRY 28
+#define PORT_PLAYER2_CONTROLLER_ENTRY 29
 #define PORT_GAMEPAD_BINDINGS 17
 /* Up to three simultaneous gamepad inputs, sorted for stable comparisons. */
 #define PORT_GAMEPAD_CHORD 0x01000000
@@ -28,6 +30,11 @@ static const char *const sPortPcLabels[PORT_PC_ACTIONS]={
 #ifdef __cplusplus
 extern "C" {
 #endif
+int PortInput_GamepadSlotsGet(void);
+void PortInput_GamepadSlotsSet(int value);
+void PortInput_PlayerGet(int player,int *pc,int *gamepad);
+void PortInput_PlayerSet(int player,const int *pc,const int *gamepad);
+void PortInput_PlayerDefaults(int player,int gamepad);
 void PortInput_PcDefaults(void);
 void PortInput_GamepadDefaults(void);
 int Port_ClashSquare(void);
@@ -36,6 +43,7 @@ int Port_VirtualGamepad(void);
 void Port_VirtualGamepadApply(int on);
 void PortInput_GamepadGet(int *bindings);
 void PortInput_GamepadSet(const int *bindings);
+/* Name/capture action = action index + player (0/1) * PORT_PC_STORAGE_ACTIONS. */
 void PortInput_GamepadBindingName(int action,char *out,int size);
 void PortInput_GamepadCaptureStart(int action);
 void PortInput_PcGet(int *bindings);

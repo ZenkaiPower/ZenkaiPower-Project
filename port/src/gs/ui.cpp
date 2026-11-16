@@ -1678,13 +1678,19 @@ extern "C" void Port_OptionsSaveLoad(void *save) {
         Port_OptionsFileApplyNative(payload,save);
         Port_ClashSquareApply(Port_OptionsFileClashMode(payload));
         Port_VirtualGamepadApply(Port_OptionsFileVirtualGamepad(payload));
+        PortInput_GamepadSlotsSet(Port_OptionsFileGamepadSlots(payload));
         if(Port_OptionsFileDecodeBindings(payload,bindings)) PortInput_PcSet(bindings);
         int gamepad[PORT_GAMEPAD_BINDINGS];
         if(Port_OptionsFileDecodeGamepad(payload,gamepad)) PortInput_GamepadSet(gamepad);
+        PortInput_PlayerDefaults(1,0);PortInput_PlayerDefaults(1,1);
+        if(Port_OptionsFileDecodePlayer2(payload,bindings,gamepad)) PortInput_PlayerSet(1,bindings,gamepad);
+        PortInput_PlayerDefaults(1,0);PortInput_PlayerDefaults(1,1);
+        if(Port_OptionsFileDecodePlayer2(payload,bindings,gamepad)) PortInput_PlayerSet(1,bindings,gamepad);
     }
     Port_OptionsFileEncode(sOptionsSnapshot,save,values);
     Port_OptionsFileSetClashMode(sOptionsSnapshot,Port_ClashSquare());
     Port_OptionsFileSetVirtualGamepad(sOptionsSnapshot,Port_VirtualGamepad());
+    Port_OptionsFileSetGamepadSlots(sOptionsSnapshot,PortInput_GamepadSlotsGet());
     if(found==1) {
         char playerName[PORT_OPTIONS_PLAYER_NAME_BYTES];
         if(Port_OptionsFileGetName(payload,playerName,sizeof(playerName)))
@@ -1695,6 +1701,8 @@ extern "C" void Port_OptionsSaveLoad(void *save) {
     if(locale[0]) Port_OptionsFileSetLanguage(sOptionsSnapshot,locale);
     PortInput_PcGet(bindings);Port_OptionsFileEncodeBindings(sOptionsSnapshot,bindings);
     int gamepad[PORT_GAMEPAD_BINDINGS];PortInput_GamepadGet(gamepad);Port_OptionsFileEncodeGamepad(sOptionsSnapshot,gamepad);
+    PortInput_PlayerGet(1,bindings,gamepad);Port_OptionsFileEncodePlayer2(sOptionsSnapshot,bindings,gamepad);
+    PortInput_PlayerGet(1,bindings,gamepad);Port_OptionsFileEncodePlayer2(sOptionsSnapshot,bindings,gamepad);
     SDL_LockSpinlock(&sNativeVideoLock);
     for(int row=0;row<PORT_OPTION_SETTING_COUNT;row++) sNativeVideoPending[row]=values[row];
     SDL_UnlockSpinlock(&sNativeVideoLock);
@@ -1720,6 +1728,7 @@ extern "C" int Port_OptionsSaveSync(void *save) {
     Port_OptionsFileEncode(snapshot,save,values);
     Port_OptionsFileSetClashMode(snapshot,Port_ClashSquare());
     Port_OptionsFileSetVirtualGamepad(snapshot,Port_VirtualGamepad());
+    Port_OptionsFileSetGamepadSlots(snapshot,PortInput_GamepadSlotsGet());
     /* Rebuilding the native snapshot must not erase the online identity. */
     char playerName[PORT_OPTIONS_PLAYER_NAME_BYTES];
     if(Port_OptionsFileGetName(sOptionsSnapshot,playerName,sizeof(playerName)))
@@ -1729,6 +1738,8 @@ extern "C" int Port_OptionsSaveSync(void *save) {
     if(locale[0]) Port_OptionsFileSetLanguage(snapshot,locale);
     int bindings[PORT_PC_BINDINGS];PortInput_PcGet(bindings);Port_OptionsFileEncodeBindings(snapshot,bindings);
     int gamepad[PORT_GAMEPAD_BINDINGS];PortInput_GamepadGet(gamepad);Port_OptionsFileEncodeGamepad(snapshot,gamepad);
+    PortInput_PlayerGet(1,bindings,gamepad);Port_OptionsFileEncodePlayer2(snapshot,bindings,gamepad);
+    PortInput_PlayerGet(1,bindings,gamepad);Port_OptionsFileEncodePlayer2(snapshot,bindings,gamepad);
     if(valid && memcmp(snapshot,sOptionsSnapshot,sizeof(snapshot))) changed=1;
     memcpy(sOptionsSnapshot,snapshot,sizeof(snapshot));
     /* Remove a recognized legacy block before the native checksum is made. */

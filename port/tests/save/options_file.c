@@ -18,6 +18,11 @@ int main(void) {
     values[0]=3;values[1]=3556;save[0x16A8]=7;save[0x1608]=0x86;
     Port_OptionsFileEncode(payload,save,values);Port_OptionsFileEncodeBindings(payload,bindings);
     Port_OptionsFileEncodeGamepad(payload,gamepad);
+    int pc2[PORT_PC_BINDINGS]={0},pad2[PORT_GAMEPAD_BINDINGS]={0},pc2out[PORT_PC_BINDINGS],pad2out[PORT_GAMEPAD_BINDINGS];
+    pc2[3]=14;pad2[3]=2;
+    Port_OptionsFileEncodePlayer2(payload,pc2,pad2);
+    assert(!Port_OptionsFileGamepadSlots(payload));
+    Port_OptionsFileSetGamepadSlots(payload,0x12);
     assert(!Port_OptionsFileWrite(payload)); /* Original mode never writes the companion. */
     Port_ZenkaiSelect();Port_ZenkaiCommit();Port_ZenkaiFinish();
     assert(Port_ZenkaiEnabled() && Port_OptionsFileRead(readback)==0);
@@ -27,6 +32,15 @@ int main(void) {
     assert(Port_OptionsFileDecode(readback,decoded) && !memcmp(values,decoded,sizeof(values)));
     assert(Port_OptionsFileDecodeBindings(readback,restored) && !memcmp(bindings,restored,sizeof(bindings)));
     assert(Port_OptionsFileDecodeGamepad(readback,padRestored) && !memcmp(gamepad,padRestored,sizeof(gamepad)));
+    assert(Port_OptionsFileGamepadSlots(readback)==0x12);
+    assert(Port_OptionsFileDecodePlayer2(readback,pc2out,pad2out));
+    assert(!memcmp(pc2,pc2out,sizeof(pc2)) && !memcmp(pad2,pad2out,sizeof(pad2)));
+    /* The exact v8 length still reads, retaining 1P bindings and metadata. */
+    payload[4]=8;file=tmpfile();assert(file);
+    assert(fwrite(payload,1,PORT_OPTIONS_FILE_V8_BYTES,file)==PORT_OPTIONS_FILE_V8_BYTES && Port_ZenkaiFlush("savegame/zenkaipower.sav.options",file));fclose(file);
+    assert(Port_OptionsFileRead(readback)==1 && !Port_OptionsFileDecodePlayer2(readback,pc2out,pad2out));
+    assert(Port_OptionsFileDecodeBindings(readback,restored) && !memcmp(bindings,restored,sizeof(bindings)));
+    payload[4]=9;
     bindings[PORT_PC_STORAGE_ACTIONS+1]=6;Port_OptionsFileEncodeBindings(payload,bindings);
     assert(Port_OptionsFileWrite(payload) && Port_OptionsFileRead(readback)==1);
     assert(Port_OptionsFileDecodeBindings(readback,restored) && restored[PORT_PC_STORAGE_ACTIONS+1]==6);

@@ -36,10 +36,16 @@ int Port_FlashMenuMouseHit(int scope,const char *name,float w,float h,float pivo
 #define PADG_TRIANGLE 0x400
 #define OPT_ST_TOP 0
 #define OPT_ITEM_CTRL 4
-static int sOptionPcGamepad;
+static int sOptionPcGamepad,sOptionPcPlayer,sOptionPcPlayerMenu;
 static int Option_PcInput(void) { return 0; }
 static int Option_PcFooter(void) { return 0; }
 static int pcBindings[PORT_PC_BINDINGS];
+static int player2Pc[PORT_PC_BINDINGS],player2Pad[PORT_GAMEPAD_BINDINGS],physicalSlots=0x21;
+extern "C" int PortInput_GamepadSlotsGet(void) {return physicalSlots;}
+extern "C" void PortInput_GamepadSlotsSet(int value) {physicalSlots=value ? value:0x21;}
+extern "C" void PortInput_PlayerDefaults(int player,int gamepad) { if(gamepad) memset(player2Pad,0,sizeof(player2Pad));else memset(player2Pc,0,sizeof(player2Pc)); }
+extern "C" void PortInput_PlayerGet(int player,int *pc,int *pad) { memcpy(pc,player2Pc,sizeof(player2Pc));memcpy(pad,player2Pad,sizeof(player2Pad)); }
+extern "C" void PortInput_PlayerSet(int player,const int *pc,const int *pad) { memcpy(player2Pc,pc,sizeof(player2Pc));memcpy(player2Pad,pad,sizeof(player2Pad)); }
 extern "C" void PortInput_PcGet(int *out) { memcpy(out,pcBindings,sizeof(pcBindings)); }
 static int gamepadBindings[PORT_GAMEPAD_BINDINGS];
 extern "C" void PortInput_GamepadGet(int *out) { memcpy(out,gamepadBindings,sizeof(gamepadBindings)); }

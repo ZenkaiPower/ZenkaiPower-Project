@@ -230,7 +230,7 @@ s32 Option_Run(s32 section) {
 #ifdef PORT
 #include "menu/port_pc_bindings.h"
 static s32 Option_PcInput(void),Option_PcDraw(void),Option_PcHelp(void),Option_PcFooter(void);
-static s32 sOptionPcGamepad;
+static s32 sOptionPcGamepad,sOptionPcPlayer,sOptionPcPlayerMenu;
 #include "menu/port_options_page.h"
 #include "menu/port_keyboard_options.h"
 static s32 sOptionMouseStepping;
@@ -557,6 +557,7 @@ s32 Option_Input(void) {
                 Flash_GotoLabel(&gOption->flash[0], "fl_menu_change", 1);
                 OPT_PLATE(OPT_CLIP_ROW, "fl_off_start");
 #ifdef PORT
+                sOptionPcPlayerMenu=0;
                 gOption->cursor = Port_ZenkaiEnabled() ? OPT_ITEM_VIB : OPT_ITEM_KEYS;
                 gOption->voiceLine = Port_ZenkaiEnabled() ? 24 : 23;
 #else
@@ -2431,8 +2432,7 @@ void Option_UpdateReset(void) {
         case 2:
 #ifdef PORT
             if(gOption->state==PORT_PC_OPTIONS_PAGE && sOptionPcReset) {
-                if(sOptionPcGamepad) PortInput_GamepadDefaults();
-                else PortInput_PcDefaults();
+                PortInput_PlayerDefaults(sOptionPcPlayer,sOptionPcGamepad);
                 gOption->dirty=1;gOption->resetStep=3;
                 break;
             }

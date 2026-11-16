@@ -6,8 +6,24 @@ Launch with `--settings` to enable the F1 external menu. It opens in a separate,
 
 ## Menu structure
 
-On Android, Controller Options contains Vibration, Gamepad, Clash Input, and
-Virtual Gamepad, followed by the native Default footer. Mouse/Keyboard is hidden.
+Controller Options contains Vibration, Clash Input, **1P Controller**, and
+**2P Controller**, followed by the native Default footer. Each player submenu contains
+Mouse/Keyboard and Gamepad. Back from a binding page returns to that player's
+submenu; Back again returns to Controller with the player entry selected.
+The player submenu hides the parent Default footer; each binding page retains
+its own confirmed Default reset, affecting only that player and input type.
+
+Player names match the game's Controller labels in each locale: English and
+Italian use 1P/2P, German uses S1/S2, and Spanish and French use J1/J2.
+The submenu headings and parent entries share the same localized title IDs.
+
+Both players have independent gamepad and keyboard/mouse bindings, used for their
+respective battle input. Player 1 keeps the existing defaults; player 2 starts
+with default gamepad bindings and unbound keyboard/mouse actions to avoid
+controlling both fighters with the same keys. Bindings can intentionally overlap.
+On Android, Mouse/Keyboard remains hidden in both player submenus. The parent
+Controller page also includes Virtual Gamepad and scrolls after four rows;
+its scroll arrows support touch as well as controller navigation.
 Virtual Gamepad uses the native animated Off/On selector and defaults to On.
 Hover/Left/Right only changes the provisional choice; confirm applies it and
 marks Options dirty, while Back cancels. Controller Default restores On after
@@ -268,7 +284,11 @@ General Settings remains accessible without Wii assets; only Network Mode is dis
 
 ## Saving More Options in ZENKAI mode
 
-In ZENKAI mode, Options persist in `savegame/zenkaipower.sav.options`, alongside `zenkaipower.sav`. The binary companion's full record uses the main save's checksummed, atomic writer. Version 3 retains 40 explicit little-endian binding storage values for compatibility, with 17 active actions and three reserved slots. Each action uses a keyboard key or mouse button exclusively. Version 2 companions migrate by dropping vertical-camera/Pause bindings and preferring the mouse button when an old action has both inputs. Version 1 companions still load with default PC bindings. The `ZOPT` envelope contains a schema/version header, the 52-byte More Options payload and 160 bytes of native Options: voice/controller flags, both players' button maps, camera choices, screen position, sound mode and volumes. The native mirror's reserved second byte stores Clash Input (0 Rotate Stick, 1 Tap Strike); older companions default to Rotate Stick. Version 7 adds the locale and startup-prompt metadata. Native save-format fields remain as a compatibility mirror; the companion takes precedence on load. Unrelated flag bits, progression and the two unknown native words at `0x168C` are not overwritten.
+In ZENKAI mode, Options persist in `savegame/zenkaipower.sav.options`, alongside `zenkaipower.sav`. The binary companion's full record uses the main save's checksummed, atomic writer. Version 3 retains 40 explicit little-endian binding storage values for compatibility, with 17 active actions and three reserved slots. Each action uses a keyboard key or mouse button exclusively. Version 2 companions migrate by dropping vertical-camera/Pause bindings and preferring the mouse button when an old action has both inputs. Version 1 companions still load with default PC bindings. The `ZOPT` envelope contains a schema/version header, the 52-byte More Options payload and 160 bytes of native Options: voice/controller flags, both players' button maps, camera choices, screen position, sound mode and volumes. The native mirror's reserved second byte stores Clash Input (0 Rotate Stick, 1 Tap Strike); older companions default to Rotate Stick. Version 7 adds the locale and startup-prompt metadata. Version 8 appends the
+online player name. Version 9 appends player 2's 40 keyboard/mouse storage values
+and 17 gamepad bindings, leaving all earlier offsets intact. Existing versions
+1?8 retain player 1 bindings and load player 2 defaults. Name/language updates
+preserve both players' saved bindings. Native save-format fields remain as a compatibility mirror; the companion takes precedence on load. Unrelated flag bits, progression and the two unknown native words at `0x168C` are not overwritten.
 
 The boot language selector runs before the first game save and before normal Options loading. In ZENKAI mode it reads the locale from the companion; if no full Options record exists, choosing a language can create a language-only version 7 record. That record is not treated as native Options or bindings, and a later full Options save replaces it with the complete record. The startup selector preference can also be retained in this minimal record. Autosave is read from the full companion before the boot memory-card flow makes its save/load decision, so the saved `save_quick` choice is available before the game save is loaded; a missing or language-only record falls back to the default.
 
@@ -306,3 +326,41 @@ Default never changes this save-owned choice. The setter rechecks eligibility
 before committing. The renderer bridge skips this row when resetting category
 defaults; native picker captions use its shared descriptor.
 See [the pack contract](zenkai-pack.md) for feature IDs and saved layout.
+
+## Controller binding implementation
+
+`port_keyboard_options.h` owns the parent and player submenu navigation, native
+plates, pointer input, help, and per-player binding pages. `sOptionPcPlayer`
+selects player 0/1; `sOptionPcPlayerMenu` distinguishes the player submenu from
+the parent while retaining the native Controller state and page. New player
+entry IDs are cursor IDs, not native movie row indices. Keep the displayed row
+count, hit testing, focus wrapping and Android scrolling in agreement.
+
+`PortInput_PlayerGet/Set` read or write a specified player's bindings under the
+input mutex. `PortInput_PlayerDefaults` resets one player/input type. Legacy
+`PcGet/Set` and `GamepadGet/Set` continue to address player 1 for online input
+export. Binding-name and capture APIs encode the player as
+`action + player * PORT_PC_STORAGE_ACTIONS`; the capture stores this player
+before accepting SDL events. Duplicate assignment clears only that player's
+other action. Accepting a gamepad binding also assigns that physical gamepad to
+the selected player. If the other player was using it, their controller slot is
+swapped with the selected player's previous slot, so one gamepad does not
+unexpectedly control both players. Cancel and Delete do not change assignments.
+The assignment is applied on the game thread after capture, outside the binding
+mutex; a disconnected gamepad is ignored. Both menu and battle polling use the
+same assigned controller slot, independently of the player currently being
+edited in Options.
+
+Reserved native companion byte 3 stores `slot + 1` for player 1 in the low nibble
+and player 2 in the high nibble. Zero retains the original first/second gamepad
+defaults, so old saves remain compatible. Normal Options snapshots, saves and
+loads preserve these assignments alongside both players' bindings. Existing
+bindings made before device assignment was implemented need one action rebound
+with the intended gamepad to record its player assignment.
+
+Checks: `keyboard_options.py` covers submenu navigation, 2P capture selection,
+mouse input and Default confirmation. `android/controller_options.py` checks
+both platform layouts. `player_bindings.py` exercises actual SDL capture,
+per-player keyboard/gamepad battle mapping, cancellation and isolated defaults.
+`save/options_file.c` checks both players' save round trips and exact v8 file
+migration; `options_video.py` checks the shared snapshot/apply bridge.

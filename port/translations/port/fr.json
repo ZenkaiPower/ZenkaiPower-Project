@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "labels_version": 2,
-  "translation_version": 7,
-  "labels_count": 419,
+  "labels_version": 4,
+  "translation_version": 9,
+  "labels_count": 423,
   "locale": "fr",
   "name": "Français",
   "order": 4,
@@ -1682,6 +1682,22 @@
     "options/confirm/classic-on": {
       "original": "Enable Classic Mode?\nYou cannot turn it off again.",
       "text": "Enable Classic Mode?\nYou cannot turn it off again."
+    },
+    "controls/player1/title": {
+      "original": "1P Controller",
+      "text": "Manette J1"
+    },
+    "controls/player2/title": {
+      "original": "2P Controller",
+      "text": "Manette J2"
+    },
+    "controls/player1/help": {
+      "original": "Configure 1P controller.",
+      "text": "Configurez la manette de J1."
+    },
+    "controls/player2/help": {
+      "original": "Configure 2P controller.",
+      "text": "Configurez la manette de J2."
     }
   }
 }

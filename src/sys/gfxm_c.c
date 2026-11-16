@@ -1458,6 +1458,7 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
     }
     /* Preserve the native EXIT artwork in More Options. Only Video Default
        replaces the caption; both keep the original footer timeline and depth. */
+    if(clip && sMenuArtScreen==68 && sOptionsVideoFooter==3 && !strcmp(clip->name,"mc_bottom_plate_1")) return;
     if(clip && sMenuArtScreen==68 && sOptionsVideoFooter && !sOptionsPlateCopy &&
        (strcmp(clip->name,"mc_bottom_plate_1")==0 ||
         (sOptionsVideoFooter==2 && strcmp(clip->name,"mc_bottom_plate_2")==0))) {

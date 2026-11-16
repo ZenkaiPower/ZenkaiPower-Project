@@ -43,13 +43,14 @@ static void Port_OptionsSaveEncode(void *save,const int *values) {
 #define PORT_OPTIONS_NATIVE_BYTES 160
 #define PORT_OPTIONS_FILE_V1_BYTES (8+PORT_OPTIONS_SAVE_BYTES+PORT_OPTIONS_NATIVE_BYTES)
 #define PORT_OPTIONS_FILE_V3_BYTES (PORT_OPTIONS_FILE_V1_BYTES+4*PORT_PC_BINDINGS)
-/* v7 appends a language; v8 appends the online player name after it.
+/* v7 appends a language; v8 appends the online player name; v9 adds 2P bindings.
    Preserve every pre-existing field offset for old encrypted .options files. */
 #define PORT_OPTIONS_FILE_V6_BYTES (PORT_OPTIONS_FILE_V3_BYTES+4*PORT_GAMEPAD_BINDINGS)
 #define PORT_OPTIONS_LOCALE_BYTES 16
 #define PORT_OPTIONS_FILE_V7_BYTES (PORT_OPTIONS_FILE_V6_BYTES+PORT_OPTIONS_LOCALE_BYTES)
 #define PORT_OPTIONS_PLAYER_NAME_BYTES 20
-#define PORT_OPTIONS_FILE_BYTES (PORT_OPTIONS_FILE_V7_BYTES+PORT_OPTIONS_PLAYER_NAME_BYTES)
+#define PORT_OPTIONS_FILE_V8_BYTES (PORT_OPTIONS_FILE_V7_BYTES+PORT_OPTIONS_PLAYER_NAME_BYTES)
+#define PORT_OPTIONS_FILE_BYTES (PORT_OPTIONS_FILE_V8_BYTES+4*(PORT_PC_BINDINGS+PORT_GAMEPAD_BINDINGS))
 
 /* The same locale syntax used by the translation catalog filenames: ll[-RRR]. */
 static int Port_OptionsLocaleValid(const char *locale) {
@@ -72,13 +73,13 @@ static int Port_OptionsLocaleValid(const char *locale) {
 #define PORT_OPTIONS_PROMPT_ON 8
 static int Port_OptionsFileLanguageOnly(const void *data) {
     const unsigned char *p=(const unsigned char *)data;
-    return (p[4]==7 || p[4]==8) && (p[7]&1)!=0;
+    return (p[4]>=7 && p[4]<=9) && (p[7]&1)!=0;
 }
 static int Port_OptionsFileGetLanguage(const void *data,char *locale,int size) {
     const unsigned char *p=(const unsigned char *)data;
     const char *saved=(const char *)p+PORT_OPTIONS_FILE_V6_BYTES;
     int i;
-    if(!locale || size<=0 || !(p[4]==7 || p[4]==8 || (p[4]>=1 && p[4]<=6 && (p[7]==2 || p[7]==3))) ||
+    if(!locale || size<=0 || !((p[4]>=7 && p[4]<=9) || (p[4]>=1 && p[4]<=6 && (p[7]==2 || p[7]==3))) ||
        !Port_OptionsLocaleValid(saved)) return 0;
     for(i=0;i<size-1 && saved[i];i++) locale[i]=saved[i];
     locale[i]=0;
@@ -98,7 +99,7 @@ static int Port_OptionsFileGetName(const void *data,char *name,int size) {
     const unsigned char *p=(const unsigned char *)data;
     const unsigned char *saved=p+PORT_OPTIONS_FILE_V7_BYTES;
     int i;
-    if(!name || size<=0 || !(p[4]==8 || (p[4]>=1 && p[4]<=6 && p[7]==3))) return 0;
+    if(!name || size<=0 || !((p[4]>=8 && p[4]<=9) || (p[4]>=1 && p[4]<=6 && p[7]==3))) return 0;
     for(i=0;i<PORT_OPTIONS_PLAYER_NAME_BYTES;i++) {
         if(!saved[i]) break;
         if(saved[i]<32 || saved[i]==127) return 0;
@@ -124,7 +125,7 @@ static int Port_OptionsFileSetName(void *data,const char *name) {
 static int Port_OptionsFileDecode(const void *data,int *values) {
     const unsigned char *p=(const unsigned char *)data;
     if(p[0]!='Z' || p[1]!='O' || p[2]!='P' || p[3]!='T' ||
-       (p[4]<1 || p[4]>8) || p[5]!=PORT_OPTIONS_SAVE_BYTES || p[6]!=PORT_OPTIONS_NATIVE_BYTES ||
+       (p[4]<1 || p[4]>9) || p[5]!=PORT_OPTIONS_SAVE_BYTES || p[6]!=PORT_OPTIONS_NATIVE_BYTES ||
        (p[4]>=7 ? ((p[7]&~13)!=0 || ((p[7]&8)!=0 && (p[7]&4)==0)) :
                     (p[7]!=0 && p[7]!=2 && p[7]!=3))) return 0;
     /* A metadata-only companion may be written before the first game save.
@@ -143,7 +144,7 @@ static int Port_OptionsFileDecode(const void *data,int *values) {
     if((p[4]>=7 || p[7]==2 || p[7]==3) &&
        (p[7]==2 || p[PORT_OPTIONS_FILE_V6_BYTES]) &&
        !Port_OptionsLocaleValid((const char *)p+PORT_OPTIONS_FILE_V6_BYTES)) return 0;
-    if(p[4]==8 || p[7]==3) {
+    if(p[4]>=8 || p[7]==3) {
         if(p[PORT_OPTIONS_FILE_V7_BYTES]) {
             char name[PORT_OPTIONS_PLAYER_NAME_BYTES];
             if(!Port_OptionsFileGetName(data,name,sizeof(name))) return 0;
@@ -164,6 +165,13 @@ static int Port_OptionsFileDecode(const void *data,int *values) {
             if(p[4]>=5 ? !Port_GamepadBindingValid(v):(v>26 && (v<100 || v>111))) return 0;
         }
     }
+    if(p[4]>=9) {
+        int i;for(i=0;i<PORT_PC_BINDINGS+PORT_GAMEPAD_BINDINGS;i++) {
+            const unsigned char *b=p+PORT_OPTIONS_FILE_V8_BYTES+4*i;
+            unsigned v=b[0]|(b[1]<<8)|(b[2]<<16)|((unsigned)b[3]<<24);
+            if(i<PORT_PC_BINDINGS ? v>(i<PORT_PC_STORAGE_ACTIONS ? 511u:9u):!Port_GamepadBindingValid(v)) return 0;
+        }
+    }
     return Port_OptionsPayloadDecode(p+8,values);
 }
 static void Port_OptionsFileEncode(void *data,const void *save,const int *values) {
@@ -171,7 +179,7 @@ static void Port_OptionsFileEncode(void *data,const void *save,const int *values
     const unsigned char *s=(const unsigned char *)save;
     int i;
     for(i=PORT_OPTIONS_FILE_V1_BYTES;i<PORT_OPTIONS_FILE_BYTES;i++) p[i]=0;
-    p[0]='Z';p[1]='O';p[2]='P';p[3]='T';p[4]=8;
+    p[0]='Z';p[1]='O';p[2]='P';p[3]='T';p[4]=9;
     p[5]=PORT_OPTIONS_SAVE_BYTES;p[6]=PORT_OPTIONS_NATIVE_BYTES;p[7]=0;
     Port_OptionsPayloadEncode(p+8,values);
     p+=8+PORT_OPTIONS_SAVE_BYTES;
@@ -188,6 +196,16 @@ static int Port_OptionsFileClashMode(const void *data) {
 static void Port_OptionsFileSetClashMode(void *data,int strike) {
     unsigned char *p=(unsigned char *)data+8+PORT_OPTIONS_SAVE_BYTES;
     p[1]=strike ? 1:0;
+}
+/* Reserved byte 3 stores both players' physical controller slots, plus one.
+   Old companions have zero here and retain first/second-controller defaults. */
+static int Port_OptionsFileGamepadSlots(const void *data) {
+    const unsigned char *p=(const unsigned char *)data+8+PORT_OPTIONS_SAVE_BYTES;
+    return p[3];
+}
+static void Port_OptionsFileSetGamepadSlots(void *data,int slots) {
+    unsigned char *p=(unsigned char *)data+8+PORT_OPTIONS_SAVE_BYTES;
+    p[3]=(unsigned char)slots;
 }
 /* Reserved byte 2: zero preserves On for existing companions. */
 static int Port_OptionsFileVirtualGamepad(const void *data) {
@@ -235,6 +253,23 @@ static int Port_OptionsFileDecodeGamepad(const void *data,int *bindings) {
     if(p[4]<4) return 0;
     p+=PORT_OPTIONS_FILE_V3_BYTES;
     for(i=0;i<PORT_GAMEPAD_BINDINGS;i++) bindings[i]=p[4*i]|(p[4*i+1]<<8)|(p[4*i+2]<<16)|((unsigned)p[4*i+3]<<24);
+    return 1;
+}
+static void Port_OptionsFileEncodePlayer2(void *data,const int *pc,const int *gamepad) {
+    unsigned char *p=(unsigned char *)data+PORT_OPTIONS_FILE_V8_BYTES;
+    int i,j;for(i=0;i<PORT_PC_BINDINGS+PORT_GAMEPAD_BINDINGS;i++) {
+        unsigned v=(unsigned)(i<PORT_PC_BINDINGS ? pc[i]:gamepad[i-PORT_PC_BINDINGS]);
+        for(j=0;j<4;j++) p[4*i+j]=(unsigned char)(v>>(j*8));
+    }
+}
+static int Port_OptionsFileDecodePlayer2(const void *data,int *pc,int *gamepad) {
+    const unsigned char *p=(const unsigned char *)data;
+    int i;if(p[4]<9) return 0;
+    p+=PORT_OPTIONS_FILE_V8_BYTES;
+    for(i=0;i<PORT_PC_BINDINGS+PORT_GAMEPAD_BINDINGS;i++) {
+        unsigned v=p[4*i]|(p[4*i+1]<<8)|(p[4*i+2]<<16)|((unsigned)p[4*i+3]<<24);
+        if(i<PORT_PC_BINDINGS) pc[i]=(int)v;else gamepad[i-PORT_PC_BINDINGS]=(int)v;
+    }
     return 1;
 }
 #endif

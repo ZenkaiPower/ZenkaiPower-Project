@@ -27,6 +27,7 @@ typedef int s32; typedef float f32; typedef unsigned u32;
 #define OPT_VOICE(n) ((void)0)
 static struct {int state,cursor,dirty,picker,value,voiceLine,resetStep;void *flash;} option,*gOption=&option;
 static struct {int gamePressed,gameRepeat;} gPad[1];
+static int sOptionPcPlayer,sOptionPcPlayerMenu;
 static int sOptionPcGamepad,enabled=1,clash,zenkai=1;
 int Port_ZenkaiEnabled() {return zenkai;}
 extern "C" int Port_VirtualGamepad() {return enabled;}
@@ -47,9 +48,12 @@ static void input(int repeat,int pressed) {
 int main() {
     option.state=OPT_ITEM_CTRL;option.cursor=OPT_ITEM_VIB;
 #ifdef __ANDROID__
-    assert(sOptionControllerOrder[1]==PORT_GAMEPAD_CONTROLLER_ENTRY);
-    input(PADG_DOWN,0);assert(option.cursor==PORT_GAMEPAD_CONTROLLER_ENTRY);
+    assert(sOptionControllerOrder[1]==PORT_CLASH_CONTROLLER_ENTRY);
     input(PADG_DOWN,0);assert(option.cursor==PORT_CLASH_CONTROLLER_ENTRY);
+    input(PADG_DOWN,0);assert(option.cursor==PORT_PLAYER1_CONTROLLER_ENTRY);
+    input(0,PADG_CROSS);assert(sOptionPcPlayerMenu && option.cursor==PORT_GAMEPAD_CONTROLLER_ENTRY);
+    input(0,PADG_TRIANGLE);assert(!sOptionPcPlayerMenu);
+    input(PADG_DOWN,0);assert(option.cursor==PORT_PLAYER2_CONTROLLER_ENTRY);
     input(PADG_DOWN,0);assert(option.cursor==PORT_VIRTUAL_CONTROLLER_ENTRY);
     input(0,PADG_CROSS);assert(sOptionPcClashPicker && option.value==1);
     input(PADG_LEFT,0);assert(option.value==0 && enabled==1 && !option.dirty);
@@ -63,7 +67,9 @@ int main() {
     input(0,0);input(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_CTRL_RESET);
     input(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_VIB);
 #else
-    input(PADG_DOWN,0);assert(option.cursor==PORT_PC_CONTROLLER_ENTRY);
+    input(PADG_DOWN,0);assert(option.cursor==PORT_CLASH_CONTROLLER_ENTRY);
+    input(PADG_DOWN,0);assert(option.cursor==PORT_PLAYER1_CONTROLLER_ENTRY);
+    input(0,PADG_CROSS);assert(option.cursor==PORT_PC_CONTROLLER_ENTRY);
 #endif
     unsigned char save[0x4000]={},payload[PORT_OPTIONS_FILE_BYTES],before[PORT_OPTIONS_FILE_BYTES];
     int values[PORT_OPTION_SETTING_COUNT],decoded[PORT_OPTION_SETTING_COUNT];

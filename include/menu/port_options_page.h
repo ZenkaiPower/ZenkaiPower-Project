@@ -536,6 +536,10 @@ static const char *Option_PortHeading(void) {
     static char translated[128];
     const char *id,*fallback;
     if(!Port_ZenkaiEnabled()) return NULL;
+    if(gOption->state==OPT_ITEM_CTRL && sOptionPcPlayerMenu) {
+        MenuTranslation_PortTextCopy(sOptionPcPlayer ? "controls/player2/title":"controls/player1/title",sOptionPcPlayer ? "2P Controller":"1P Controller",translated,sizeof(translated));
+        return translated;
+    }
     if(gOption->state==PORT_PC_OPTIONS_PAGE) {
         id=sOptionPcGamepad ? "controls/column/gamepad":"controls/column/mouse-keyboard";
         fallback=sOptionPcGamepad ? "Gamepad":"Mouse/Keyboard";

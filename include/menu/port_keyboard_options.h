@@ -3,6 +3,7 @@
 #include "port_pc_bindings.h"
 extern int strcmp(const char *,const char *);
 static s32 sOptionPcReset;
+static s32 sOptionControllerFirst;
 static s32 sOptionPcRow,sOptionPcFirst,sOptionPcWaiting,sOptionPcFooterSelected=-1;
 static s32 sOptionPcClashPicker,sOptionPcClashClosing;
 static s32 sOptionPcVirtualPicker;
@@ -14,11 +15,11 @@ extern s32 Port_FlashOptionsCaptionStyle(s32 layer,u32 *tint);
 extern f32 Port_FlashOptionsRowSlide(void *movie,s32 row);
 static void Option_PcControllerSelect(s32 cursor) {
     if(cursor==gOption->cursor) return;
-    if(gOption->cursor!=PORT_PC_CONTROLLER_ENTRY && gOption->cursor!=PORT_GAMEPAD_CONTROLLER_ENTRY &&
+    if(gOption->cursor!=PORT_PLAYER1_CONTROLLER_ENTRY && gOption->cursor!=PORT_PLAYER2_CONTROLLER_ENTRY && gOption->cursor!=PORT_PC_CONTROLLER_ENTRY && gOption->cursor!=PORT_GAMEPAD_CONTROLLER_ENTRY &&
        gOption->cursor!=PORT_CLASH_CONTROLLER_ENTRY && gOption->cursor!=PORT_VIRTUAL_CONTROLLER_ENTRY)
         Option_PlateGoto(0,gOption->cursor==OPT_ITEM_CTRL_RESET ? OPT_CLIP_BOTTOM:OPT_CLIP_ROW_CTRL,"fl_off_start");
     gOption->cursor=cursor;
-    if(cursor!=PORT_PC_CONTROLLER_ENTRY && cursor!=PORT_GAMEPAD_CONTROLLER_ENTRY &&
+    if(cursor!=PORT_PLAYER1_CONTROLLER_ENTRY && cursor!=PORT_PLAYER2_CONTROLLER_ENTRY && cursor!=PORT_PC_CONTROLLER_ENTRY && cursor!=PORT_GAMEPAD_CONTROLLER_ENTRY &&
        cursor!=PORT_CLASH_CONTROLLER_ENTRY && cursor!=PORT_VIRTUAL_CONTROLLER_ENTRY) {
         Option_PlateGoto(0,cursor==OPT_ITEM_CTRL_RESET ? OPT_CLIP_BOTTOM:OPT_CLIP_ROW_CTRL,"fl_on_start");
         gOption->voiceLine=cursor==OPT_ITEM_KEYS ? 23:cursor==OPT_ITEM_VIB ? 24:10;
@@ -27,15 +28,30 @@ static void Option_PcControllerSelect(s32 cursor) {
     Snd_PlaySe(1,0);
 }
 static const s32 sOptionControllerOrder[]={OPT_ITEM_VIB,
-#ifndef __ANDROID__
-    PORT_PC_CONTROLLER_ENTRY,
-#endif
-    PORT_GAMEPAD_CONTROLLER_ENTRY,PORT_CLASH_CONTROLLER_ENTRY,
+    PORT_CLASH_CONTROLLER_ENTRY,PORT_PLAYER1_CONTROLLER_ENTRY,PORT_PLAYER2_CONTROLLER_ENTRY,
 #ifdef __ANDROID__
     PORT_VIRTUAL_CONTROLLER_ENTRY,
 #endif
     OPT_ITEM_CTRL_RESET};
-
+static const s32 sOptionPlayerControllerOrder[]={
+#ifndef __ANDROID__
+    PORT_PC_CONTROLLER_ENTRY,
+#endif
+    PORT_GAMEPAD_CONTROLLER_ENTRY};
+static s32 Option_PcControllerCount(void) {
+    return sOptionPcPlayerMenu ? sizeof(sOptionPlayerControllerOrder)/sizeof(s32):sizeof(sOptionControllerOrder)/sizeof(s32);
+}
+static s32 Option_PcControllerRow(s32 i) {
+    return sOptionPcPlayerMenu ? sOptionPlayerControllerOrder[i]:sOptionControllerOrder[i];
+}
+static void Option_PcControllerEnsure(void) {
+    s32 i;
+    if(sOptionPcPlayerMenu) { sOptionControllerFirst=0;return; }
+    for(i=0;i<Option_PcControllerCount();i++) if(Option_PcControllerRow(i)==gOption->cursor) break;
+    if(i==Option_PcControllerCount()-1) return; /* native Default footer */
+    if(i<sOptionControllerFirst) sOptionControllerFirst=i;
+    if(i>=sOptionControllerFirst+4) sOptionControllerFirst=i-3;
+}
 static void Option_PcEnsure(void) {
     if(sOptionPcRow>=PORT_PC_ACTIONS) return;
     if(sOptionPcRow<sOptionPcFirst) sOptionPcFirst=sOptionPcRow;
@@ -69,13 +85,20 @@ static s32 Option_PcInput(void) {
     if(sOptionPcClashClosing && gOption->state==OPT_ITEM_CTRL) { sOptionPcClashClosing=0;return 1; }
     if(gOption->state==OPT_ITEM_CTRL) {
         if(gOption->cursor==OPT_ITEM_KEYS) gOption->cursor=OPT_ITEM_VIB;
-#ifdef __ANDROID__
-        if(gOption->cursor==PORT_PC_CONTROLLER_ENTRY) gOption->cursor=OPT_ITEM_VIB;
-#endif
+        if(sOptionPcPlayerMenu && (gPad[0].gamePressed&PADG_TRIANGLE)) {
+            sOptionPcPlayerMenu=0;gOption->cursor=sOptionPcPlayer ? PORT_PLAYER2_CONTROLLER_ENTRY:PORT_PLAYER1_CONTROLLER_ENTRY;
+            Flash_GotoLabel(gOption->flash,"fl_menu_change",1);Snd_PlaySe(1,2);return 1;
+        }
         if(gPad[0].gameRepeat&(PADG_UP|PADG_DOWN)) {
-            for(i=0;i<5;i++) if(gOption->cursor==sOptionControllerOrder[i]) break;
-            Option_PcControllerSelect(sOptionControllerOrder[(i+(gPad[0].gameRepeat&PADG_UP ? 4:1))%5]);
-            return 1;
+            s32 count=Option_PcControllerCount();
+            for(i=0;i<count;i++) if(gOption->cursor==Option_PcControllerRow(i)) break;
+            Option_PcControllerSelect(Option_PcControllerRow((i+(gPad[0].gameRepeat&PADG_UP ? count-1:1))%count));
+            Option_PcControllerEnsure();return 1;
+        }
+        if(!sOptionPcPlayerMenu && (gOption->cursor==PORT_PLAYER1_CONTROLLER_ENTRY || gOption->cursor==PORT_PLAYER2_CONTROLLER_ENTRY) && (gPad[0].gamePressed&PADG_CROSS)) {
+            sOptionPcPlayer=gOption->cursor==PORT_PLAYER2_CONTROLLER_ENTRY;
+            sOptionPcPlayerMenu=1;sOptionControllerFirst=0;gOption->cursor=Option_PcControllerRow(0);
+            Flash_GotoLabel(gOption->flash,"fl_menu_change",1);Snd_PlaySe(1,1);return 1;
         }
         if((gOption->cursor==PORT_CLASH_CONTROLLER_ENTRY
 #ifdef __ANDROID__
@@ -113,7 +136,7 @@ static s32 Option_PcInput(void) {
         sOptionPcRow=(sOptionPcRow+(gPad[0].gameRepeat&PADG_UP ? PORT_PC_ACTIONS:1))%(PORT_PC_ACTIONS+1);
         Option_PcEnsure();Snd_PlaySe(1,0);
     } else if((gPad[0].gamePressed&PADG_CROSS) && sOptionPcRow<PORT_PC_ACTIONS) {
-        if(sOptionPcGamepad) PortInput_GamepadCaptureStart(sOptionPcRow);else PortInput_PcCaptureStart(sOptionPcRow);sOptionPcWaiting=1;Snd_PlaySe(1,1);
+        if(sOptionPcGamepad) PortInput_GamepadCaptureStart(sOptionPcRow+PORT_PC_STORAGE_ACTIONS*sOptionPcPlayer);else PortInput_PcCaptureStart(sOptionPcRow+PORT_PC_STORAGE_ACTIONS*sOptionPcPlayer);sOptionPcWaiting=1;Snd_PlaySe(1,1);
     }
     return 1;
 }
@@ -123,7 +146,7 @@ static void Option_PcMouse(PortMenuMouse *mouse) {
     if(sOptionPcClashPicker && gOption->state==OPT_ITEM_CTRL) { Option_PortPickerMouse(mouse);return; }
     if(sOptionPcClashClosing) return;
     if(mouse->cancel) { gPad[0].gamePressed|=PADG_TRIANGLE;return; }
-    if(Port_FlashMenuMouseHit(68,gOption->state==PORT_PC_OPTIONS_PAGE ? "mc_video_default":"mc_bottom_plate_1",512,32,0,mouse->x,mouse->y) &&
+    if((gOption->state==PORT_PC_OPTIONS_PAGE || !sOptionPcPlayerMenu) && Port_FlashMenuMouseHit(68,gOption->state==PORT_PC_OPTIONS_PAGE ? "mc_video_default":"mc_bottom_plate_1",512,32,0,mouse->x,mouse->y) &&
        (mouse->moved || mouse->confirm) && !mouse->wheel) {
         if(gOption->state==OPT_ITEM_CTRL) Option_PcControllerSelect(OPT_ITEM_CTRL_RESET);
         else {
@@ -133,18 +156,21 @@ static void Option_PcMouse(PortMenuMouse *mouse) {
         if(mouse->confirm) gPad[0].gamePressed|=PADG_CROSS;
         return;
     }
-    if(gOption->state==PORT_PC_OPTIONS_PAGE && (mouse->moved || mouse->confirm) && !mouse->wheel) {
+    if((gOption->state==PORT_PC_OPTIONS_PAGE || (!sOptionPcPlayerMenu && Option_PcControllerCount()>5)) && (mouse->moved || mouse->confirm) && !mouse->wheel) {
         extern s32 Port_PageAspectMilli(void),Port_TitleMainChars43(void),Port_Menus43(void);
         f32 scale=Port_TitleMainChars43() && !Port_Menus43() && Port_PageAspectMilli()>1333 ?
             1333.333f/Port_PageAspectMilli():1;
         f32 x=512+(272-512)*scale;
+        s32 first=gOption->state==PORT_PC_OPTIONS_PAGE ? sOptionPcFirst:sOptionControllerFirst;
+        s32 count=gOption->state==PORT_PC_OPTIONS_PAGE ? PORT_PC_ACTIONS:Option_PcControllerCount()-1;
         for(i=0;i<2;i++) {
             f32 y=i ? 252:64;
-            if((i ? sOptionPcFirst<PORT_PC_ACTIONS-4:sOptionPcFirst>0) &&
+            if((i ? first<count-4:first>0) &&
                mouse->x>=x-16*scale && mouse->x<x+16*scale && mouse->y>=y-16 && mouse->y<y+16) {
                 PortMenuMouse_SetHover(1);
                 if(mouse->confirm) {
-                    sOptionPcRow=sOptionPcFirst+(i ? 3:0);
+                    if(gOption->state==PORT_PC_OPTIONS_PAGE) sOptionPcRow=first+(i ? 3:0);
+                    else gOption->cursor=Option_PcControllerRow(first+(i ? 3:0));
                     gPad[0].gameRepeat|=i ? PADG_DOWN:PADG_UP;
                 }
                 return;
@@ -156,7 +182,8 @@ static void Option_PcMouse(PortMenuMouse *mouse) {
         /* These rows share the native Options plate's coordinates/pivot. */
         if(Option_PortHit(mouse,72+i*44,104+i*44)) {
             if(gOption->state==OPT_ITEM_CTRL) {
-                Option_PcControllerSelect(sOptionControllerOrder[i]);
+                if(sOptionControllerFirst+i>=Option_PcControllerCount()-(sOptionPcPlayerMenu ? 0:1)) break;
+                Option_PcControllerSelect(Option_PcControllerRow(sOptionControllerFirst+i));
             } else {
                 if(sOptionPcRow!=sOptionPcFirst+i) Snd_PlaySe(1,0);
                 sOptionPcRow=sOptionPcFirst+i;
@@ -173,6 +200,7 @@ static s32 Option_PcFooter(void) {
     if(gOption->state==OPT_ITEM_CTRL && (sOptionPcClashPicker || sOptionPcClashClosing)) {
         Port_FlashOptionsVideoPicker(sOptionPcVirtualPicker ? -3:-2);return 1;
     }
+    if(gOption->state==OPT_ITEM_CTRL && sOptionPcPlayerMenu) { Port_FlashOptionsVideoFooter(3);return 1; }
     if(gOption->state!=PORT_PC_OPTIONS_PAGE) return 0;
     Port_FlashOptionsVideoPicker(-1);Port_FlashOptionsVideoFooter(1);
     uv.x0=uv.y0=0;uv.x1=256;uv.y1=32;
@@ -189,29 +217,22 @@ static s32 Option_PcDraw(void) {
     if(!Port_ZenkaiEnabled() || (gOption->page!=PORT_PC_CONTROLLER_PAGE && gOption->state!=PORT_PC_OPTIONS_PAGE)) return 0;
     Option_PortArtInit();Ps_SetShift(0);
     if(gOption->state!=PORT_PC_OPTIONS_PAGE) {
-        for(i=0;i<4;i++) {
-            static const char *const ids[]={"controls/vibration",
-#ifndef __ANDROID__
-                "controls/column/mouse-keyboard",
-#endif
-                "controls/column/gamepad","controls/clash-mode/title",
-#ifdef __ANDROID__
-                "controls/virtual-gamepad/title",
-#endif
-            };
-            static const char *const names[]={"Vibration",
-#ifndef __ANDROID__
-                "Mouse/Keyboard",
-#endif
-                "Gamepad","Clash Input",
-#ifdef __ANDROID__
-                "Virtual Gamepad",
-#endif
-            };
+        Option_PcControllerEnsure();
+        for(i=0;i<4 && sOptionControllerFirst+i<Option_PcControllerCount()-(sOptionPcPlayerMenu ? 0:1);i++) {
+            s32 row=Option_PcControllerRow(sOptionControllerFirst+i);
+            const char *id=row==OPT_ITEM_VIB ? "controls/vibration":row==PORT_PLAYER1_CONTROLLER_ENTRY ? "controls/player1/title":
+                row==PORT_PLAYER2_CONTROLLER_ENTRY ? "controls/player2/title":row==PORT_PC_CONTROLLER_ENTRY ? "controls/column/mouse-keyboard":
+                row==PORT_GAMEPAD_CONTROLLER_ENTRY ? "controls/column/gamepad":row==PORT_CLASH_CONTROLLER_ENTRY ? "controls/clash-mode/title":"controls/virtual-gamepad/title";
+            const char *name=row==OPT_ITEM_VIB ? "Vibration":row==PORT_PLAYER1_CONTROLLER_ENTRY ? "1P Controller":
+                row==PORT_PLAYER2_CONTROLLER_ENTRY ? "2P Controller":row==PORT_PC_CONTROLLER_ENTRY ? "Mouse/Keyboard":
+                row==PORT_GAMEPAD_CONTROLLER_ENTRY ? "Gamepad":row==PORT_CLASH_CONTROLLER_ENTRY ? "Clash Input":"Virtual Gamepad";
             char label[128];
-            MenuTranslation_PortTextCopy(ids[i],names[i],label,sizeof(label));
-            Option_PortButton(i,NULL,92-i*20+Port_FlashOptionsRowSlide(gOption->flash,i),72+i*44,label,
-                gOption->cursor==sOptionControllerOrder[i] ? 1:0);
+            MenuTranslation_PortTextCopy(id,name,label,sizeof(label));
+            Option_PortButton(i,NULL,92-i*20+Port_FlashOptionsRowSlide(gOption->flash,i),72+i*44,label,gOption->cursor==row ? 1:0);
+        }
+        if(!sOptionPcPlayerMenu) {
+            if(sOptionControllerFirst>0) Port_FlashOptionsChevron(gOption->flash,0,272,64);
+            if(sOptionControllerFirst<Option_PcControllerCount()-5) Port_FlashOptionsChevron(gOption->flash,1,272,252);
         }
     } else {
         Option_PcEnsure();
@@ -230,8 +251,8 @@ static s32 Option_PcDraw(void) {
             MenuTranslation_PortTextCopy(actionIds[row],sPortPcLabels[row],label,sizeof(label));
             Option_PortButton(i,NULL,92-i*20+slide,72+i*44,label,
                 sOptionPcRow==row ? 1:0);
-            if(sOptionPcGamepad) PortInput_GamepadBindingName(row,binding,sizeof(binding));
-            else PortInput_PcBindingName(row,binding,sizeof(binding));
+            if(sOptionPcGamepad) PortInput_GamepadBindingName(row+PORT_PC_STORAGE_ACTIONS*sOptionPcPlayer,binding,sizeof(binding));
+            else PortInput_PcBindingName(row+PORT_PC_STORAGE_ACTIONS*sOptionPcPlayer,binding,sizeof(binding));
             {
                 s32 layer,waiting=sOptionPcWaiting && row==sOptionPcRow;
                 s32 disabled=!waiting && !strcmp(binding,"Unbound");
@@ -281,6 +302,9 @@ static s32 Option_PcHelp(void) {
             id=sOptionPcWaiting ? "controls/help/keyboard/waiting":"controls/help/keyboard";
             line=sOptionPcWaiting ? "Press a key or mouse input. Esc cancels. Delete clears the binding.":"Select an action, then press a key or mouse input.";
         }
+    } else if(gOption->state==OPT_ITEM_CTRL && (gOption->cursor==PORT_PLAYER1_CONTROLLER_ENTRY || gOption->cursor==PORT_PLAYER2_CONTROLLER_ENTRY)) {
+        id=gOption->cursor==PORT_PLAYER1_CONTROLLER_ENTRY ? "controls/player1/help":"controls/player2/help";
+        line=gOption->cursor==PORT_PLAYER1_CONTROLLER_ENTRY ? "Configure 1P controller.":"Configure 2P controller.";
     } else if(gOption->state==OPT_ITEM_CTRL && gOption->cursor==PORT_VIRTUAL_CONTROLLER_ENTRY) {
         id="controls/virtual-gamepad/help";
         line="Show or hide the virtual gamepad during battle.";

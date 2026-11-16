@@ -38,6 +38,7 @@ typedef struct {} MFlashRef;
 typedef struct { int x0,y0,x1,y1; } MFlashUv;
 static struct { int gamePressed,gameRepeat; } gPad[1];
 static struct { int state,cursor,dirty,page,voiceLine,resetStep,value,picker;void *res,*dialogMsg;void *flash; } option,*gOption=&option;
+static int sOptionPcPlayer,sOptionPcPlayerMenu;
 static int sOptionPcGamepad,gamepadCapture=-1,pcDefaults,padDefaults;
 static int sOptionPackConfirm,clashSquare,virtualGamepad;
 extern "C" int Port_ClashSquare(void) { return clashSquare; }
@@ -46,6 +47,7 @@ extern "C" int Port_VirtualGamepad(void) { return virtualGamepad; }
 extern "C" void Port_VirtualGamepadApply(int on) { virtualGamepad=on; }
 int MenuTranslation_PortTextCopy(const char *,const char *fallback,char *out,int capacity) { snprintf(out,capacity,"%s",fallback);return 1; }
 
+extern "C" void PortInput_PlayerDefaults(int player,int gamepad) { assert(player==sOptionPcPlayer);if(gamepad) padDefaults++;else pcDefaults++; }
 extern "C" void PortInput_PcDefaults(void) { pcDefaults++; }
 extern "C" void PortInput_GamepadDefaults(void) { padDefaults++; }
 static int unbound,captionKind,spriteCount,lastAlpha;
@@ -144,8 +146,10 @@ int main(void) {
     assert(PORT_PC_CONTROLLER_PAGE==NATIVE_CONTROLLER_PAGE);
     prepare_viewport();assert(viewport==1); /* native rows must remain visible */
     assert(key(0,PADG_CROSS)==0); /* native Vibration picker */
-    key(PADG_DOWN,0);assert(option.cursor==PORT_PC_CONTROLLER_ENTRY);
-    assert(Option_PcHelp() && Option_PcDraw() && draws==4 && focuses==1);
+    key(PADG_DOWN,0);assert(option.cursor==PORT_CLASH_CONTROLLER_ENTRY);
+    key(PADG_DOWN,0);assert(option.cursor==PORT_PLAYER1_CONTROLLER_ENTRY);
+    key(0,PADG_CROSS);assert(sOptionPcPlayerMenu && !sOptionPcPlayer && option.cursor==PORT_PC_CONTROLLER_ENTRY);
+    assert(Option_PcHelp() && Option_PcDraw() && draws==2 && focuses==1);
     key(0,PADG_CROSS);assert(option.state==PORT_PC_OPTIONS_PAGE);
     prepare_viewport();assert(viewport==1); /* binding rows replace native list */
     draws=focuses=0;assert(Option_PcDraw() && draws==4 && focuses==1);
@@ -197,7 +201,12 @@ int main(void) {
     key(0,0);dialogAnswer=1;key(0,0);key(0,0);key(0,0);key(0,0);
     assert(!sOptionPcReset && padDefaults==1 && pcDefaults==1);
     key(0,PADG_TRIANGLE);assert(option.cursor==PORT_GAMEPAD_CONTROLLER_ENTRY);
-    key(PADG_DOWN,0);assert(option.cursor==PORT_CLASH_CONTROLLER_ENTRY);
+    key(0,PADG_TRIANGLE);assert(!sOptionPcPlayerMenu && option.cursor==PORT_PLAYER1_CONTROLLER_ENTRY);
+    key(PADG_DOWN,0);assert(option.cursor==PORT_PLAYER2_CONTROLLER_ENTRY);
+    key(0,PADG_CROSS);assert(sOptionPcPlayerMenu && sOptionPcPlayer==1);
+    key(0,PADG_CROSS);key(0,PADG_CROSS);assert(capture==PORT_PC_STORAGE_ACTIONS);
+    result=-1;key(0,0);key(0,PADG_TRIANGLE);key(0,PADG_TRIANGLE);
+    sOptionPcPlayer=0;
     key(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_CTRL_RESET && lastVoice==10);
     key(PADG_DOWN,0);assert(option.cursor==OPT_ITEM_VIB && lastVoice==24);
     option.cursor=PORT_PC_CONTROLLER_ENTRY;key(0,PADG_CROSS);

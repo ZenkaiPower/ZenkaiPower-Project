@@ -574,10 +574,10 @@ static pthread_once_t sLoadOnce = PTHREAD_ONCE_INIT;
     SDL_SCANCODE_W,SDL_SCANCODE_S,SDL_SCANCODE_A,SDL_SCANCODE_D, \
     SDL_SCANCODE_LEFT,SDL_SCANCODE_RIGHT,SDL_SCANCODE_C,SDL_SCANCODE_LALT,SDL_SCANCODE_LCTRL}
 static const int sPcDefaultKeys[PORT_PC_STORAGE_ACTIONS]=SPCDEFAULTKEYS_INIT;
-static int sPcKeys[PORT_PC_STORAGE_ACTIONS]=SPCDEFAULTKEYS_INIT;
+static int sPcKeys[2][PORT_PC_STORAGE_ACTIONS]={SPCDEFAULTKEYS_INIT,{0}};
 #define SPCDEFAULTMOUSE_INIT {[3]=SDL_BUTTON_LEFT,[6]=SDL_BUTTON_RIGHT}
 static const int sPcDefaultMouse[PORT_PC_STORAGE_ACTIONS]=SPCDEFAULTMOUSE_INIT;
-static int sPcMouse[PORT_PC_STORAGE_ACTIONS]=SPCDEFAULTMOUSE_INIT;
+static int sPcMouse[2][PORT_PC_STORAGE_ACTIONS]={SPCDEFAULTMOUSE_INIT,{0}};
 static int sPcCapture=-1,sPcResult,sPcRelease,sPcGamepad,sGamepadRelease;
 static int sGamepadPending[3],sGamepadPendingHeld[3],sGamepadPendingCount;
 static SDL_JoystickID sGamepadCaptureDevice;
@@ -588,37 +588,39 @@ static SDL_JoystickID sGamepadCaptureDevice;
     102,103,100,101,104,105,SDL_GAMEPAD_BUTTON_BACK+1, \
     (PORT_GAMEPAD_CHORD | (SDL_GAMEPAD_BUTTON_LEFT_STICK+1) | ((SDL_GAMEPAD_BUTTON_RIGHT_STICK+1)<<8)),SDL_GAMEPAD_BUTTON_RIGHT_STICK+1}
 static const int sGamepadDefaults[PORT_GAMEPAD_BINDINGS]=SGAMEPADDEFAULTS_INIT;
-static int sGamepadBindings[PORT_GAMEPAD_BINDINGS]=SGAMEPADDEFAULTS_INIT;
+static int sGamepadBindings[2][PORT_GAMEPAD_BINDINGS]={SGAMEPADDEFAULTS_INIT,SGAMEPADDEFAULTS_INIT};
+static int sPcCapturePlayer;
 extern int Port_NetOptionsControlsEnabled(void);
 static int options_controls_enabled(void) {
     return Port_ZenkaiEnabled() || Port_NetOptionsControlsEnabled();
 }
-void PortInput_PcDefaults(void) {
-    if(!Port_ZenkaiEnabled()) return;
+void PortInput_PlayerDefaults(int player,int gamepad) {
+    if(!Port_ZenkaiEnabled() || player<0 || player>1) return;
     pthread_mutex_lock(&sPcLock);
-    memcpy(sPcKeys,sPcDefaultKeys,sizeof(sPcKeys));
-    memcpy(sPcMouse,sPcDefaultMouse,sizeof(sPcMouse));
+    if(gamepad) memcpy(sGamepadBindings[player],sGamepadDefaults,sizeof(sGamepadDefaults));
+    else {
+        memset(sPcKeys[player],0,sizeof(sPcKeys[player]));memset(sPcMouse[player],0,sizeof(sPcMouse[player]));
+        if(!player) { memcpy(sPcKeys[0],sPcDefaultKeys,sizeof(sPcDefaultKeys));memcpy(sPcMouse[0],sPcDefaultMouse,sizeof(sPcDefaultMouse)); }
+    }
     pthread_mutex_unlock(&sPcLock);
 }
-void PortInput_GamepadDefaults(void) {
-    if(!Port_ZenkaiEnabled()) return;
-    pthread_mutex_lock(&sPcLock);
-    memcpy(sGamepadBindings,sGamepadDefaults,sizeof(sGamepadBindings));
-    pthread_mutex_unlock(&sPcLock);
-}
+void PortInput_PcDefaults(void) {PortInput_PlayerDefaults(0,0);}
+void PortInput_GamepadDefaults(void) {PortInput_PlayerDefaults(0,1);}
 static int gamepad_binding_valid(int b) {
     return Port_GamepadBindingValid((unsigned)b);
 }
 void PortInput_GamepadGet(int *out) {
-    pthread_mutex_lock(&sPcLock);memcpy(out,sGamepadBindings,sizeof(sGamepadBindings));pthread_mutex_unlock(&sPcLock);
+    pthread_mutex_lock(&sPcLock);memcpy(out,sGamepadBindings[0],sizeof(sGamepadDefaults));pthread_mutex_unlock(&sPcLock);
 }
 void PortInput_GamepadSet(const int *in) {
     int i;pthread_mutex_lock(&sPcLock);
-    for(i=0;i<PORT_GAMEPAD_BINDINGS;i++) if(gamepad_binding_valid(in[i])) sGamepadBindings[i]=in[i];
+    for(i=0;i<PORT_GAMEPAD_BINDINGS;i++) if(gamepad_binding_valid(in[i])) sGamepadBindings[0][i]=in[i];
     pthread_mutex_unlock(&sPcLock);
 }
 void PortInput_GamepadBindingName(int action,char *out,int size) {
+    int player=action/PORT_PC_STORAGE_ACTIONS;action%=PORT_PC_STORAGE_ACTIONS;
     int b=0,i,count,offset=0;
+    if(player<0 || player>1) {snprintf(out,size,"Unbound");return;}
     static const char *const buttons[]={"Cross","Circle","Square","Triangle",
         "Select","PS","Start","L3","R3","L1","R1",
         "D-pad Up","D-pad Down","D-pad Left","D-pad Right","Function","Right Back 1","Left Back 1","Right Back 2","Left Back 2","Touchpad",
@@ -626,7 +628,7 @@ void PortInput_GamepadBindingName(int action,char *out,int size) {
     static const char *const axes[]={"Left Stick Left","Left Stick Right","Left Stick Up","Left Stick Down",
         "Right Stick Left","Right Stick Right","Right Stick Up","Right Stick Down","L2","L2","R2","R2"};
     if(size<=0) return;
-    pthread_mutex_lock(&sPcLock);if(action>=0 && action<PORT_GAMEPAD_BINDINGS) b=sGamepadBindings[action];pthread_mutex_unlock(&sPcLock);
+    pthread_mutex_lock(&sPcLock);if(action>=0 && action<PORT_GAMEPAD_BINDINGS) b=sGamepadBindings[player][action];pthread_mutex_unlock(&sPcLock);
     count=(b&PORT_GAMEPAD_CHORD) ? ((b&0xFF0000) ? 3:2):1;
     out[0]=0;
     for(i=0;i<count && offset<size;i++) {
@@ -638,12 +640,15 @@ void PortInput_GamepadBindingName(int action,char *out,int size) {
     }
 }
 
+static void assign_captured_gamepad(int player,SDL_JoystickID device);
 void PortInput_GamepadCaptureStart(int action) {
+    int player=action/PORT_PC_STORAGE_ACTIONS;action%=PORT_PC_STORAGE_ACTIONS;
+    if(player<0 || player>1) return;
     if(!Port_ZenkaiEnabled() || action<0 || action>=PORT_PC_ACTIONS) return;
     pthread_mutex_lock(&sPcLock);
     sGamepadPendingCount=0;sGamepadCaptureDevice=0;
     memset(sGamepadPendingHeld,0,sizeof(sGamepadPendingHeld));
-    sPcGamepad=1;sPcCapture=action;sPcResult=0;gPortInputCapture=1;
+    sPcCapturePlayer=player;sPcGamepad=1;sPcCapture=action;sPcResult=0;gPortInputCapture=1;
     pthread_mutex_unlock(&sPcLock);
 }
 static int gamepad_held(SDL_Gamepad *g,int b) {
@@ -656,7 +661,7 @@ static void stick_bytes(int deadzone,int x,int y,unsigned char *bx,unsigned char
 static unsigned gamepad_battle_buttons(SDL_Gamepad *g,int socket,unsigned char *lx,unsigned char *ly,unsigned char *rx) {
     unsigned btn=0;int a,axes[3]={0,0,0};pthread_mutex_lock(&sPcLock);
     for(a=0;a<PORT_PC_ACTIONS;a++) {
-        int b=sGamepadBindings[a];
+        int b=sGamepadBindings[socket][a];
         if(a>=8 && a<14) {
             int strength=127,direction=(a==8 || a==10 || a==12) ? -1:1;
             int target=a<10 ? 1:a<12 ? 0:2;
@@ -679,42 +684,65 @@ static unsigned gamepad_battle_buttons(SDL_Gamepad *g,int socket,unsigned char *
 
 void PortInput_PcGet(int *bindings) {
     pthread_mutex_lock(&sPcLock);
-    memcpy(bindings,sPcKeys,sizeof(sPcKeys));memcpy(bindings+PORT_PC_STORAGE_ACTIONS,sPcMouse,sizeof(sPcMouse));
+    memcpy(bindings,sPcKeys[0],sizeof(sPcKeys[0]));memcpy(bindings+PORT_PC_STORAGE_ACTIONS,sPcMouse[0],sizeof(sPcMouse[0]));
     pthread_mutex_unlock(&sPcLock);
 }
 void PortInput_PcSet(const int *bindings) {
     int i;
     pthread_mutex_lock(&sPcLock);
     for(i=0;i<PORT_PC_ACTIONS;i++) {
-        if(bindings[i]>=0 && bindings[i]<SDL_SCANCODE_COUNT) sPcKeys[i]=bindings[i];
-        if(bindings[i+PORT_PC_STORAGE_ACTIONS]>=0 && bindings[i+PORT_PC_STORAGE_ACTIONS]<=9) sPcMouse[i]=bindings[i+PORT_PC_STORAGE_ACTIONS];
-        if(sPcMouse[i]) sPcKeys[i]=0; /* mouse wins when migrating an old dual binding */
+        if(bindings[i]>=0 && bindings[i]<SDL_SCANCODE_COUNT) sPcKeys[0][i]=bindings[i];
+        if(bindings[i+PORT_PC_STORAGE_ACTIONS]>=0 && bindings[i+PORT_PC_STORAGE_ACTIONS]<=9) sPcMouse[0][i]=bindings[i+PORT_PC_STORAGE_ACTIONS];
+        if(sPcMouse[0][i]) sPcKeys[0][i]=0; /* mouse wins when migrating an old dual binding */
     }
     pthread_mutex_unlock(&sPcLock);
 }
 void PortInput_PcBindingName(int action,char *out,int size) {
+    int player=action/PORT_PC_STORAGE_ACTIONS;action%=PORT_PC_STORAGE_ACTIONS;
     const char *key;int k,m;
+    if(player<0 || player>1) {snprintf(out,size,"Unbound");return;}
     if(action<0 || action>=PORT_PC_ACTIONS) { snprintf(out,size,"Unbound");return; }
-    pthread_mutex_lock(&sPcLock);k=sPcKeys[action];m=sPcMouse[action];pthread_mutex_unlock(&sPcLock);
+    pthread_mutex_lock(&sPcLock);k=sPcKeys[player][action];m=sPcMouse[player][action];pthread_mutex_unlock(&sPcLock);
     key=k ? SDL_GetScancodeName((SDL_Scancode)k):"";
     static const char *const names[]={"","Left Mouse","Middle Mouse","Right Mouse","Mouse 4","Mouse 5","Scroll Up","Scroll Down","Scroll Left","Scroll Right"};
     if(m) snprintf(out,size,"%s",names[m]);
     else snprintf(out,size,"%s",k ? key:"Unbound");
 }
 void PortInput_PcCaptureStart(int action) {
+    int player=action/PORT_PC_STORAGE_ACTIONS;action%=PORT_PC_STORAGE_ACTIONS;
+    if(player<0 || player>1) return;
     if(!Port_ZenkaiEnabled() || action<0 || action>=PORT_PC_ACTIONS) return;
     pthread_mutex_lock(&sPcLock);
-    sPcGamepad=0;sPcCapture=action;sPcResult=0;gPortInputCapture=1;
+    sPcCapturePlayer=player;sPcGamepad=0;sPcCapture=action;sPcResult=0;gPortInputCapture=1;
+    pthread_mutex_unlock(&sPcLock);
+}
+void PortInput_PlayerGet(int player,int *pc,int *gamepad) {
+    if(player<0 || player>1) return;
+    pthread_mutex_lock(&sPcLock);
+    memcpy(pc,sPcKeys[player],sizeof(sPcKeys[player]));memcpy(pc+PORT_PC_STORAGE_ACTIONS,sPcMouse[player],sizeof(sPcMouse[player]));
+    memcpy(gamepad,sGamepadBindings[player],sizeof(sGamepadBindings[player]));pthread_mutex_unlock(&sPcLock);
+}
+void PortInput_PlayerSet(int player,const int *pc,const int *gamepad) {
+    int i;if(player<0 || player>1) return;
+    pthread_mutex_lock(&sPcLock);
+    for(i=0;i<PORT_PC_ACTIONS;i++) {
+        if(pc[i]>=0 && pc[i]<SDL_SCANCODE_COUNT) sPcKeys[player][i]=pc[i];
+        if(pc[i+PORT_PC_STORAGE_ACTIONS]>=0 && pc[i+PORT_PC_STORAGE_ACTIONS]<=9) sPcMouse[player][i]=pc[i+PORT_PC_STORAGE_ACTIONS];
+        if(sPcMouse[player][i]) sPcKeys[player][i]=0;
+        if(gamepad_binding_valid(gamepad[i])) sGamepadBindings[player][i]=gamepad[i];
+    }
     pthread_mutex_unlock(&sPcLock);
 }
 int PortInput_PcCapturing(void) {
     int active;pthread_mutex_lock(&sPcLock);active=sPcCapture>=0 || sPcResult!=0;pthread_mutex_unlock(&sPcLock);return active;
 }
 int PortInput_PcCapturePoll(void) {
-    int result;
+    int result,player;SDL_JoystickID device;
     pthread_mutex_lock(&sPcLock);result=sPcResult;
+    player=sPcCapturePlayer;device=result>0 && sPcGamepad ? sGamepadCaptureDevice:0;
     if(result) { sPcResult=0;gPortInputCapture=0;sPcRelease=1;sGamepadRelease=sPcGamepad;sPcMousePressed=0;sPcMouseBlocked|=sPcMouseHeld; }
     pthread_mutex_unlock(&sPcLock);
+    if(device) assign_captured_gamepad(player,device);
     return result;
 }
 int PortInput_PcCaptureEvent(const SDL_Event *ev) {
@@ -730,7 +758,7 @@ int PortInput_PcCaptureEvent(const SDL_Event *ev) {
             if(sPcCapture>=0 && ev->type==SDL_EVENT_KEY_DOWN && !ev->key.repeat) {
                 if(ev->key.scancode==SDL_SCANCODE_ESCAPE) sPcResult=-1;
                 else if(ev->key.scancode==SDL_SCANCODE_DELETE || ev->key.scancode==SDL_SCANCODE_BACKSPACE) {
-                    sGamepadBindings[sPcCapture]=0;sPcResult=1;
+                    sGamepadBindings[sPcCapturePlayer][sPcCapture]=0;sPcResult=1;
                 }
             } else if(ev->type==SDL_EVENT_WINDOW_FOCUS_LOST) sPcResult=-1;
             if(sPcCapture>=0 && (ev->type==SDL_EVENT_GAMEPAD_BUTTON_DOWN || ev->type==SDL_EVENT_GAMEPAD_BUTTON_UP || ev->type==SDL_EVENT_GAMEPAD_AXIS_MOTION)) {
@@ -761,26 +789,26 @@ int PortInput_PcCaptureEvent(const SDL_Event *ev) {
                         if(sGamepadPending[j]<sGamepadPending[i]) { int t=sGamepadPending[i];sGamepadPending[i]=sGamepadPending[j];sGamepadPending[j]=t; }
                     for(i=0;i<sGamepadPendingCount;i++) binding|=sGamepadPending[i]<<(8*i);
                     if(sGamepadPendingCount>1) binding|=PORT_GAMEPAD_CHORD;
-                    for(i=0;i<PORT_GAMEPAD_BINDINGS;i++) if(i!=sPcCapture && sGamepadBindings[i]==binding) sGamepadBindings[i]=0;
-                    sGamepadBindings[sPcCapture]=binding;sPcResult=1;
+                    for(i=0;i<PORT_GAMEPAD_BINDINGS;i++) if(i!=sPcCapture && sGamepadBindings[sPcCapturePlayer][i]==binding) sGamepadBindings[sPcCapturePlayer][i]=0;
+                    sGamepadBindings[sPcCapturePlayer][sPcCapture]=binding;sPcResult=1;
                 }
             } else if(ev->type==SDL_EVENT_GAMEPAD_REMOVED && ev->gdevice.which==sGamepadCaptureDevice) sPcResult=-1;
 
         } else if(sPcCapture>=0 && ev->type==SDL_EVENT_KEY_DOWN && !ev->key.repeat) {
             if(ev->key.scancode==SDL_SCANCODE_ESCAPE) sPcResult=-1;
-            else if(ev->key.scancode==SDL_SCANCODE_DELETE) { sPcKeys[sPcCapture]=sPcMouse[sPcCapture]=0;sPcResult=1; }
-            else if(ev->key.scancode==SDL_SCANCODE_BACKSPACE) { sPcKeys[sPcCapture]=sPcMouse[sPcCapture]=0;sPcResult=1; }
+            else if(ev->key.scancode==SDL_SCANCODE_DELETE) { sPcKeys[sPcCapturePlayer][sPcCapture]=sPcMouse[sPcCapturePlayer][sPcCapture]=0;sPcResult=1; }
+            else if(ev->key.scancode==SDL_SCANCODE_BACKSPACE) { sPcKeys[sPcCapturePlayer][sPcCapture]=sPcMouse[sPcCapturePlayer][sPcCapture]=0;sPcResult=1; }
             else if(ev->key.scancode!=SDL_SCANCODE_F1) {
-                int i;for(i=0;i<PORT_PC_ACTIONS;i++) if(i!=sPcCapture && sPcKeys[i]==ev->key.scancode) sPcKeys[i]=0;
-                sPcKeys[sPcCapture]=ev->key.scancode;sPcMouse[sPcCapture]=0;sPcResult=1;
+                int i;for(i=0;i<PORT_PC_ACTIONS;i++) if(i!=sPcCapture && sPcKeys[sPcCapturePlayer][i]==ev->key.scancode) sPcKeys[sPcCapturePlayer][i]=0;
+                sPcKeys[sPcCapturePlayer][sPcCapture]=ev->key.scancode;sPcMouse[sPcCapturePlayer][sPcCapture]=0;sPcResult=1;
             }
         } else if(sPcCapture>=0 && ev->type==SDL_EVENT_MOUSE_BUTTON_DOWN && ev->button.button>=1 && ev->button.button<=5) {
-            int i;for(i=0;i<PORT_PC_ACTIONS;i++) if(i!=sPcCapture && sPcMouse[i]==ev->button.button) sPcMouse[i]=0;
-            sPcMouse[sPcCapture]=ev->button.button;sPcKeys[sPcCapture]=0;sPcResult=1;
+            int i;for(i=0;i<PORT_PC_ACTIONS;i++) if(i!=sPcCapture && sPcMouse[sPcCapturePlayer][i]==ev->button.button) sPcMouse[sPcCapturePlayer][i]=0;
+            sPcMouse[sPcCapturePlayer][sPcCapture]=ev->button.button;sPcKeys[sPcCapturePlayer][sPcCapture]=0;sPcResult=1;
         } else if(sPcCapture>=0 && ev->type==SDL_EVENT_MOUSE_WHEEL && pc_wheel_binding(ev)) {
             int binding=pc_wheel_binding(ev),i;
-            for(i=0;i<PORT_PC_ACTIONS;i++) if(i!=sPcCapture && sPcMouse[i]==binding) sPcMouse[i]=0;
-            sPcMouse[sPcCapture]=binding;sPcKeys[sPcCapture]=0;sPcResult=1;
+            for(i=0;i<PORT_PC_ACTIONS;i++) if(i!=sPcCapture && sPcMouse[sPcCapturePlayer][i]==binding) sPcMouse[sPcCapturePlayer][i]=0;
+            sPcMouse[sPcCapturePlayer][sPcCapture]=binding;sPcKeys[sPcCapturePlayer][sPcCapture]=0;sPcResult=1;
         } else if(sPcCapture>=0 && ev->type==SDL_EVENT_WINDOW_FOCUS_LOST) sPcResult=-1;
         if(sPcResult) sPcCapture=-1;
     }
@@ -796,24 +824,24 @@ static void pc_mouse_context(int mode) {
     }
     pthread_mutex_unlock(&sPcLock);
 }
-static int pc_binding_held(int action,const bool *keys,unsigned mouse) {
-    return (sPcKeys[action]>0 && keys[sPcKeys[action]]) ||
-        (sPcMouse[action]>0 && (mouse & SDL_BUTTON_MASK(sPcMouse[action])));
+static int pc_binding_held(int player,int action,const bool *keys,unsigned mouse) {
+    return (sPcKeys[player][action]>0 && keys[sPcKeys[player][action]]) ||
+        (sPcMouse[player][action]>0 && (mouse & SDL_BUTTON_MASK(sPcMouse[player][action])));
 }
-static unsigned pc_battle_buttons(const bool *keys,unsigned char *lx,unsigned char *ly,unsigned char *rx,unsigned char *ry,int *strike) {
+static unsigned pc_battle_buttons(int player,const bool *keys,unsigned char *lx,unsigned char *ly,unsigned char *rx,unsigned char *ry,int *strike) {
     unsigned buttons=0,mouse;int a;
-    pthread_mutex_lock(&sPcLock);mouse=(sPcMouseHeld|sPcMousePressed)&~sPcMouseBlocked;sPcMousePressed=0;
-    *strike=pc_binding_held(3,keys,mouse);
-    for(a=0;a<8;a++) if(pc_binding_held(a,keys,mouse)) buttons|=Port_PcActionMask(a);
-    if(pc_binding_held(8,keys,mouse)) *ly=0;
-    if(pc_binding_held(9,keys,mouse)) *ly=255;
-    if(pc_binding_held(10,keys,mouse)) *lx=0;
-    if(pc_binding_held(11,keys,mouse)) *lx=255;
-    if(pc_binding_held(12,keys,mouse)) *rx=0;
-    if(pc_binding_held(13,keys,mouse)) *rx=255;
-    if(pc_binding_held(14,keys,mouse)) buttons|=B_SELECT;
-    if(pc_binding_held(15,keys,mouse)) buttons|=B_L3|B_R3;
-    if(pc_binding_held(16,keys,mouse)) buttons|=B_R3;
+    pthread_mutex_lock(&sPcLock);mouse=(sPcMouseHeld|sPcMousePressed)&~sPcMouseBlocked;if(player==1) sPcMousePressed=0;
+    *strike=pc_binding_held(player,3,keys,mouse);
+    for(a=0;a<8;a++) if(pc_binding_held(player,a,keys,mouse)) buttons|=Port_PcActionMask(a);
+    if(pc_binding_held(player,8,keys,mouse)) *ly=0;
+    if(pc_binding_held(player,9,keys,mouse)) *ly=255;
+    if(pc_binding_held(player,10,keys,mouse)) *lx=0;
+    if(pc_binding_held(player,11,keys,mouse)) *lx=255;
+    if(pc_binding_held(player,12,keys,mouse)) *rx=0;
+    if(pc_binding_held(player,13,keys,mouse)) *rx=255;
+    if(pc_binding_held(player,14,keys,mouse)) buttons|=B_SELECT;
+    if(pc_binding_held(player,15,keys,mouse)) buttons|=B_L3|B_R3;
+    if(pc_binding_held(player,16,keys,mouse)) buttons|=B_R3;
     pthread_mutex_unlock(&sPcLock);return buttons;
 }
 static int pc_release_blocked(const bool *keys) {
@@ -1151,6 +1179,33 @@ static void pads_refresh(void) {
     }
     if (calls < 400) {
         test_pad_axes();
+    }
+}
+
+/* Run on the game thread after a completed capture, outside the binding mutex. */
+static void assign_captured_gamepad(int player,SDL_JoystickID device) {
+    int slot,previous;
+    pthread_once(&sLoadOnce,load);
+    pads_refresh();
+    for(slot=0;slot<sIdCount;slot++) if(sIds[slot]==device) break;
+    if(slot==sIdCount) return; /* unplugged before capture was accepted */
+    previous=sPadSlot[player];
+    if(sPadSlot[1-player]==slot) sPadSlot[1-player]=previous;
+    sPadSlot[player]=slot;
+}
+/* Reserved native Options byte 3: slot+1 in each nibble; zero keeps old defaults. */
+int PortInput_GamepadSlotsGet(void) {
+    int p,value=0;
+    pthread_once(&sLoadOnce,load);
+    for(p=0;p<2;p++) if(sPadSlot[p]>=0 && sPadSlot[p]<MAX_PADS) value|=(sPadSlot[p]+1)<<(p*4);
+    return value;
+}
+void PortInput_GamepadSlotsSet(int value) {
+    int p;
+    pthread_once(&sLoadOnce,load);
+    for(p=0;p<2;p++) {
+        int slot=(value>>(p*4))&15;
+        if(slot<=MAX_PADS) sPadSlot[p]=slot ? slot-1:p;
     }
 }
 
@@ -1785,10 +1840,10 @@ int Port_PadRead(int socket, unsigned char *data) {
     if (!gPortOverlayOpen && !gPortInputCapture && !gPortChatTyping && !sKeySwallow && !pcBlocked && !PortInput_NativeKeyboardActive()) {
         const bool *ks = SDL_GetKeyboardState(NULL);
         const int *k = sKeys[socket];
-        int pcBattle=socket==0 && options_controls_enabled() && Port_GameMouseMode()==PORT_MOUSE_GAME_FIGHT;
+        int pcBattle=options_controls_enabled() && Port_GameMouseMode()==PORT_MOUSE_GAME_FIGHT;
         if(pcBattle) {
             unsigned char oldLx=lx,oldLy=ly,oldRx=rx,oldRy=ry;
-            unsigned pcButtons=pc_battle_buttons(ks,&lx,&ly,&rx,&ry,&pcStrike);
+            unsigned pcButtons=pc_battle_buttons(socket,ks,&lx,&ly,&rx,&ry,&pcStrike);
             btn|=pcButtons;
             pcActivity = pcButtons != 0 || lx != oldLx || ly != oldLy || rx != oldRx || ry != oldRy;
             strikeBit = Port_PcActionMask(3);

@@ -343,14 +343,15 @@ static int options_file_read_unlocked(void *payload) {
     case 2:case 3: expected=PORT_OPTIONS_FILE_V3_BYTES;break;
     case 4:case 5:case 6: expected=PORT_OPTIONS_FILE_V6_BYTES;break;
     case 7: expected=PORT_OPTIONS_FILE_V7_BYTES;break;
-    case 8: expected=PORT_OPTIONS_FILE_BYTES;break;
+    case 8: expected=PORT_OPTIONS_FILE_V8_BYTES;break;
+    case 9: expected=PORT_OPTIONS_FILE_BYTES;break;
     default: expected=0;break;
     }
     /* Transitional legacy files keep their binding layout: byte 7 = 2
        appends a language, and byte 7 = 3 also appends a player name. */
     if(p[4]>=1 && p[4]<=6) {
         if(p[7]==2) expected=PORT_OPTIONS_FILE_V7_BYTES;
-        if(p[7]==3) expected=PORT_OPTIONS_FILE_BYTES;
+        if(p[7]==3) expected=PORT_OPTIONS_FILE_V8_BYTES;
     }
     ok=expected && bytes==expected && fgetc(file)==EOF && !ferror(file) &&
        Port_OptionsFileDecode(payload,values);
@@ -372,7 +373,8 @@ static int options_file_write_unlocked(const void *payload) {
     const unsigned char *p=(const unsigned char *)payload;
     size_t bytes;
     if(getenv("ZENKAIPOWER_SAVES") || !Port_OptionsFileDecode(payload,values)) return 0;
-    if(p[4]==8 || (p[4]<=6 && p[7]==3)) bytes=PORT_OPTIONS_FILE_BYTES;
+    if(p[4]==9) bytes=PORT_OPTIONS_FILE_BYTES;
+    else if(p[4]==8 || (p[4]<=6 && p[7]==3)) bytes=PORT_OPTIONS_FILE_V8_BYTES;
     else if(p[4]==7 || (p[4]<=6 && p[7]==2)) bytes=PORT_OPTIONS_FILE_V7_BYTES;
     else return 0;
     options_path(path,sizeof(path));
@@ -392,7 +394,7 @@ int Port_OptionsFileWrite(const void *payload) {
     memcpy(merged,payload,sizeof(merged));
     /* A game save reconstructs native Options from memory. Keep any name
        entered on the render thread between that snapshot and this write. */
-    if(merged[4]==8 && options_file_read_unlocked(previous)==1) {
+    if(merged[4]>=8 && options_file_read_unlocked(previous)==1) {
         /* Also honor a name cleared by the user, rather than restoring a
            stale name from an earlier game-save snapshot. */
         memset(merged+PORT_OPTIONS_FILE_V7_BYTES,0,PORT_OPTIONS_PLAYER_NAME_BYTES);
@@ -517,7 +519,7 @@ int Port_OptionsPromptSave(int always,const char *locale) {
              (always ? PORT_OPTIONS_PROMPT_ON:0);
     } else {
         if(!Port_OptionsFileDecode(payload,values)) goto done;
-        if((p[4]>=6 && p[4]<=8) && Port_OptionsLocaleValid(locale)) {
+        if((p[4]>=6 && p[4]<=9) && Port_OptionsLocaleValid(locale)) {
             char existing[PORT_OPTIONS_LOCALE_BYTES];
             if(!Port_OptionsFileGetLanguage(payload,existing,sizeof(existing)))
                 Port_OptionsFileSetLanguage(payload,locale);
@@ -554,7 +556,7 @@ int Port_OptionsLanguageSave(const char *locale) {
         payload[0]='Z';payload[1]='O';payload[2]='P';payload[3]='T';
         payload[4]=8;payload[5]=PORT_OPTIONS_SAVE_BYTES;
         payload[6]=PORT_OPTIONS_NATIVE_BYTES;payload[7]=1;
-    } else if(found==1 && payload[4]>=1 && payload[4]<=8) {
+    } else if(found==1 && payload[4]>=1 && payload[4]<=9) {
         /* Keep v1-v5's exact binding encoding until the next regular game
            save migrates it. v6 can be promoted directly to v7. */
         if(payload[4]==6) payload[4]=7;
