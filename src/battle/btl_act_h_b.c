@@ -1811,6 +1811,11 @@ void BtlSkill_Apply(BtlActIChr *chr, s32 slot) {
         break;
     case 0x17:
         health = -3000;
+#ifdef PORT
+        /* Ginyu's second support skill retains its fixed cost after Body Change. */
+        if (PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() && slot == 1)
+            health = -10000;
+#endif
         break;
     case 0x18:
 #ifdef PORT

@@ -65,7 +65,7 @@ extern s32 Fade_IsDone(s32 idx);
 extern void Snd_LoadBank(s32 mask, void *data, s32 arg);
 extern void Snd_UnloadBank(s32 mask);
 extern void Res_RelocateOffsets(void *out, void *base, void *hdr);
-extern s32 BtlObj_Get(s32 id);
+extern void *BtlObj_Get(s32 id);
 
 /* Sound driver. */
 extern void Snd_Reset(void);                         /* clears the 8 bank slots' transfer state */
@@ -113,8 +113,8 @@ extern s32 BtlRes_Request(s32 arg, s32 file, s32 file8, s32 file9);
 extern s32 BtlRes_GetSlot(s32 handle);
 extern void BtlRes_Reload(s32 id, s32 file, s32 file8, s32 file9);
 extern void BtlRes_CommitReload2(void);
-extern void BtlObjAnim_PlayAuto(s32 obj, s32 arg, s32 arg2);
-extern void BtlObjAnim_PlayModel(s32 obj, s32 arg, s32 arg2);
+extern void BtlObjAnim_PlayAuto(void *obj, s32 arg, s32 arg2);
+extern void BtlObjAnim_PlayModel(void *obj, s32 arg, s32 arg2);
 
 /* Script / message objects. */
 extern void Gsc_InitDefault(s32 *tbl);
@@ -388,6 +388,22 @@ s32 BtlLoad_StepObject(BtlJob *job) {
 }
 
 /* Job: loads a side's character (model, voice bank, data block) and swaps it in. */
+#ifdef PORT
+static int Port_GinyuPortraitOnly(BtlJob *job) {
+    return job->modelOnly && PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() &&
+        Port_GinyuIncomingBorrowed(job->side);
+}
+static void Port_GinyuRequestPortrait(BtlJob *job) {
+    BattleMember *m=BattleSide_GetMember(job->side,BtlSide_GetActiveMember(job->side));
+    m->buf[1]=File_Request3(job->chara*2+job->side+BTL_FILE_CHARA_DATA,m->buf[1],BTL_MEMBER_BUF_SIZE);
+}
+static void Port_GinyuBindPortrait(BtlJob *job) {
+    BattleMember *m=BattleSide_GetMember(job->side,BtlSide_GetActiveMember(job->side));
+    Res_RelocateOffsets(&m->buf[1],m->buf[1],m->buf[1]);
+    m->data=m->buf[1];
+}
+#endif
+
 s32 BtlLoad_StepChara(BtlJob *job) {
     BattleRes *res = BATTLE_RES;
     s32 model;
@@ -400,6 +416,9 @@ s32 BtlLoad_StepChara(BtlJob *job) {
 
     switch (job->state) {
     case 0:
+#ifdef PORT
+        Port_GinyuCaptureMoves(job->side, BtlObj_Get(BattleSide_GetObjId(job->side)), job->modelOnly);
+#endif
         if (job->variant != 0) {
             model = job->chara * 10 + job->costume + (BTL_FILE_CHARA + 4);
         } else {
@@ -411,18 +430,34 @@ s32 BtlLoad_StepChara(BtlJob *job) {
             voice = job->voiceChara + ((gSaveData->flags & SAVE_FLAG_VOICE) ? BTL_FILE_VOICE_ALT : BTL_FILE_VOICE);
             BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, file8, file9);
             res->bank = File_Request3(voice, res->bank, res->bankSize);
-            if (!BtlCtrl_IsSwitching(job->side)) {
+            if (!BtlCtrl_IsSwitching(job->side)
+#ifdef PORT
+                || Port_GinyuReplacedMember(job->side)
+#endif
+            ) {
                 BattleMember *next;
 
                 member = 0;
                 if (job->initial == 0) {
                     member = BtlSide_GetActiveMember(job->side);
                 }
+#ifdef PORT
+                if(BtlCtrl_IsSwitching(job->side)) member=Port_GinyuReloadMember(job->side);
+#endif
                 next = BattleSide_GetMember(job->side, member);
-                next->buf[1] = File_Request3(job->chara * 2 + job->side + BTL_FILE_CHARA_DATA, next->buf[1], BTL_MEMBER_BUF_SIZE);
+                next->buf[1] = File_Request3(
+#ifdef PORT
+                        (Port_GinyuReplacedMember(job->side) ? Port_GinyuMoveOwner(job->side) : job->chara)
+#else
+                        job->chara
+#endif
+                        * 2 + job->side + BTL_FILE_CHARA_DATA, next->buf[1], BTL_MEMBER_BUF_SIZE);
             }
         } else {
             BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, -1, -1);
+#ifdef PORT
+            if(Port_GinyuPortraitOnly(job)) Port_GinyuRequestPortrait(job);
+#endif
         }
         Battle_GetWork()->flags |= BATTLE_FLAG_LOAD_CHARA;
         job->state++;
@@ -446,6 +481,9 @@ s32 BtlLoad_StepChara(BtlJob *job) {
         case 0:
             break;
         case BTL_JOB_KIND_CHANGE:
+#ifdef PORT
+            if(Port_GinyuOpponentReload(job->side)) BtlChange_SetReady(job->side);
+#endif
             ready = BtlChange_IsReady();
             break;
         }
@@ -462,18 +500,31 @@ s32 BtlLoad_StepChara(BtlJob *job) {
             }
         }
         BtlObj_Rebind(BattleSide_GetObjId(job->side), BattleSide_GetModelSlot(job->side));
+#ifdef PORT
+        Port_GinyuRestoreMoves(job->side, BtlObj_Get(BattleSide_GetObjId(job->side)));
+#endif
         switch (job->kind) {
         case 0:
             BtlObjAnim_PlayAuto(BtlObj_Get(BattleSide_GetObjId(job->side)), 0, 2);
             break;
         case BTL_JOB_KIND_CHANGE:
             BtlChars_OnModelLoaded(job->side);
+#ifdef PORT
+            if(Port_GinyuOpponentReload(job->side)) {
+                Port_GinyuFinishOpponentLoad(job->side);
+                BtlChange_SetDone(job->side);
+            }
+#endif
             break;
         }
         if (job->modelOnly == 0) {
             BtlAiMgr_ResetSide(job->side);
             BtlScene_CreateChar(job->side);
-            if (!BtlCtrl_IsSwitching(job->side)) {
+            if (!BtlCtrl_IsSwitching(job->side)
+#ifdef PORT
+                || Port_GinyuReplacedMember(job->side)
+#endif
+            ) {
                 m = BattleSide_GetMember(job->side, BtlSide_GetActiveMember(job->side));
                 if (m != NULL) {
                     Res_RelocateOffsets(&m->buf[1], m->buf[1], m->buf[1]);
@@ -481,6 +532,9 @@ s32 BtlLoad_StepChara(BtlJob *job) {
                 }
             }
         }
+#ifdef PORT
+        if(Port_GinyuPortraitOnly(job)) Port_GinyuBindPortrait(job);
+#endif
         BtlJob_Free(job);
         Battle_GetWork()->flags &= ~BATTLE_FLAG_LOAD_CHARA;
         return 1;
@@ -728,6 +782,19 @@ void BtlLoad_PollCharaRequest(void) {
             job->kind = BTL_JOB_KIND_CHANGE;
             job->step = BtlLoad_StepChara;
             job->chara = chara;
+#ifdef PORT
+            if(PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() && Port_GinyuIncomingBorrowed(side) && modelOnly==0) {
+                animChara=86;unk1C=86;voiceChara=86;
+            }
+#endif
+#ifdef PORT
+            /* Re-entering an exchanged member keeps its own animation/data/voice,
+             * but displays Ginyu's model. Initial exchanges are model-only. */
+            if(Port_GinyuReplacedMember(side)) {
+                job->chara=86;costume=0;variant=0;
+                if(!modelOnly) animChara=unk1C=voiceChara=Port_GinyuMoveOwner(side);
+            }
+#endif
             job->animChara = animChara;
             job->unk1C = unk1C;
             job->voiceChara = voiceChara;

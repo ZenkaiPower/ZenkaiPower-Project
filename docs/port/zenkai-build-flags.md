@@ -1,8 +1,8 @@
 # Zenkai gameplay build flags
 
-The seven independent switches below are defined in
+The eight independent switches below are defined in
 [`include/sys/port_zenkai_features.h`](../../include/sys/port_zenkai_features.h).
-They default to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
+The Ginyu Body Change flag defaults to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
 the compiler, then rebuild the game. These are build choices, not menu options.
 Original mode retains its original behavior regardless of these switches.
 
@@ -13,6 +13,7 @@ Original mode retains its original behavior regardless of these switches.
 | `PORT_ZENKAI_TOURNAMENT` | Enables the documented Dragon World Tour progression pools, tournament locks, boss eligibility, identity/incarnation/form priorities, individual participant slots, DP-weighted CPU results, and fixed Yamcha stages. | Restores legacy tournament behavior: full-roster Zenkai CPU generation, original boss selection and exact-ID duplicate rules, no new Cell-completion lock, 50/50 CPU results, and random Yamcha maps. |
 | `PORT_ZENKAI_RAISED_DIFFICULTY` | Applies Zenkai's +10 CPU rebase (capped at 29) and its -5/0/+5 story difficulty offsets. | Uses original CPU levels and original 0/+6/+9 story offsets. |
 | `PORT_ZENKAI_SSJ2_MOVESET` | Enables Goku (End) SSJ2 replacement blasts. | Uses his original moveset. |
+| `PORT_ZENKAI_GINYU_BODY_CHANGE` | Body Change selects Goku (Mid) outfit 1, Kid Gohan outfit 1, Krillin outfit 2, or Vegeta (Scouter) outfit 3. Nail, Jeice and the current body are excluded. Keeps Ginyu?s blasts, support skills, camera tables, move names and pause-menu View Skill list, and removes all four changed-body stat penalties. Requires the Zenkai pack (Classic Mode off). | Restores the original six-body selection and outfits. |
 | `PORT_ZENKAI_KAIOKEN` | Enables tiered Kaioken bonuses, upgrade costs, and HP drain. | Uses original Kaioken behavior. |
 | `PORT_ZENKAI_STORY_RESTRICTIONS` | Restricts Goku (Early)'s Kaioken Attack, Spirit Bomb/Genki Dama, and Kaioken support ability in the first story episode, and his special Kienzan blast in Saiyan Saga episodes. | Removes these story-specific restrictions; moves use their normal eligibility rules. |
 
@@ -60,3 +61,6 @@ combinations against the production save defaults, character reward function,
 story restriction queries, AI level conversion, tournament generation, and
 Yamcha stage setup. Tests use synthetic save/resource fixtures, with address and
 undefined-behavior sanitizers; no disc assets are required.
+
+Captain Ginyu?s complete rules, including zero Ki and remembered body HP, are
+documented in [Ginyu Body Change](ginyu-body-change.md).

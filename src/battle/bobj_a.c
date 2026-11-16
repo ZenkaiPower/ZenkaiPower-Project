@@ -109,6 +109,99 @@ INCLUDE_RODATA("asm/nonmatchings/battle/bobj_a", D_002F2420);
 #define TRACK_AT(anim, off) ((BobjTrack *)((u16 *)(anim) + (off) * 2))
 #define QUAT64(q) ((u64)(q).lo + ((u64)(q).hi << 32))
 
+#ifdef PORT
+typedef struct PortGinyuSkeleton {
+    void *object;
+    int valid;
+    f32 height;
+    BobjVec3 rest[BOBJ_NODE_MAX];
+} PortGinyuSkeleton;
+static PortGinyuSkeleton sGinyuSkeleton[2];
+static void Port_GinyuCaptureSkeleton(int side,void *object) {
+    BobjObj *obj=object;
+    PortGinyuSkeleton *cache=&sGinyuSkeleton[side];
+    BobjBone *bone=obj->mdl.nodes;
+    int i;
+    cache->valid=0;
+    if(!bone || !obj->mdl.param || obj->mdl.param->height<=0.0f) return;
+    cache->object=object;cache->height=obj->mdl.param->height;
+    for(i=0;i<BOBJ_NODE_MAX;i++) cache->rest[i].x=cache->rest[i].y=cache->rest[i].z=0.0f;
+    for(;;) {
+        if(bone->id<BOBJ_NODE_MAX) {
+            cache->rest[bone->id].x=bone->rest.x;
+            cache->rest[bone->id].y=bone->rest.y;
+            cache->rest[bone->id].z=bone->rest.z;
+        }
+        if(bone->last || !bone->next) break;
+        bone=(BobjBone *)((u8 *)bone+bone->next);
+    }
+    /* Already-retargeted source motions are authored against the common pose. */
+    if(obj->work && obj->work->retarget && obj->mdl.refPose) {
+        for(i=0;i<BOBJ_NODE_MAX;i++) cache->rest[i]=obj->mdl.refPose[i];
+        cache->height=1.1f;
+    }
+    cache->valid=1;
+}
+static void Port_GinyuClearSkeleton(int side) {sGinyuSkeleton[side].valid=0;}
+static PortGinyuSkeleton *Port_GinyuAnimationSkeleton(void *object) {
+    int side;
+    for(side=0;side<2;side++) if(sGinyuSkeleton[side].valid && sGinyuSkeleton[side].object==object &&
+        (Port_GinyuIncomingBorrowed(side) || Port_GinyuReplacedMember(side))) return &sGinyuSkeleton[side];
+    return NULL;
+}
+static void Port_GinyuEnableRetarget(void *object) {
+    BobjObj *obj=object;
+    if(obj->work) obj->work->retarget=1;
+}
+#endif
+
+#ifdef PORT
+/* Original Frieza idle/charge tracks are read from the player's game data, not embedded. */
+static u32 sGinyuFriezaIdle[7][4096];
+static int sGinyuFriezaIdleReady;
+extern void *File_LoadSync(s32 id,void *buf,s32 unused);
+extern s32 File_IsBusy(void);
+extern void Heap_Free(void *ptr);
+static void Port_GinyuPrepareFriezaTail(void *object) {
+    BobjObj *obj=object;
+    u32 *file;
+    u8 *packed;
+    int rawSize,slot;
+    static const int motions[7]={0,1,0x26,0x27,0x34,0x35,0x36};
+    if(sGinyuFriezaIdleReady==127 || !Port_GinyuAnimationSkeleton(obj) ||
+        *(s32 *)((u8 *)obj+0xC)!=94 || File_IsBusy()) return;
+    file=File_LoadSync(0x598+94*10,NULL,0);
+    if(!file) return;
+    for(slot=0;slot<7;slot++) {
+        int motion=motions[slot];
+        if(sGinyuFriezaIdleReady&(1<<slot)) continue;
+        packed=(u8 *)file+(file[motion+1]&~3u);
+        rawSize=*(s32 *)packed;
+        if(rawSize>=sizeof(BobjAnim) && rawSize<=sizeof(sGinyuFriezaIdle[slot]) &&
+            (file[motion+2]&~3u)>(file[motion+1]&~3u)) {
+            Bpe_Decode(packed,sGinyuFriezaIdle[slot],NULL);
+            sGinyuFriezaIdleReady |= 1<<slot;
+        }
+    }
+    Heap_Free(file);
+}
+static BobjTrack *Port_GinyuFriezaTailTrack(BobjObj *obj,u32 node,f32 *frame) {
+    int motion=obj->anim.layer[0].id;
+    int slot=motion>=0 && motion<=1 ? motion :
+        motion>=0x26 && motion<=0x27 ? motion-0x26+2 :
+        motion>=0x34 && motion<=0x36 ? motion-0x34+4 : -1;
+    BobjAnim *idle;
+    if(slot<0) return NULL;
+    idle=(BobjAnim *)sGinyuFriezaIdle[slot];
+    if(!PORT_ZENKAI_GINYU_BODY_CHANGE || !Port_ZenkaiPackEnabled() ||
+        !(sGinyuFriezaIdleReady&(1<<slot)) || node<4 || node>7 ||
+        obj->anim.layer[0].length<=0 || *(s32 *)((u8 *)obj+0xC)!=94 ||
+        !Port_GinyuAnimationSkeleton(obj) || !idle->track[node]) return NULL;
+    *frame=obj->anim.frame*idle->length/obj->anim.layer[0].length;
+    return TRACK_AT(idle,idle->track[node]);
+}
+#endif
+
 /* Moves the translation keys of a motion from the skeleton it was made for to this object's skeleton: subtracts
    the source rest translation, scales y by the height ratio and adds this object's rest translation. The source
    is the built-in reference table (useTable), the character's own reference pose (useOwn) or another object. */
@@ -121,15 +214,21 @@ void BtlObjAnim_Retarget(BobjAnim *anim, BobjObj *obj, BobjObj *other, s32 useTa
     s32 n;
     s32 i;
     BobjBone *src;
+    BobjVec3 *reference=obj->mdl.refPose;
+    f32 referenceHeight=1.1f;
+#ifdef PORT
+    PortGinyuSkeleton *skeleton=useOwn ? Port_GinyuAnimationSkeleton(obj) : NULL;
+    if(skeleton) {reference=skeleton->rest;referenceHeight=skeleton->height;}
+#endif
 
     bone = obj->mdl.nodes;
-    if (useOwn != 0 && obj->mdl.refPose == NULL) {
+    if (useOwn != 0 && reference == NULL) {
         useOwn = 0;
     }
     if (useTable != 0) {
         scale = obj->mdl.param->height;
     } else if (useOwn != 0) {
-        scale = obj->mdl.param->height / 1.1f;
+        scale = obj->mdl.param->height / referenceHeight;
     } else {
         scale = obj->mdl.param->height / other->mdl.param->height;
     }
@@ -157,9 +256,9 @@ void BtlObjAnim_Retarget(BobjAnim *anim, BobjObj *obj, BobjObj *other, s32 useTa
                     n = trk->count;
                     keys = trk->u.key;
                     for (i = 0; i < n; i++) {
-                        keys[i].x -= obj->mdl.refPose[id].x;
-                        keys[i].y -= obj->mdl.refPose[id].y;
-                        keys[i].z -= obj->mdl.refPose[id].z;
+                        keys[i].x -= reference[id].x;
+                        keys[i].y -= reference[id].y;
+                        keys[i].z -= reference[id].z;
                         keys[i].y *= scale;
                         keys[i].x += bone->rest.x;
                         keys[i].y += bone->rest.y;
@@ -577,6 +676,17 @@ void BtlObjAnim_SamplePose(BobjObj *obj) {
                     Quat_Slerp(&part->rot, &part->rot, &rot, ap->mix);
                 }
             }
+#ifdef PORT
+            {
+                BobjTrack *tail=Port_GinyuFriezaTailTrack(obj,id,&frame);
+                if(tail) {
+                    u16 cursor=0;
+                    /* Tail tracks are rotation-only; preserve the model's rest
+                     * translation and all of Ginyu's non-tail animation. */
+                    BtlObjAnim_SampleRot(tail,&part->rot,&cursor,frame);
+                }
+            }
+#endif
             if (id != 0 && 0.0f < w) {
                 Vec4_Lerp(dst, &part->fromPos, dst, w);
                 part->pos.w = 1.0f;
@@ -2428,6 +2538,119 @@ typedef struct BObjBindView {
         /* 0x0C */ BObjMdl mdl;   /* object + 0x18 */
     } res;
 } BObjBindView;
+
+#ifdef PORT
+/* Flat move records contain no pointers into the model pack being replaced.
+ * Keep one copy per fighting side; never retain pointers into its reload buffer. */
+typedef struct PortGinyuMoves {
+    int valid;
+    u32 super[0x244 / 4];
+    u32 skill[0xC8 / 4];
+    u32 ki[13 * 0x34 / 4];
+    /* Three camera/script tables and the current language's complete skill text. */
+    int offsets[10], sizes[10];
+    u32 presentation[256 * 1024 / 4];
+} PortGinyuMoves;
+static PortGinyuMoves sPortGinyuMoves[2];
+void Port_GinyuCaptureMoves(int side, void *object, int modelOnly) {
+    BObj *obj = object;
+    PortGinyuMoves *cache = &sPortGinyuMoves[side];
+    int i, entry, n, bytes, used;
+    u8 *dst;
+    const u8 *src;
+    if (!PORT_ZENKAI_GINYU_BODY_CHANGE || !Port_ZenkaiPackEnabled()) {
+        cache->valid=0;
+        return;
+    }
+    /* Retain Ginyu's copy while teammates load, without lending them his moves. */
+    if(!modelOnly || !obj || !obj->slot) return;
+    if((obj->slot->file[0].id<0x590+86*10 || obj->slot->file[0].id>=0x590+86*10+8) &&
+        obj->mdl.unk914!=cache->super && !Port_GinyuOpponentReload(side)) return;
+    if (!obj->mdl.unk914 || !obj->mdl.unk918 || !obj->mdl.unk90C) {
+        cache->valid = 0;
+        return;
+    }
+    /* The cached tables already belong to Ginyu on a repeated Body Change. */
+    if (cache->valid && obj->mdl.unk914 == cache->super) return;
+    Port_GinyuCaptureSkeleton(side,obj);
+    used = 0;
+    for (n = 0; n < 10; n++) {
+        static const int combatEntries[6]={0x15,0x16,0x1B,0x1C,0x12,0x13};
+        entry = n < 3 ? 0x29 + n : n == 3 ? 0x2D + gProgress->unk00 : combatEntries[n-4];
+        bytes = (obj->slot->file[0].buf[entry + 1] & ~3u) -
+                (obj->slot->file[0].buf[entry] & ~3u);
+        cache->offsets[n] = bytes ? used : -1;
+        cache->sizes[n] = bytes;
+        if (bytes < 0 || bytes > (int)sizeof(cache->presentation) - used) {
+            cache->valid = 0;
+            return;
+        }
+        src = BObjFile_GetEntry(&obj->slot->file[0], entry);
+        dst = (u8 *)cache->presentation + used;
+        for (i = 0; i < bytes; i++) dst[i] = src[i];
+        used += bytes;
+    }
+    dst=(u8 *)cache->super; src=obj->mdl.unk914;
+    for(i=0;i<sizeof(cache->super);i++) dst[i]=src[i];
+    dst=(u8 *)cache->skill; src=obj->mdl.unk918;
+    for(i=0;i<sizeof(cache->skill);i++) dst[i]=src[i];
+    dst=(u8 *)cache->ki; src=obj->mdl.unk90C;
+    for(i=0;i<sizeof(cache->ki);i++) dst[i]=src[i];
+    cache->valid = 1;
+}
+void Port_GinyuClearSide(int side) {sPortGinyuMoves[side].valid=0;Port_GinyuClearSkeleton(side);}
+void Port_GinyuRestoreMoves(int side, void *object) {
+    BObj *obj = object;
+    PortGinyuMoves *cache = &sPortGinyuMoves[side];
+    if (!cache->valid || !PORT_ZENKAI_GINYU_BODY_CHANGE || !Port_ZenkaiPackEnabled() ||
+        !(Port_GinyuIncomingBorrowed(side) || Port_GinyuReplacedMember(side))) return;
+    /* A fresh model supplies physical stats; cached records supply move identity.
+     * Only merge once per bind, so the second restore cannot compound damage. */
+    if(obj->mdl.unk914 != cache->super) {
+        u8 *base=(u8 *)cache->presentation;
+        u8 *body;
+        int i,bytes;
+        if(obj->mdl.unk914) for(i=0x184;i<0x19C;i++) ((u8 *)cache->super)[i]=((u8 *)obj->mdl.unk914)[i];
+        if(obj->mdl.unk90C) for(i=0;i<13;i++) {
+            int n;
+            for(n=4;n<12;n++) ((u8 *)cache->ki)[i*0x34+n]=((u8 *)obj->mdl.unk90C)[i*0x34+n];
+        }
+        /* Charge/ki recovery, max-power duration and damage resistance. */
+        if(cache->sizes[8]>=0x80 && obj->mdl.unk904) {
+            body=(u8 *)obj->mdl.unk904;
+            /* Height/radius belong to the rendered body, never the move owner. */
+            for(i=4;i<0x10;i++) base[cache->offsets[8]+i]=body[i];
+            for(i=0x28;i<0x58;i++) base[cache->offsets[8]+i]=body[i];
+            for(i=0x5C;i<0x80;i++) base[cache->offsets[8]+i]=body[i];
+        }
+        if(cache->sizes[9]>0 && obj->mdl.unk908) {
+            bytes=(obj->slot->file[0].buf[0x14]&~3u)-(obj->slot->file[0].buf[0x13]&~3u);
+            if(bytes>cache->sizes[9]) bytes=cache->sizes[9];
+            body=(u8 *)obj->mdl.unk908;
+            for(i=0;i+0x30<=bytes;i+=0x30) {
+                int n;
+                for(n=4;n<12;n++) base[cache->offsets[9]+i+n]=body[i+n];
+            }
+        }
+    }
+    Port_GinyuEnableRetarget(obj);
+    Port_GinyuPrepareFriezaTail(obj);
+    obj->mdl.unk914 = cache->super;
+    obj->mdl.unk918 = cache->skill;
+    obj->mdl.unk90C = cache->ki;
+    obj->mdl.unk98[0] = cache->offsets[0] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[0];
+    obj->mdl.common9C = cache->offsets[1] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[1];
+    obj->mdl.unkA0 = cache->offsets[2] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[2];
+    obj->mdl.unkA4 = cache->offsets[3] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[3];
+    if(cache->sizes[8]>=0x80) obj->mdl.unk904=(s8 *)cache->presentation+cache->offsets[8];
+    if(cache->sizes[9]>0) obj->mdl.unk908=(u8 *)cache->presentation+cache->offsets[9];
+    if(Port_GinyuReplacedMember(side)) {
+        obj->mdl.unk924 = cache->offsets[5] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[5];
+        obj->mdl.unk91C = cache->offsets[6] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[6];
+        obj->mdl.unk920 = cache->offsets[7] < 0 ? NULL : (u8 *)cache->presentation + cache->offsets[7];
+    }
+}
+#endif
 
 void BtlObj_BindTables(BObj *obj) {
     BObjMdl *mdl;

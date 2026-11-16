@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 #include "battle/battle.h"
 #include "battle/btl_demo_cam.h"
 #include "sys/heap.h"
@@ -250,7 +253,11 @@ s32 DemoCam_Update(void) {
             owner = gDemoCam->chr;
         }
         if (owner != NULL && BtlCharApi_HasMemberUnk70(BtlCharApi_GetPlayer(*(void **)((u8 *)owner + 0x10))) != 0 &&
-            gDemoCam->scaleHeight != 0) {
+            gDemoCam->scaleHeight != 0
+#ifdef PORT
+            && !(PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled())
+#endif
+        ) {
             f32 scale = (*(f32 **)((u8 *)owner + 0x91C))[1] / 1.1f;
 
             gDemoCam->view.world2view2.m[3][0] = pose->f.pos[0] + shakePos.x;

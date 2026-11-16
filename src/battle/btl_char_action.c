@@ -1,6 +1,7 @@
 #include "common.h"
 #include "battle/btl_char_action.h"
 #ifdef PORT
+#include "sys/port_zenkai.h"
 #include "battle/port_hp_drain.h"
 #include "battle/port_training_options.h"
 #endif
@@ -632,9 +633,29 @@ void BtlAct_SetFormCurrent(BtlActChr *chr) {
 
 /* Fills the form-change request with one of six fixed {chara, costume} pairs, picked by the frame counter. */
 void BtlAct_SetFormRandom(BtlActChr *chr) {
-    s32 forms[6][2] = { { 1, 0 }, { 0xD, 2 }, { 0x19, 1 }, { 0x1D, 1 }, { 0x18, 0 }, { 0x59, 0 } };
+    s32 forms[6][3] = { { 1, 0 }, { 0xD, 2 }, { 0x19, 1 }, { 0x1D, 1 }, { 0x18, 0 }, { 0x59, 0 } };
     s32 i = BtlChar_FrameMod(6);
 
+#if defined(PORT) && PORT_ZENKAI_GINYU_BODY_CHANGE
+    if (Port_ZenkaiPackEnabled()) {
+        static const s32 zenkaiForms[4][3] = { { 1, 0, 0 }, { 0xD, 0, 0 }, { 0x19, 1, 0 }, { 0x1D, 2, 0 } };
+        static const s32 injuredForms[3][3] = { { 2, 2, 0 }, { 22, 0, 1 }, { 94, 0, 1 } };
+        s32 injured=Port_GinyuSelfDamageActive(chr);
+        const s32 (*pool)[3]=injured ? injuredForms : zenkaiForms;
+        s32 poolCount=injured ? 3 : 4;
+        s32 current = BtlMember_GetActive(chr)->chara;
+        s32 count = 0;
+        s32 candidate;
+        for (candidate = 0; candidate < poolCount; candidate++) {
+            if (pool[candidate][0] == current) continue;
+            forms[count][0] = pool[candidate][0];
+            forms[count][1] = pool[candidate][1];
+            forms[count][2] = pool[candidate][2];
+            count++;
+        }
+        i = BtlChar_FrameMod(count);
+    }
+#endif
     chr->form.chara = forms[i][0];
     chr->form.costume = forms[i][1];
     chr->form.unk0 = -1;
@@ -643,7 +664,7 @@ void BtlAct_SetFormRandom(BtlActChr *chr) {
     chr->form.unk24 = -1;
     chr->form.unk2C = -1;
     chr->form.unk28 = 0;
-    chr->form.unk14 = 0;
+    chr->form.unk14 = forms[i][2];
     chr->form.unk18 = -1;
     chr->form.unk1C = -1;
     chr->form.unk20 = -1;

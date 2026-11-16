@@ -16,6 +16,18 @@ void Port_ZenkaiPackEarnedZeni(void *save, int amount);
 int Port_ZenkaiFeatureEnabled(const char *id);
 int Port_ZenkaiFeatureInGroup(const char *id, const char *group);
 /* Offline Zenkai giant model, collision, camera and effect helpers. */
+int Port_GinyuSelfDamageActive(void *fighter);
+int Port_GinyuSideSelfDamageActive(int side);
+int Port_GinyuChooseOpponentBody(void *fighter, int *chara, int *costume, int *variant);
+void Port_GinyuClearSide(int side);
+int Port_GinyuIncomingBorrowed(int side);
+int Port_GinyuOpponentReload(int side);
+int Port_GinyuReplacedMember(int side);
+int Port_GinyuMoveOwner(int side);
+int Port_GinyuReloadMember(int side);
+void Port_GinyuFinishOpponentLoad(int side);
+void Port_GinyuCaptureMoves(int side, void *object, int modelOnly);
+void Port_GinyuRestoreMoves(int side, void *object);
 float Port_ZenkaiGiantScale(int type, const void *param);
 float Port_ZenkaiGiantAnimationScale(int type, const void *param);
 float Port_ZenkaiGiantEffectScale(int objId);

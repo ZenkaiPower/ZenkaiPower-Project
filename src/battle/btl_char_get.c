@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_get.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Battle helpers and fighter accessors: 0x1DBF20..0x1DC9A0.
@@ -215,8 +218,11 @@ Pad *BtlChar_GetPad(BtlCharGetChr *chr) {
     return &gPad[chr->pad];
 }
 
-/* 1 while the fighter's freeze counter is running. */
+/* Also hold an exchanged opponent while its animation files are overwritten. */
 s32 BtlChar_IsFrozen(BtlCharGetChr *chr) {
+#ifdef PORT
+    if (Port_GinyuOpponentReload(chr->side)) return 1;
+#endif
     return chr->freeze > 0;
 }
 

@@ -1,5 +1,6 @@
 #include "common.h"
 #ifdef PORT
+#include "sys/port_zenkai.h"
 extern int strcmp(const char *, const char *);
 extern int Port_NetSession(void);
 #endif
@@ -95,7 +96,12 @@ s32 BtlText_CheckUnlock(u16 **cursor) {
     id = (p[1] - '0') * 100 + (p[2] - '0') * 10 + p[3] - '0';
     *cursor = p + 4;
     /* This script condition depends on the active member, not its roster bit. */
-    if (id == 0x56) return !BtlCtrl_TestMemberUnk70(BtlMenu_GetWork()->side);
+    if (id == 0x56) {
+#ifdef PORT
+        if (PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled()) return 1;
+#endif
+        return !BtlCtrl_TestMemberUnk70(BtlMenu_GetWork()->side);
+    }
     if ((u32)id >= 161) return 0;
     return (s32)((gSaveData[0xC10 / 8 + id / 64] >> (id % 64)) & 1);
 }
@@ -162,6 +168,10 @@ static s32 Port_BtlTextHideLine(u16 *line, s32 side, s32 *hidden) {
 }
 #endif
 static s32 BtlText_IsLineDimmed(s32 page, s32 entry, s32 side) {
+#ifdef PORT
+    if (PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() &&
+        page == 0 && (entry == 4 || entry == 1) && BtlCtrl_TestMemberUnk70(side)) return 1;
+#endif
     return 0;
 }
 

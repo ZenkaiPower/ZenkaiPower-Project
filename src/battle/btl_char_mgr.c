@@ -1,5 +1,6 @@
 #ifdef PORT
 #include "battle/port_hp_drain.h"
+#include "battle/port_ginyu_health.h"
 #endif
 #include "common.h"
 #include "battle/battle.h"
@@ -213,6 +214,7 @@ extern void BtlMove_ClampToStage(BtlMgrChr *chr);
 extern void BtlMove_ApplyOrbit(BtlMgrChr *chr);
 extern void BtlMove_PushOut(BtlMgrChr *chr);
 extern void BtlAct_ClearQueue(BtlMgrChr *chr);
+extern void BtlAct_Request(BtlMgrChr *chr,s32 action);
 extern s32 BtlAct_GetCurrent(BtlMgrChr *chr);
 extern s32 BtlAct_GetCurrentClass(BtlMgrChr *chr);
 extern s32 BtlCharApi_EnteredTechnique(s32 objId);
@@ -235,6 +237,101 @@ extern void BtlObj_SaveNodePositions(BtlMgrObj *obj, s32 arg1);
 extern void BtlObj_SetMoveVec(BtlMgrObj *obj, void *vec);
 extern void BtlObj_InitChains(BtlMgrObj *obj);
 extern void BtlObj_UpdateChains(BtlMgrObj *obj);
+
+#ifdef PORT
+typedef struct PortGinyuExchange {
+    int pending, targetSide, member, health, donorHealth;
+} PortGinyuExchange;
+static PortGinyuExchange sGinyuExchange[2];
+static int sGinyuOpponentLoad[2],sGinyuOpponentHp[2];
+static unsigned char sGinyuReplaced[2][5];
+static int sGinyuMoveOwner[2][5];
+extern void BtlChange_RequestChara(s32,s32,s32,s32,s32,s32,s32);
+int Port_GinyuSideSelfDamageActive(int side) {
+    return side>=0 && side<2 && Port_GinyuSelfDamageActive(BtlChar_Get(side));
+}
+int Port_GinyuChooseOpponentBody(void *fighter,int *chara,int *costume,int *variant) {
+    BtlMgrChr *chr=fighter,*other;
+    BtlMgrMember *target,*donor;
+    PortGinyuExchange *plan;
+    int side=chr->side,index;
+    if(!PORT_ZENKAI_GINYU_BODY_CHANGE || !Port_ZenkaiPackEnabled()) return 0;
+    sGinyuExchange[side].pending=0;
+    other=BtlChar_Get(side^1);
+    if(!other) return 0;
+    donor=BtlMember_GetActive(chr);
+    if(donor->chara!=86 && !donor->gauge.unk30) return 0;
+    if(!Port_GinyuSelfDamageActive(chr)) return 0;
+    index=other->curMember;
+    target=BtlMember_Get(other,index);
+    if(!target->present || target->gauge.health<=0 || target->chara==86 || target->chara==donor->chara) return 0;
+    plan=&sGinyuExchange[side];
+    plan->pending=1;plan->targetSide=side^1;plan->member=index;
+    plan->health=target->gauge.health;plan->donorHealth=donor->gauge.health;
+    *chara=target->chara;*costume=target->costume;*variant=target->gauge.unk20;
+    return 1;
+}
+int Port_GinyuIncomingBorrowed(int side) {
+    BtlMgrChr *chr=BtlChar_Get(side);
+    int member=chr->curMember,action=BtlAct_GetCurrent(chr);
+    if(action>=0xF3 && action<=0xF8 && chr->nextMember>=0 && chr->nextMember<chr->memberCount) member=chr->nextMember;
+    return chr->members[member].gauge.unk30 ||
+        (member==chr->curMember && chr->members[member].chara==86 && BtlChar_TestFlag(chr,0xA6));
+}
+int Port_GinyuOpponentReload(int side) {return sGinyuOpponentLoad[side];}
+int Port_GinyuReloadMember(int side) {
+    BtlMgrChr *chr=BtlChar_Get(side);
+    if(chr->nextMember>=0 && chr->nextMember<chr->memberCount && sGinyuReplaced[side][chr->nextMember]) return chr->nextMember;
+    return chr->curMember;
+}
+int Port_GinyuMoveOwner(int side) {
+    BtlMgrChr *chr=BtlChar_Get(side);
+    int member=chr->curMember,action=BtlAct_GetCurrent(chr);
+    if(action>=0xF3 && action<=0xF8 && chr->nextMember>=0 && chr->nextMember<chr->memberCount) member=chr->nextMember;
+    return sGinyuMoveOwner[side][member];
+}
+int Port_GinyuReplacedMember(int side) {
+    BtlMgrChr *chr=BtlChar_Get(side);
+    int member=chr->curMember,action=BtlAct_GetCurrent(chr);
+    if(action>=0xF3 && action<=0xF8 && chr->nextMember>=0 && chr->nextMember<chr->memberCount) member=chr->nextMember;
+    return sGinyuReplaced[side][member];
+}
+void Port_GinyuFinishOpponentLoad(int side) {
+    BtlMgrChr *chr=BtlChar_Get(side);
+    BtlMgrMember *m;
+    if(!sGinyuOpponentLoad[side]) return;
+    m=BtlMember_GetActive(chr);
+    BtlMember_LoadParams(chr,chr->curMember,0,0,0);
+    m->gauge.health=BtlUtil_Clamp(sGinyuOpponentHp[side],1,m->gauge.healthMax);
+    m->gauge.ki=0;
+    sGinyuOpponentLoad[side]=0;
+    BtlAnim_Play(chr,0,0.0f);
+    BtlAct_Request(chr,0xB);
+}
+static void Port_GinyuCommitExchange(BtlMgrChr *chr) {
+    PortGinyuExchange *plan=&sGinyuExchange[chr->side];
+    BtlMgrChr *other;
+    BtlMgrMember *m,*caster;
+    int i,bonus;
+    if(!plan->pending) return;
+    other=BtlChar_Get(plan->targetSide);m=BtlMember_Get(other,plan->member);
+    BtlMember_GetActiveGauge(chr)->health=BtlUtil_Clamp(plan->health,1,BtlMember_GetActiveGauge(chr)->healthMax);
+    caster=BtlMember_GetActive(chr);
+    for(i=0;i<7;i++) {
+        bonus=caster->bonus[i];caster->bonus[i]=m->bonus[i];m->bonus[i]=bonus;
+    }
+    sGinyuMoveOwner[plan->targetSide][plan->member]=m->chara;
+    m->chara=86;m->costume=0;m->gauge.unk20=0;
+    BtlMember_LoadParams(other,plan->member,0,0,0);
+    m->gauge.health=BtlUtil_Clamp(plan->donorHealth,1,m->gauge.healthMax);m->gauge.ki=0;
+    sGinyuReplaced[plan->targetSide][plan->member]=1;
+    if(plan->member==other->curMember) {
+        sGinyuOpponentLoad[plan->targetSide]=1;sGinyuOpponentHp[plan->targetSide]=plan->donorHealth;
+        BtlChange_RequestChara(plan->targetSide,86,0,0,-1,-1,-1);
+    }
+    plan->pending=0;
+}
+#endif
 
 /* The word of the object's +0x1660 block that mirrors BtlChar_TestMemberUnk70(). */
 #define OBJ_WORD_18028(obj) (*(s32 *)((obj)->unk1660 + 0x18028))
@@ -324,6 +421,12 @@ void BtlChar_Reset(BtlMgrChr *chr) {
     BattleResult *res;
 
     BtlChar_SetStage(chr, BTL_CHR_STAGE_RESET);
+#ifdef PORT
+    Port_GinyuClearSide(side);
+    Port_GinyuHealthReset(side);
+    sGinyuExchange[side].pending=0;sGinyuOpponentLoad[side]=0;
+    for(i=0;i<5;i++) sGinyuReplaced[side][i]=0;
+#endif
     chr->optA = BattleSide_GetOptionA(side);
     chr->optBOff = BattleSide_GetOptionB(side) == 0;
     chr->padFlagA = (gSaveData->flags & (2 << chr->pad)) != 0;
@@ -377,10 +480,20 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     BtlMgrGauge *og;
     f32 ratio;
     s32 i;
+#ifdef PORT
+    s32 previousBody = BtlMember_GetActive(chr)->chara;
+    s32 previousHp = BtlMember_GetActive(chr)->gauge.health;
+#endif
 
     BtlChar_BindObject(chr);
     obj = BtlChar_GetObj(chr);
     BtlChar_SetFlag(chr, 0x12B);
+#ifdef PORT
+    /* A forced opponent exchange has no transformation action to prepare a
+     * matching motion. Discard the old body's request before sampling Ginyu. */
+    if (Port_GinyuOpponentReload(chr->side)) BtlAnim_Play(chr, 0, 0.0f);
+    else
+#endif
     BtlAnim_FlushRequest(chr);
     BtlObjAnim_SamplePose(obj);
     BtlChar_PoseToObj(chr, 1);
@@ -509,6 +622,14 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
             BtlObj_BindCommonTables(obj);
             BtlMember_LoadParams(chr, BtlMember_GetActiveIndex(chr), 0, 0.0f, 0);
             g->health = g->healthMax;
+#ifdef PORT
+            if (PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled()) {
+                g->health = Port_GinyuHealthChange(chr->side, BtlMember_GetActiveIndex(chr),
+                    previousBody, m->chara, previousHp, g->healthMax);
+                g->ki = 0;
+                Port_GinyuCommitExchange(chr);
+            }
+#endif
         }
         break;
     }
@@ -518,6 +639,10 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     } else {
         obj->flags &= ~0x40000000;
     }
+#ifdef PORT
+    /* Common-table binding above must not replace Ginyu's cameras or skill text. */
+    Port_GinyuRestoreMoves(chr->side, obj);
+#endif
 }
 
 /* Clears the pose block and the per-stage state after a stage change. */
@@ -1264,7 +1389,11 @@ void BtlChar_UpdateLate(BtlMgrChr *chr) {
     BtlCharSnd_PlayTechSounds(chr);
     BtlMove_UpdateAnimVoice(chr);
     BtlStat_ClearFrameMods(chr);
-    if (BtlChar_TestMemberUnk70(chr)) {
+    if (BtlChar_TestMemberUnk70(chr)
+#ifdef PORT
+        && !(PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled())
+#endif
+    ) {
         OBJ_WORD_18028(obj) = 1;
         BtlStat_SetFrameMod(chr, 0, -10, 1);
         BtlStat_SetFrameMod(chr, 1, -10, 1);

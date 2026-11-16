@@ -244,6 +244,10 @@ void BtlCharSnd_PlayRequests(void) {
         if (BtlChar_TestMemberUnk70(chr)) {
             chara = 0x56;
         }
+#ifdef PORT
+        /* A Ginyu skin does not replace the opponent's voice identity. */
+        if (Port_GinyuReplacedMember(owner)) chara=Port_GinyuMoveOwner(owner);
+#endif
         switch (req->p.kind) {
         case 4:
             BtlCharSnd_CalcVolPan(&req->pos, &vol, &pan, req->p.near, req->p.far);

@@ -48,15 +48,15 @@ static int pack_equal(const char *a,const char *b) {
 }
 static int pack_feature(const char *id) {
     static const char *const ids[]={"giant_scaling","dragon_history_unlocking",
-        "world_tour_change","raise_base_level","story_restrictions","goku_ssj2","tiered_kaioken"};
+        "world_tour_change","raise_base_level","story_restrictions","goku_ssj2","tiered_kaioken","ginyu_body_change"};
     int i;
-    for (i=0;i<7;i++) if (pack_equal(id,ids[i])) return i;
+    for (i=0;i<(int)(sizeof(ids)/sizeof(ids[0]));i++) if (pack_equal(id,ids[i])) return i;
     return -1;
 }
 int Port_ZenkaiFeatureEnabled(const char *id) {
     static const int compiled[]={PORT_ZENKAI_GIANTS,PORT_ZENKAI_STORY_UNLOCKS,
         PORT_ZENKAI_TOURNAMENT,PORT_ZENKAI_RAISED_DIFFICULTY,PORT_ZENKAI_STORY_RESTRICTIONS,
-        PORT_ZENKAI_SSJ2_MOVESET,PORT_ZENKAI_KAIOKEN};
+        PORT_ZENKAI_SSJ2_MOVESET,PORT_ZENKAI_KAIOKEN,PORT_ZENKAI_GINYU_BODY_CHANGE};
     int index=pack_feature(id);
     return index>=0 && compiled[index] && Port_ZenkaiPackEnabled();
 }

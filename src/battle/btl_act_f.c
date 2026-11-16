@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 #include "battle/btl_act_f.h"
 
 /*
@@ -2123,6 +2126,16 @@ void BtlAct_SuperRushStrikeHandler(ActGChr *chr, s32 phase) {
  * leave: flags 0x37 and 0xCD; the attacker also runs BtlSuper_Leave, lands or goes airborne (held flag 0xE),
  * releases the partner object and adds 3 s to the stage timer.
  */
+#ifdef PORT
+static s32 Port_GinyuRushNextStep(s32 tech,s32 shortened,s32 steps,s32 level) {
+    if(PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() && tech==0x280 &&
+        steps>2 && level==0 && shortened) return steps-1;
+    return level+1;
+}
+
+
+#endif
+
 void BtlAct_SuperRushSequenceHandler(ActGChr *chr, s32 phase) {
     s32 *stepA = &chr->work[3];
     s32 *stepB = &chr->work[2];
@@ -2178,6 +2191,10 @@ void BtlAct_SuperRushSequenceHandler(ActGChr *chr, s32 phase) {
     }
     if (phase == 1) {
         s32 level = BtlAct_GetMotionLevel(chr, BtlAnim_GetId(chr));
+        s32 next=level+1;
+#ifdef PORT
+        next=Port_GinyuRushNextStep(chr->thr.tech,chr->work[0]&8,chr->thr.unk10,level);
+#endif
 
         if (BtlAnim_IsNew(chr)) {
             if (level != 0 || chr->thr.unk50 != 0) {
@@ -2190,12 +2207,12 @@ void BtlAct_SuperRushSequenceHandler(ActGChr *chr, s32 phase) {
                     if (chr->work[0] & 2) {
                         BtlChange_SetReady(chr->player);
                     }
-                    BtlAnim_Request(chr, BtlAnim_GetId(chr) + 1, 0.0f);
+                    BtlAnim_Request(chr, BtlAnim_GetId(chr) + next-level, 0.0f);
                 }
             }
         } else if (chr->work[0] & 4) {
             if (level < chr->thr.unk10 - 1) {
-                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + 1, 0.0f, 0);
+                BtlAnim_AdvanceThen(chr, BtlAnim_GetId(chr) + next-level, 0.0f, 0);
             } else {
                 switch (*stepA) {
                     case 0:

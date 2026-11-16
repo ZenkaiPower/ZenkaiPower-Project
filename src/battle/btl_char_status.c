@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_status.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Fighter stat modifiers, 0x1C2FF0..0x1C3CA8. See battle/btl_char_status.h for the structures.
@@ -33,6 +36,18 @@ extern s32 Battle_GetStage(void);
 extern s32 BtlUtil_Clamp(s32 v, s32 lo, s32 hi);
 
 extern f32 gBtlStatCurve[BTL_STAT_CURVE_ROWS][3]; /* 0x2EE7C0, in this file's .rodata */
+
+#ifdef PORT
+extern s32 BtlSkill_GetId(BtlStatChr *chr,s32 slot);
+int Port_GinyuSelfDamageActive(void *fighter) {
+    BtlStatChr *chr=fighter;
+    int i;
+    if(!PORT_ZENKAI_GINYU_BODY_CHANGE || !Port_ZenkaiPackEnabled() || !chr || !chr->slotOn[1] || BtlSkill_GetId(chr,1)!=0x17) return 0;
+    /* Self-injury's actual action-scoped power-up, not its historical use count. */
+    for(i=0;i<BTL_STAT_COUNT;i++) if(chr->stat[i].untilA[1]) return 1;
+    return 0;
+}
+#endif
 
 /* Marks the slot's skill as no longer active if its kind is `kind`. */
 void BtlStat_ClearSlotOn(BtlStatChr *chr, s32 slot, s32 kind) {

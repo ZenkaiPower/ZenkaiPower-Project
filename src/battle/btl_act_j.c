@@ -534,10 +534,16 @@ s32 BtlAct_CanUseTechnique(BtlActJChr *chr, s32 slot) {
         return 0;
     }
 #ifdef PORT
+    if (PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() &&
+        slot == 4 && BtlChar_TestMemberUnk70(chr)) return 0;
     /* Goku (Early): slot 2 is Kamehameha; 3 Kaioken Attack; 4 Spirit Bomb. */
     if (slot != 2 && Port_GokuFirstEpisodeRestricted(chr)) return 0;
 #endif
-    if (BtlChar_TestMemberUnk70(chr)) {
+    if (BtlChar_TestMemberUnk70(chr)
+#ifdef PORT
+        && !(PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled())
+#endif
+    ) {
         return 0;
     }
     if (!BtlChar_TestFlag(chr, 5)) {
@@ -647,6 +653,8 @@ s32 BtlAct_CanUseSkill(BtlActJChr *chr, u32 slot) {
         return 0;
     }
 #ifdef PORT
+    if (PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled() && slot == 1 &&
+        BtlChar_TestMemberUnk70(chr) && BtlSkill_GetId(chr, slot) == 0x17) return 0;
     /* Keep Solar Flare (slot 0); block the Kaioken support skill (slot 1). */
     if (slot == 1 && Port_GokuFirstEpisodeRestricted(chr)) return 0;
 #endif
@@ -657,7 +665,11 @@ s32 BtlAct_CanUseSkill(BtlActJChr *chr, u32 slot) {
 #endif
     flags = BtlSkill_GetFlags(chr, slot);
     stack = (flags >> 8) & 1;
-    if (BtlChar_TestMemberUnk70(chr)) {
+    if (BtlChar_TestMemberUnk70(chr)
+#ifdef PORT
+        && !(PORT_ZENKAI_GINYU_BODY_CHANGE && Port_ZenkaiPackEnabled())
+#endif
+    ) {
         return 0;
     }
     if (!BtlChar_TestFlag(chr, 5) && (flags & 1)) {

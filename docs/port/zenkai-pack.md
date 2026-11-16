@@ -1,8 +1,8 @@
 # Classic Mode: Zenkai pack
 
-`zenkai_pack` is the seven-feature gameplay pack controlled by **Classic Mode**
+`zenkai_pack` is the eight-feature gameplay pack controlled by **Classic Mode**
 under **Options → More Options → General Settings**. New offline Zenkai saves
-start with the pack on and Classic Mode off. All seven build flags default to enabled.
+start with the pack on and Classic Mode off. Build flags can independently disable individual features.
 Enabling Classic Mode permanently disables the pack; its displayed value is the inverse
 of the saved pack state.
 
@@ -14,6 +14,7 @@ of the saved pack state.
 | `raise_base_level` | Raised CPU base level and revised story difficulty offsets | `PORT_ZENKAI_RAISED_DIFFICULTY` | No |
 | `story_restrictions` | Story-accurate restrictions on Goku (Early)'s moves | `PORT_ZENKAI_STORY_RESTRICTIONS` | No |
 | `goku_ssj2` | Goku (End) SSJ2 replacement blasts | `PORT_ZENKAI_SSJ2_MOVESET` | Yes |
+| `ginyu_body_change` | Four-body Body Change roster: Goku (Mid) outfit 1, Kid Gohan outfit 1, Krillin outfit 2, Vegeta (Scouter) outfit 3; excludes Nail, Jeice and the current body; retains Ginyu?s blasts/support skills, camera tables, move names and pause-menu View Skill list without the four stat penalties | `PORT_ZENKAI_GINYU_BODY_CHANGE` | No |
 | `tiered_kaioken` | Kaioken tiers, bonuses, upgrade costs and HP drain | `PORT_ZENKAI_KAIOKEN` | Yes |
 
 `battle_mechanic_change` is a named subset containing exactly `giant_scaling`,
@@ -74,3 +75,6 @@ clear either saved lock.
   Yes, disabled rows/navigation and category Default preserving the pack state.
 - Existing giant, SSJ2 moveset, Kaioken, difficulty, story and tournament checks
   exercise the individual features. In-game layout/animation review is still needed.
+
+Captain Ginyu?s complete rules, including zero Ki and remembered body HP, are
+documented in [Ginyu Body Change](ginyu-body-change.md).
