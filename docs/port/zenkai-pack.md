@@ -9,7 +9,7 @@ of the saved pack state.
 | Feature ID | Feature | Build flag | `battle_mechanic_change` |
 |---|---|---|---|
 | `giant_scaling` | Giant model, collision, camera/aim, effect and prop adjustments; original visual sizing during technique cinematics | `PORT_ZENKAI_GIANTS` | Yes |
-| `dragon_history_unlocking` | Ten-character starting roster and Dragon History character rewards | `PORT_ZENKAI_STORY_UNLOCKS` | No |
+| `dragon_history_unlocking` | Ten-character starting roster and Dragon History character/stage rewards, including stage variations | `PORT_ZENKAI_STORY_UNLOCKS` | No |
 | `world_tour_change` | Tournament progression pools, locks, bosses, participant diversity, DP results and Yamcha stages | `PORT_ZENKAI_TOURNAMENT` | No |
 | `raise_base_level` | Raised CPU base level and revised story difficulty offsets | `PORT_ZENKAI_RAISED_DIFFICULTY` | No |
 | `story_restrictions` | Story-accurate restrictions on Goku (Early)'s moves | `PORT_ZENKAI_STORY_RESTRICTIONS` | No |
@@ -40,6 +40,7 @@ cannot open its picker. The row count and Default footer position stay unchanged
 Enabling Classic Mode retains the Zenkai save, Options menu, and existing progress.
 It does not switch to `game.sav`. The original 132 starting entries are granted
 without removing extra unlocks, since Dragon History unlocking is now disabled.
+Original starting stages are also restored, preserving any extra stage unlocks.
 General Settings Default does not reset this choice. The normal Options save
 flow persists it with the main game save; saving is required for restart persistence.
 A new game is a new choice, independent of other saves.

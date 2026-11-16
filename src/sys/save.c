@@ -1,5 +1,6 @@
 #ifdef PORT
 #include "sys/port_zenkai.h"
+#include "menu/port_story_stage_unlocks.h"
 #endif
 #include "common.h"
 #include "sys/save.h"
@@ -211,6 +212,10 @@ void Save_SetDefaults(SaveData *opt) {
             break;
         }
     }
+#ifdef PORT
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiPackEnabled())
+        opt->stageBits &= ~Port_StoryStageManagedMask();
+#endif
     for (i = 0; i < SAVE_BGM_LIST_COUNT; i++) {
         if (i >= SAVE_BGM_COUNT) {
             break;

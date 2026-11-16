@@ -4,6 +4,28 @@ This maps the current episode-unlock rewards, with Special Saga grouped by the m
 
 ## How progression works
 
+To create a separate development save with all 48 episodes available, run:
+
+```powershell
+python port/tools/generate_dragon_history_save.py
+```
+
+The output is `port/build/generated-saves/dragon-history/zenkaipower.sav`.
+Use `--output PATH` to choose a destination; an existing file is replaced only
+with `--force`. Close the game before installing it as the active Zenkai save.
+Keep a backup of your existing save and its `.options` companion before installing
+the generated save, and move the old companion aside so its settings do not carry over.
+
+This creates a fresh save with the ten-character Zenkai starting roster, zero
+Zeni, and the Zenkai pack enabled. All main, Special, and What If episodes are
+unlocked and marked new, but none are cleared: rewards, completion records,
+difficulty badges, and Cell-completion tournament gates are not granted.
+Optionally pass `--common-file4 PATH` with unpacked common file 4 to include the
+normal starter items; otherwise no starter items are granted. No game assets
+are needed to generate the save. The native and v3 envelope checksums are rebuilt.
+
+Regression check: `python port/tests/save/dragon_history_generator.py`.
+
 - A new game starts with **Saiyan 1: Common Enemy** available.
 - Winning an episode grants its episode-unlock rewards. Opening an episode is enough to list its saga; completing an entire saga is not a separate prerequisite.
 - The main route is a single chain: **Saiyan -> Frieza -> Android / Cell -> Majin Buu -> Dragon Ball GT -> Dragon Ball -> What If**.
@@ -11,6 +33,42 @@ This maps the current episode-unlock rewards, with Special Saga grouped by the m
 - Every Special episode has one direct unlocking episode. Some are unlocked by another Special episode, but each branch ultimately comes from Saiyan, Frieza, Android / Cell, or Majin Buu.
 - Special Saga completion is not required to continue the main route. Unlocking the last main-route episode therefore does not imply that all Special follow-ups have been unlocked.
 - These unlock edges come from the original story scripts. Zenkai adds character rewards but does not replace the episode-unlock list.
+
+## Zenkai stage rewards
+
+These stage unlocks belong to `dragon_history_unlocking` and follow its build flag
+`PORT_ZENKAI_STORY_UNLOCKS`. They require the Zenkai pack to be enabled (Classic
+Mode off). Win the named episode to unlock every listed variation, with a normal
+stage reward popup for each newly unlocked entry.
+
+| Saga | Episode to win | Stage and included variations | Stage IDs |
+|---|---|---|---|
+| Saiyan | 3: Ultimate Decisive Battle | Namek / Planet Namek | 2 |
+| Frieza | 4: Legendary Super Saiyan | Destroyed Namek / Dying Namek | 3 |
+| Android / Cell | 1: Enraged Android | Mountain Road: Noon and Evening | 10, 33 |
+| Android / Cell | 2: Vegeta's Curiosity | Islands | 11 |
+| Android / Cell | 3: Perfect Body | Cell Games: Evening and Noon | 6, 28 |
+| Special | 1: Alone for the Final Battle | Space / Outer Space | 16 |
+| Special | 2: Strongest in the World | Glacier | 14 |
+| Majin Buu | 4: Battle for the Universe | Supreme Kai World / Supreme Kai's World | 7 |
+| What If | 3: Galaxy Battle | Planet: Night and Evening | 13, 34 |
+
+The Frieza episode named Legendary Super Saiyan grants Dying Namek; Special
+Saga's episode with the same name does not. Special episode numbers above use
+visible menu positions, not rotated internal script IDs.
+
+New Zenkai saves start with these twelve stage entries locked. Merely making an
+episode available does not unlock its stages, including in the all-episodes
+development save. Existing stage unlocks are retained; replaying a completed
+episode grants any missing reward without duplicate popups. Original stage
+rewards from other episodes/modes remain intact. No stage has additional base-game
+variations beyond those listed here.
+
+Classic Mode restores the original starting-stage availability without removing
+extra unlocks. Original mode and builds with story unlocking disabled keep their
+original stage defaults and rewards. Implementation: `port_story_stage_unlocks.h`,
+`Save_SetDefaults`, and `HistResult_BuildRewards`. The build-flag regression test
+checks all 48 visible episode positions, variants, replays, defaults and Classic Mode.
 
 ## Special Saga, grouped by its originating saga
 

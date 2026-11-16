@@ -1,5 +1,6 @@
 #ifdef PORT
 #include "sys/port_zenkai.h"
+#include "menu/port_story_stage_unlocks.h"
 #endif
 #include "common.h"
 #include "menu/menu_c.h"
@@ -162,7 +163,7 @@ void HistResult_BuildRewards(void) {
 #endif
         if (id >= 0 && !(s32)((MSAVE->charaBits[id >> 6] >> (id - ((id >> 6) << 6))) & 1)) {
             HR_ADD(0, id);
-            MSAVE->charaBits[id >> 6] |= 1LL << (id - ((id >> 6) << 6));
+            MSAVE->charaBits[id >> 6] |= (u64)1 << (id - ((id >> 6) << 6));
         }
     }
 #ifdef PORT
@@ -377,6 +378,18 @@ void HistResult_BuildRewards(void) {
             if (id >= 0 && !(SAVE_CHARA_WORD(gSaveData, id) & SAVE_CHARA_MASK(id))) {
                 HR_ADD(0, id);
                 SAVE_CHARA_WORD(gSaveData, id) |= SAVE_CHARA_MASK(id);
+            }
+        }
+    }
+#endif
+#ifdef PORT
+    if (PORT_ZENKAI_STORY_UNLOCKS && Port_ZenkaiPackEnabled()) {
+        u64 stages=Port_StoryStageRewardMask(gProgress->subMenu,gProgress->subMenuItem);
+        for (id=0;id<SAVE_STAGE_COUNT;id++) {
+            u64 bit=(u64)1<<id;
+            if ((stages & bit) && !(MSAVE->stageBits & bit)) {
+                HR_ADD(1,id);
+                MSAVE->stageBits |= bit;
             }
         }
     }

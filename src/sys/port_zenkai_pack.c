@@ -35,6 +35,10 @@ int Port_ZenkaiPackDisable(void) {
         for (j=0;j<(int)sizeof(excluded) && excluded[j]!=i;j++) {}
         if (j==(int)sizeof(excluded)) SAVE_CHARA_WORD(gSaveData,i) |= (u64)1 << (i%64);
     }
+    for (i=0;i<SAVE_STAGE_COUNT;i++) {
+        if ((i>=17 && i<=22) || i==31 || i==32) continue;
+        gSaveData->stageBits |= (u64)1 << i;
+    }
     return 1;
 }
 static int pack_equal(const char *a,const char *b) {

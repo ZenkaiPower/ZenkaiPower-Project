@@ -98,7 +98,7 @@ def seal_save(plaintext: bytes) -> bytes:
     return header + checksum + plaintext
 
 
-def verify_envelope(envelope: bytes) -> bytes:
+def verify_envelope(envelope: bytes, *, check_starter_roster: bool = True) -> bytes:
     if len(envelope) != HEADER_SIZE + SAVE_SIZE or envelope[:8] != SAVE_MAGIC:
         raise ValueError("Generated save has an invalid size or version header")
     plaintext = envelope[HEADER_SIZE:]
@@ -118,7 +118,7 @@ def verify_envelope(envelope: bytes) -> bytes:
     expected_character_words = tuple(
         character_bits >> (64 * word) & ((1 << 64) - 1) for word in range(3)
     )
-    if struct.unpack_from("<QQQ", plaintext, 0x0C10) != expected_character_words:
+    if check_starter_roster and struct.unpack_from("<QQQ", plaintext, 0x0C10) != expected_character_words:
         raise ValueError("Generated save does not match the original starter roster")
     return plaintext
 
