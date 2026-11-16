@@ -198,6 +198,8 @@ class Matchmaking:
                 if "username_key" in account_columns:
                     db.execute("ALTER TABLE accounts RENAME COLUMN username TO display_name")
                     db.execute("ALTER TABLE accounts RENAME COLUMN username_key TO username")
+                if "game_version" not in account_columns:
+                    db.execute("ALTER TABLE accounts ADD COLUMN game_version INTEGER CHECK(game_version BETWEEN 0 AND 2147483647)")
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(battles)")}
                 for field in ("player1_uid", "player2_uid"):
                     if field not in columns:
@@ -229,6 +231,26 @@ class Matchmaking:
                     field = slot + "_items_uid"
                     if field not in item_columns:
                         db.execute(f"ALTER TABLE battles ADD COLUMN {field} INTEGER REFERENCES character_items(uid)")
+                battle_columns = {row["name"] for row in db.execute("PRAGMA table_info(battles)")}
+                for field in ("p1_game_version", "p2_game_version"):
+                    if field not in battle_columns:
+                        db.execute(f"ALTER TABLE battles ADD COLUMN {field} INTEGER CHECK({field} BETWEEN 0 AND 2147483647)")
+                db.execute("""CREATE TRIGGER IF NOT EXISTS battle_game_versions_insert AFTER INSERT ON battles
+BEGIN
+    UPDATE battles SET
+        p1_game_version=(SELECT game_version FROM accounts WHERE uid=NEW.player1_uid),
+        p2_game_version=(SELECT game_version FROM accounts WHERE uid=NEW.player2_uid)
+    WHERE uid=NEW.uid;
+END;""")
+                db.execute("""CREATE TRIGGER IF NOT EXISTS battle_game_versions_players AFTER UPDATE OF player1_uid,player2_uid ON battles
+WHEN (OLD.player1_uid IS NULL AND NEW.player1_uid IS NOT NULL)
+  OR (OLD.player2_uid IS NULL AND NEW.player2_uid IS NOT NULL)
+BEGIN
+    UPDATE battles SET
+        p1_game_version=CASE WHEN OLD.player1_uid IS NULL THEN (SELECT game_version FROM accounts WHERE uid=NEW.player1_uid) ELSE p1_game_version END,
+        p2_game_version=CASE WHEN OLD.player2_uid IS NULL THEN (SELECT game_version FROM accounts WHERE uid=NEW.player2_uid) ELSE p2_game_version END
+    WHERE uid=NEW.uid;
+END;""")
                 session_columns = {row["name"] for row in db.execute("PRAGMA table_info(battle_sessions)")}
                 for field in ("p1_connection", "p2_connection"):
                     if field not in session_columns:
@@ -412,7 +434,8 @@ class Matchmaking:
                               maxmem=64 * 1024 * 1024).hex()
 
     @staticmethod
-    def account_token(db, user, now):
+    def account_token(db, user, now, body):
+        Matchmaking.store_game_version(db, user, body)
         token = secrets.token_hex(32)
         expires = round((now + 90 * 86400) * 1000)
         db.execute("DELETE FROM account_tokens WHERE expires_datetime <= ?", (round(now * 1000),))
@@ -429,7 +452,17 @@ class Matchmaking:
                           (digest(token), round(now * 1000))).fetchone()
         if user is None:
             raise ApiError("account login expired or inactive; initialize your data again", 403)
+        Matchmaking.store_game_version(db, user, body)
         return user
+
+    @staticmethod
+    def store_game_version(db, user, body):
+        version = body.get("rel")
+        if version is None:
+            return
+        if not integer(version) or not 0 <= version <= 2147483647:
+            raise ApiError("invalid game version")
+        db.execute("UPDATE accounts SET game_version=? WHERE uid=?", (version, user["uid"]))
 
     @staticmethod
     def rank_policy(db, now):
@@ -534,7 +567,7 @@ class Matchmaking:
             user = db.execute("SELECT * FROM accounts WHERE uid=?", (uid,)).fetchone()
             if not user or not user["active"]:
                 raise ApiError("inactive account", 403)
-            return self.account_token(db, user, now)
+            return self.account_token(db, user, now, body)
         name = self.username(body.get("username"))
         user = db.execute("SELECT * FROM accounts WHERE username=?", (name.casefold(),)).fetchone()
         if action == "lookup":
@@ -557,7 +590,7 @@ class Matchmaking:
                              "VALUES (?,?,?,?,?)", (name, name.casefold(), salt, prepared['computed'],
                                                   round(now * 1000))).lastrowid
             user = {"uid": uid, "username": name.casefold(), "display_name": name}
-            return {**self.account_token(db, user, now), "code": code}
+            return {**self.account_token(db, user, now, body), "code": code}
         if action == "login":
             code = body.get("code")
             if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9]{6}", code):
@@ -565,7 +598,7 @@ class Matchmaking:
             if (not user or not user["active"] or user['code_salt'] != prepared['salt'] or
                     user['code_hash'] != prepared['verifier'] or not secrets.compare_digest(prepared['computed'], user["code_hash"])):
                 raise ApiError("invalid username or code, or inactive account", 403)
-            return self.account_token(db, user, now)
+            return self.account_token(db, user, now, body)
         raise ApiError("unknown account endpoint", 404)
 
     def battle_account(self, db, action, body):

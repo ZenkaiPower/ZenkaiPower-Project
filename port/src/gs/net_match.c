@@ -781,7 +781,7 @@ static int http_post_once(const char *what, const char *json, char *out, size_t 
 }
 
 static int http_post(const char *what, const char *json, char *out, size_t size) {
-    char authenticated[4096], botBody[4608], token[65];
+    char authenticated[4096], botBody[4608], versioned[4700], token[65];
     int ok;
     if (strncmp(what, "account/", 8) && strcmp(what, "hello") && strcmp(what, "queues") && strcmp(what, "data-check")) {
         account_token_copy(token);
@@ -801,6 +801,13 @@ static int http_post(const char *what, const char *json, char *out, size_t size)
         SDL_snprintf(botBody, sizeof(botBody), "%.*s,\"bot\":true,\"bot_credential\":\"%s\"}",
                      (int)n - 1, json, credential);
         json = botBody;
+    }
+    if (!SDL_strstr(json, "\"rel\":")) {
+        size_t n = SDL_strlen(json);
+        if (n < 2 || json[n - 1] != '}' || n + 32 >= sizeof(versioned)) return 0;
+        SDL_snprintf(versioned, sizeof(versioned), "%.*s%s\"rel\":%d}",
+                     (int)n - 1, json, n > 2 ? "," : "", PORT_RELEASE);
+        json = versioned;
     }
     ok = http_post_once(what, json, out, size);
     /* refused for the time it was signed for: the answer says the service's time; once more by that */

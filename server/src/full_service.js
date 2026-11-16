@@ -96,10 +96,17 @@ export class FullService {
         const user = await this.first('SELECT a.* FROM accounts a JOIN account_tokens t ON t.user_uid=a.uid WHERE t.token_hash=? AND t.expires_datetime>? AND a.active=1', await hash(body.account_token), now);
         if (!user) throw new ApiError('account login expired or inactive; initialize your data again', 403);
         await this.botAccess(user, body);
+        await this.commit(this.versionWrites(user, body));
         return user;
     }
-    async token(user, now, writes = []) {
+    versionWrites(user, body) {
+        if (body.rel === undefined || body.rel === null) return [];
+        if (!validInt(body.rel, 0, 2147483647)) throw new ApiError("invalid game version");
+        return [this.stmt("UPDATE accounts SET game_version=? WHERE uid=?", body.rel, user.uid)];
+    }
+    async token(user, now, body, writes = []) {
         const token = random(32), expires = now + 90 * 86400000;
+        writes.push(...this.versionWrites(user, body));
         writes.push(this.stmt('DELETE FROM account_tokens WHERE expires_datetime<=?', now),
             this.stmt('INSERT INTO account_tokens VALUES(?,?,?)', await hash(token), user.uid, expires));
         await this.commit(writes);
@@ -128,7 +135,7 @@ export class FullService {
         // Persisted budgets precede expensive work, including failed logins.
         await this.limit('account:hash:ip:' + await hash(ip), slot, 10);
         await this.limit('account:hash:global', slot, 30);
-        return {action, body: {username: name, bot: body.bot, bot_credential: body.bot_credential}, ip, code: action === 'login' ? body.code.toUpperCase() : accessCode(),
+        return {action, body: {username: name, rel: body.rel, bot: body.bot, bot_credential: body.bot_credential}, ip, code: action === 'login' ? body.code.toUpperCase() : accessCode(),
             salt: action === 'login' ? user?.code_salt || '00'.repeat(16) : random(16), verifier: user?.code_hash ?? null};
     }
     async account(action, body, ip, now, prepared = null) {
@@ -150,11 +157,11 @@ export class FullService {
                 const user = await this.first('SELECT * FROM accounts WHERE uid=? AND active=1', pending.user_uid);
                 if (!user) throw new ApiError('inactive account', 403);
                 await this.botAccess(user, body);
-                return this.token(user, now);
+                return this.token(user, now, body);
             }
             if (await this.first('SELECT 1 FROM accounts WHERE username=?', pending.username)) throw new ApiError('username already exists', 409);
             const uid = await this.nextId('accounts');
-            return this.token({uid, username: pending.username, display_name: pending.display_name}, now, [
+            return this.token({uid, username: pending.username, display_name: pending.display_name}, now, body, [
                 this.stmt('INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,created_datetime) VALUES(?,?,?,?,?,?)', uid, pending.display_name, pending.username, pending.code_salt, pending.code_hash, now),
                 this.stmt('UPDATE account_registrations SET user_uid=? WHERE ticket_hash=?', uid, ticketHash)]);
         }
@@ -169,7 +176,7 @@ export class FullService {
             if (!user || !user.active || user.code_salt !== prepared.salt || user.code_hash !== prepared.verifier ||
                 !secretEqual(prepared.computed, user.code_hash)) throw new ApiError('invalid username or code, or inactive account', 403);
             await this.botAccess(user, body);
-            return this.token(user, now);
+            return this.token(user, now, body);
         }
         if (user) throw new ApiError('username already exists', 409);
         const {code, salt, computed: hashed} = prepared;
@@ -180,7 +187,7 @@ export class FullService {
             return {code, ticket};
         }
         const uid = await this.nextId('accounts');
-        return {...await this.token({uid, username: canonical, display_name: name}, now, [this.stmt(
+        return {...await this.token({uid, username: canonical, display_name: name}, now, body, [this.stmt(
             'INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,created_datetime) VALUES(?,?,?,?,?,?)', uid, name, canonical, salt, hashed, now)]), code};
     }
     async points(uid) {

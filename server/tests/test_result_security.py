@@ -20,7 +20,7 @@ class ResultSecurity(unittest.TestCase):
         self.now = time.time()
         with closing(self.service.connect()) as db, db:
             for uid in (1, 2, 3):
-                db.execute('INSERT INTO accounts VALUES(?,?,?,?,?,?,?)',
+                db.execute('INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,active,created_datetime) VALUES(?,?,?,?,?,?,?)',
                            (uid, f'User{uid}', f'user{uid}', '00' * 16, 'unused', 1, round(self.now * 1000)))
                 db.execute('INSERT INTO account_tokens VALUES(?,?,?)',
                            (digest(str(uid) * 64), uid, round((self.now + 86400) * 1000)))
@@ -45,6 +45,23 @@ class ResultSecurity(unittest.TestCase):
         self.assertEqual(result['battle']['result_status'], status)
         self.assertIsNone(result['battle']['winner'])
         self.assertEqual((result['p1_rank_points'], result['p2_rank_points']), (500, 500))
+
+    def test_battle_versions_are_snapshots(self):
+        with closing(self.service.connect()) as db, db:
+            db.execute('UPDATE accounts SET game_version=129 WHERE uid=1')
+            db.execute('UPDATE accounts SET game_version=130 WHERE uid=2')
+            db.execute("INSERT INTO battles(uid,start_datetime,player1,player2,player1_uid,player2_uid,battle_type) VALUES(3,1,'user1','user2',1,2,1)")
+            db.execute("INSERT INTO battles(uid,start_datetime,player1,player2,battle_type) VALUES(4,1,'user1','user2',1)")
+            db.execute('UPDATE battles SET player1_uid=1,player2_uid=2 WHERE uid=4')
+            db.execute('UPDATE accounts SET game_version=131')
+            # Retried starts reassign the same owners and must preserve snapshots.
+            db.execute('UPDATE battles SET player1_uid=1,player2_uid=2 WHERE uid IN (3,4)')
+            self.assertEqual([tuple(row) for row in db.execute('SELECT p1_game_version,p2_game_version FROM battles WHERE uid IN (3,4) ORDER BY uid')], [(129,130), (129,130)])
+            # Historical battles remain unknown rather than being backfilled.
+            self.assertEqual(tuple(db.execute('SELECT p1_game_version,p2_game_version FROM battles WHERE uid=1').fetchone()), (None,None))
+        Matchmaking(self.path)
+        with closing(self.service.connect()) as db:
+            self.assertEqual(tuple(db.execute('SELECT p1_game_version,p2_game_version FROM battles WHERE uid=3').fetchone()), (129,130))
 
     def test_host_alone_cannot_award_points(self):
         self.request()

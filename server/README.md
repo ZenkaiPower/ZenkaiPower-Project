@@ -537,3 +537,7 @@ Active rate-limit windows and battle history are preserved. Normal deployments
 ensure the five-minute Cron Trigger exists, including with older local Wrangler files.
 This removes records from the live application database; Cloudflare logs and
 backup retention are separate and are not changed by this cleanup.
+
+Player accounts store `game_version`, the latest authenticated client-reported release number (`rel`, from `PORT_RELEASE`). Login, registration confirmation, session checks and authenticated matchmaking update it when supplied. Older clients leave it unchanged; existing accounts start with NULL. Apply migration `0004_player_game_version.sql` to D1; the LAN server upgrades SQLite automatically. This is the game release, separate from the netcode version `v`.
+
+Battles store immutable `p1_game_version` and `p2_game_version` snapshots of the accounts? reported releases when participants are attached to a new battle, including rematches. Battle get responses include both fields. Existing battles and unreported releases remain NULL. Apply D1 migration `0005_battle_game_versions.sql` after `0004`; LAN upgrades automatically. Database triggers cover both server implementations and preserve snapshots on start retries.

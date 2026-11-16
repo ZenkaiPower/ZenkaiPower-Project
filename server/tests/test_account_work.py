@@ -33,6 +33,25 @@ class AccountWork(unittest.TestCase):
             self.call('login', username='FreshUser', code='000000', computed='0' * 128)
         self.assertEqual(error.exception.status, 403)
 
+    def test_player_game_version_is_persisted(self):
+        user = self.call('register', username='VersionUser', rel=129)
+        def version():
+            with closing(self.service.connect()) as db:
+                return db.execute('SELECT game_version FROM accounts WHERE uid=?', (user['user_uid'],)).fetchone()[0]
+        self.assertEqual(version(), 129)
+        self.call('session', account_token=user['token'], rel=130)
+        self.assertEqual(version(), 130)
+        self.call('session', account_token=user['token'])
+        self.assertEqual(version(), 130)
+        with self.assertRaises(ApiError):
+            self.call('session', account_token=user['token'], rel=True)
+        self.assertEqual(version(), 130)
+        self.call('login', username='VersionUser', code=user['code'], rel=128)
+        self.assertEqual(version(), 128)
+        reopened = Matchmaking(self.service.database)
+        with closing(reopened.connect()) as db:
+            self.assertEqual(db.execute('SELECT game_version FROM accounts WHERE uid=?', (user['user_uid'],)).fetchone()[0], 128)
+
     def test_hashing_does_not_hold_write_transaction(self):
         user = self.call('register', username='FreshUser')
         entered, release = threading.Event(), threading.Event()
