@@ -1,6 +1,6 @@
 # Classic Mode: Zenkai pack
 
-`zenkai_pack` is the eight-feature gameplay pack controlled by **Classic Mode**
+`zenkai_pack` is the ten-feature gameplay pack controlled by **Classic Mode**
 under **Options → More Options → General Settings**. New offline Zenkai saves
 start with the pack on and Classic Mode off. Build flags can independently disable individual features.
 Enabling Classic Mode permanently disables the pack; its displayed value is the inverse
@@ -15,10 +15,12 @@ of the saved pack state.
 | `story_restrictions` | Story-accurate restrictions on Goku (Early)'s moves | `PORT_ZENKAI_STORY_RESTRICTIONS` | No |
 | `goku_ssj2` | Goku (End) SSJ2 replacement blasts | `PORT_ZENKAI_SSJ2_MOVESET` | Yes |
 | `ginyu_body_change` | Four-body Body Change roster: Goku (Mid) outfit 1, Kid Gohan outfit 1, Krillin outfit 2, Vegeta (Scouter) outfit 3; excludes Nail, Jeice and the current body; retains Ginyu?s blasts/support skills, camera tables, move names and pause-menu View Skill list without the four stat penalties | `PORT_ZENKAI_GINYU_BODY_CHANGE` | No |
+| `future_gohan_grab` | Base Future Gohan uses his Super Saiyan form's normal grab, including paired victim motion and recovery | `PORT_ZENKAI_FUTURE_GOHAN_GRAB` | Yes |
+| `extra_outfits` | Future Gohan one-armed outfits 3 and 4, both forms and damage states | `PORT_ZENKAI_EXTRA_OUTFITS` | No |
 | `tiered_kaioken` | Kaioken tiers, bonuses, upgrade costs and HP drain | `PORT_ZENKAI_KAIOKEN` | Yes |
 
-`battle_mechanic_change` is a named subset containing exactly `giant_scaling`,
-`goku_ssj2`, and `tiered_kaioken`. It has no separate menu toggle. The registry
+`battle_mechanic_change` is a named subset containing `giant_scaling`,
+`goku_ssj2`, `tiered_kaioken`, and `future_gohan_grab`. It has no separate menu toggle. The registry
 exposes membership through `Port_ZenkaiFeatureInGroup`; feature availability uses
 `Port_ZenkaiFeatureEnabled`. Unknown IDs/groups return false.
 

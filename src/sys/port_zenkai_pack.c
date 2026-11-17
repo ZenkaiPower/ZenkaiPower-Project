@@ -48,7 +48,7 @@ static int pack_equal(const char *a,const char *b) {
 }
 static int pack_feature(const char *id) {
     static const char *const ids[]={"giant_scaling","dragon_history_unlocking",
-        "world_tour_change","raise_base_level","story_restrictions","goku_ssj2","tiered_kaioken","ginyu_body_change"};
+        "world_tour_change","raise_base_level","story_restrictions","goku_ssj2","tiered_kaioken","ginyu_body_change","extra_outfits","future_gohan_grab"};
     int i;
     for (i=0;i<(int)(sizeof(ids)/sizeof(ids[0]));i++) if (pack_equal(id,ids[i])) return i;
     return -1;
@@ -56,7 +56,7 @@ static int pack_feature(const char *id) {
 int Port_ZenkaiFeatureEnabled(const char *id) {
     static const int compiled[]={PORT_ZENKAI_GIANTS,PORT_ZENKAI_STORY_UNLOCKS,
         PORT_ZENKAI_TOURNAMENT,PORT_ZENKAI_RAISED_DIFFICULTY,PORT_ZENKAI_STORY_RESTRICTIONS,
-        PORT_ZENKAI_SSJ2_MOVESET,PORT_ZENKAI_KAIOKEN,PORT_ZENKAI_GINYU_BODY_CHANGE};
+        PORT_ZENKAI_SSJ2_MOVESET,PORT_ZENKAI_KAIOKEN,PORT_ZENKAI_GINYU_BODY_CHANGE,PORT_ZENKAI_EXTRA_OUTFITS,PORT_ZENKAI_FUTURE_GOHAN_GRAB};
     int index=pack_feature(id);
     return index>=0 && compiled[index] && Port_ZenkaiPackEnabled();
 }
@@ -64,6 +64,6 @@ int Port_ZenkaiFeatureInGroup(const char *id,const char *group) {
     int index=pack_feature(id);
     if (index<0) return 0;
     if (pack_equal(group,"zenkai_pack")) return 1;
-    return pack_equal(group,"battle_mechanic_change") && (index==0 || index==5 || index==6);
+    return pack_equal(group,"battle_mechanic_change") && (index==0 || index==5 || index==6 || index==9);
 }
 #endif

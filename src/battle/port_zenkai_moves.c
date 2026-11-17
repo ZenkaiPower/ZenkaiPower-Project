@@ -32,6 +32,8 @@ typedef struct ZenkaiMove {
 } ZenkaiMove;
 static ZenkaiMove sMoves[2];
 static s32 sMovesReady;
+/* Normal grab: attacker, paired victim and recovery, animation IDs 0x96..0x98. */
+static void *sFutureGohanGrab[3];
 static u8 sSuper[ZENKAI_OBJECTS][SUPER_BYTES] __attribute__((aligned(16)));
 static u16 *sText[ZENKAI_OBJECTS];
 
@@ -62,7 +64,7 @@ static void *clone_entry(u32 *pack, s32 entry) {
     return copy;
 }
 
-void Port_ZenkaiMovesClear(void) {
+static void clear_ssj2_moves(void) {
     s32 i, j;
     for (i = 0; i < 2; i++) {
         for (j = 0; j < SUPER_MOTIONS; j++) if (sMoves[i].motion[j]) Heap_Free(sMoves[i].motion[j]);
@@ -74,6 +76,15 @@ void Port_ZenkaiMovesClear(void) {
     memset(sMoves, 0, sizeof(sMoves));
     memset(sText, 0, sizeof(sText));
     sMovesReady = 0;
+}
+
+void Port_ZenkaiMovesClear(void) {
+    s32 i;
+    clear_ssj2_moves();
+    for (i = 0; i < 3; i++) {
+        if (sFutureGohanGrab[i]) Heap_Free(sFutureGohanGrab[i]);
+        sFutureGohanGrab[i] = NULL;
+    }
 }
 
 static s32 load_move(s32 move, s32 chara, s32 slot, s32 expected) {
@@ -187,18 +198,44 @@ void *Port_ZenkaiMoveLip(void *object, int voice) {
     return sMoves[1].voiceLip[(gSaveData->flags & SAVE_FLAG_VOICE) != 0][phase];
 }
 
+static void bind_future_gohan_grab(BObj *obj, s32 chara, s32 type) {
+    u32 *pack;
+    s32 i;
+    if (!PORT_ZENKAI_FUTURE_GOHAN_GRAB || !obj || type != 0 || chara != 159 ||
+        !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive()) return;
+    if (!sFutureGohanGrab[0]) {
+        pack = File_LoadSync(0x598 + 160 * 10, NULL, 0);
+        if (!pack) return;
+        if (pack[0] < 0x99) { Heap_Free(pack); return; }
+        for (i = 0; i < 3; i++) {
+            sFutureGohanGrab[i] = clone_entry(pack, 0x97 + i);
+            if (!sFutureGohanGrab[i]) break;
+        }
+        Heap_Free(pack);
+        if (i != 3) {
+            for (i = 0; i < 3; i++) {
+                if (sFutureGohanGrab[i]) Heap_Free(sFutureGohanGrab[i]);
+                sFutureGohanGrab[i] = NULL;
+            }
+            return;
+        }
+    }
+    for (i = 0; i < 3; i++) obj->mdl.anims[0x96 + i] = sFutureGohanGrab[i];
+}
+
 void Port_ZenkaiMovesBind(void *object, s32 id, s32 chara, s32 type) {
     BObj *obj = object;
     s32 i, language = -1;
     u16 *text;
     u8 *original;
+    bind_future_gohan_grab(obj, chara, type);
     if (!PORT_ZENKAI_SSJ2_MOVESET) return;
     original = obj->mdl.unk914;
     if (type != 0 || chara != 5 || id < 0 || id >= ZENKAI_OBJECTS || !Port_ZenkaiPackEnabled() ||
         Port_NetSession() || Port_NetActive() || original == NULL) return;
     if (((s16 *)(original + 0x18))[0] != 300 || ((s16 *)(original + 0x18))[2] != 602) return;
     if (!sMovesReady) {
-        if (!load_move(0, 6, 2, 301) || !load_move(1, 4, 4, 603)) { Port_ZenkaiMovesClear(); return; }
+        if (!load_move(0, 6, 2, 301) || !load_move(1, 4, 4, 603)) { clear_ssj2_moves(); return; }
         sMovesReady = 1;
     }
     for (i = 0; i < TEXT_LANGUAGES; i++) {

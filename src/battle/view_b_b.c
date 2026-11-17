@@ -21,10 +21,15 @@ s32 ChrTbl_WrapCostume(s32 chara, s32 *costume) {
     ChrTblFile *file = CHRTBL_FILE;
     ChrTblEntry *table = (ChrTblEntry *)CHRTBL_SECTION(file, charaOffset);
 
-    if (costume != NULL && !(*costume < table[chara].costumes)) {
+    s32 count = table[chara].costumes;
+#ifdef PORT
+    extern int PortContent_CostumeCount(int character, int fallback);
+    count = PortContent_CostumeCount(chara, count);
+#endif
+    if (costume != NULL && !(*costume < count)) {
         *costume = 0;
     }
-    return table[chara].costumes;
+    return count;
 }
 
 /* The character's cost. */

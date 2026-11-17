@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+extern s32 memcmp(const void *, const void *, u32);
 static const char *directory;
 static int active, online, allocations;
 static SaveData save;
@@ -51,12 +52,53 @@ static void equal_span(const u16 *text, const u16 *source, int slot) {
     assert(b - a == d - c);
     while (a < b) assert(*a++ == *c++);
 }
+static void test_future_gohan_grab(void) {
+    BObjSlot base = {0}, ssj = {0};
+    BObj obj, other;
+    int i, mode;
+    unsigned originalHash;
+    for (i=0;i<3;i++) {
+        int kind = i==0 ? 0x590 : (i==1 ? 0x598 : 0x599);
+        base.file[i].buf=File_LoadSync(kind+159*10,NULL,0);
+        ssj.file[i].buf=File_LoadSync(kind+160*10,NULL,0);
+    }
+    originalHash=hash((u8 *)base.file[1].buf,pack_size(base.file[1].buf));
+    for (mode=0;mode<5;mode++) {
+        setup(&obj,&base,1);
+        active=mode!=0; online=mode==1;
+        Port_ZenkaiMovesBind(&obj,0,mode==2 ? 160 : 159,mode==3 ? 1 : 0);
+        for (i=0;i<0x19E;i++) {
+            void *original=BObjFile_GetEntry(&base.file[1],i+1);
+            if (mode==4 && PORT_ZENKAI_FUTURE_GOHAN_GRAB && i>=0x96 && i<=0x98) {
+                u32 *pack=ssj.file[1].buf;
+                int size=(pack[i+2]&~3u)-(pack[i+1]&~3u);
+                assert(obj.mdl.anims[i]!=original);
+                assert(!memcmp(obj.mdl.anims[i],BObjFile_GetEntry(&ssj.file[1],i+1),size));
+            } else assert(obj.mdl.anims[i]==original);
+        }
+        assert(obj.mdl.unk914==BObjFile_GetEntry(&base.file[0],0x18));
+    }
+    setup(&other,&base,1);
+    Port_ZenkaiMovesBind(&other,1,159,0);
+    if (PORT_ZENKAI_FUTURE_GOHAN_GRAB) {
+        for (i=0x96;i<=0x98;i++) assert(other.mdl.anims[i]==obj.mdl.anims[i]);
+    }
+    assert(hash((u8 *)base.file[1].buf,pack_size(base.file[1].buf))==originalHash);
+    Port_ZenkaiMovesClear();
+    for (i=0;i<3;i++) {Heap_Free(base.file[i].buf);Heap_Free(ssj.file[i].buf);}
+    assert(allocations==0);
+    puts("PASS: Future Gohan grab donor, paired victim/recovery, mode gates and cleanup.");
+}
+
 int main(int argc, char **argv) {
     BObjSlot target = {0}, ssj = {0}, ssj3 = {0};
     BObj obj, other;
     unsigned hashes[3];
     int i, language, base[3] = {0x590, 0x598, 0x599};
     u8 *original;
+    assert(argc == 2); directory = argv[1];
+    test_future_gohan_grab();
+    active=online=0;
     if (!PORT_ZENKAI_SSJ2_MOVESET) {
         active = 1;
         Port_ZenkaiMovesBind(NULL, 0, 5, 0);

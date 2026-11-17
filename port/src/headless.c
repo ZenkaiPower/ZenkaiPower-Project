@@ -292,6 +292,28 @@ int __wrap_Progress_Main(int arg) {
             BattleSide_GetMember(0, 0)->chara = atoi(getenv("ZENKAIPOWER_CHARA"));
             BattleSide_GetMember(0, 0)->costume = getenv("ZENKAIPOWER_COSTUME") != NULL ? atoi(getenv("ZENKAIPOWER_COSTUME")) : 0;
             BattleSide_GetMember(0, 0)->variant = getenv("ZENKAIPOWER_VARIANT") != NULL;
+            /* Developer visual fixture: two idle teams expose the model,
+               health portraits and reserve-member switch portraits together. */
+            if (getenv("ZENKAIPOWER_OUTFIT_REVIEW") != NULL) {
+                extern void BattleSetup_SetRule(int,int,int,int,int,int,int);
+                extern void BattleSetup_SetSide(int,int,int,int,int,int,int,void *);
+                extern void BattleSetup_SetMember(int,int,int,int,int,int,float,void *);
+                int side, character=BattleSide_GetMember(0,0)->chara;
+                int costume=BattleSide_GetMember(0,0)->costume;
+                int variant=BattleSide_GetMember(0,0)->variant;
+                BattleSetup_SetRule(0,0,0,4,4,0,0);
+                for (side=0;side<2;side++) {
+                    BattleSetup_SetSide(side,0,side,2,1,1,0,NULL);
+                    BattleSetup_SetMember(side,0,character,costume,variant,0,100.0f,NULL);
+                    BattleSetup_SetMember(side,1,character,costume,variant,0,100.0f,NULL);
+                }
+            }
+            /* Demo_SetupBattle already finalized startForm. Re-finalize after
+               changing the roster so the requested model is actually loaded. */
+            {
+                extern void BattleSetup_Finish(void);
+                BattleSetup_Finish();
+            }
             printf("zenkaipower: side 0 is character %d, costume %d\n", BattleSide_GetMember(0, 0)->chara, BattleSide_GetMember(0, 0)->costume);
         }
     }

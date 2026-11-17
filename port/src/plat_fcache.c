@@ -20,7 +20,10 @@ extern const char *Port_FileRoot(void); /* plat_file.c: ZENKAIPOWER_DATA or "gam
 enum { SLOTS = 32 };
 static struct { char rel[128]; FILE *fp; long size; int64_t base; unsigned long used; } sSlot[SLOTS];
 static unsigned long sClock;
+static int sContentEnabled = -1;
 static volatile int sLock;
+
+#include "plat_content.h"
 
 /* Opens the host file the game gets for `rel` (its path under the data root) and says which it is: a stage or a
    song added from outside the disc (the stage / song list names the file), else the file under mods/, else the
@@ -47,11 +50,16 @@ FILE *Port_FileOpenHost(const char *rel, char *path, size_t n) {
         fp = Port_PackFopen(path, "rb");
     }
     if (fp == NULL) {
+        fp = PortContent_Open(rel);
+        if (fp != NULL) snprintf(path,n,"builtin:%s",rel);
+    }
+    if (fp == NULL) {
         snprintf(path, n, "%s/%s", Port_FileRoot(), rel);
         fp = Port_PackFopen(path, "rb");
     }
     return fp;
 }
+
 
 extern int PortStages_Alias(const char *,char *,unsigned);
 extern int PortSongs_Alias(const char *,char *,unsigned);
@@ -62,6 +70,15 @@ static int slot_of(const char *rel) {
     FILE *fp;
     int64_t base=0, packedSize=0;
 
+    /* Pack/Classic changes must not reuse streams composed in the old mode. */
+    int contentEnabled = PortContent_Enabled();
+    if (contentEnabled != sContentEnabled) {
+        for (i = 0; i < SLOTS; i++) {
+            if (sSlot[i].fp) fclose(sSlot[i].fp);
+            memset(&sSlot[i], 0, sizeof(sSlot[i]));
+        }
+        sContentEnabled = contentEnabled;
+    }
     for (i = 0; i < SLOTS; i++) {
         if (sSlot[i].fp != NULL && strcmp(sSlot[i].rel, rel) == 0) {
             sSlot[i].used = ++sClock;
@@ -76,7 +93,8 @@ static int slot_of(const char *rel) {
         fp=fopen(probe,"rb");
         if (!fp) { snprintf(probe,sizeof(probe),"%s/%s",Port_FileRoot(),rel); fp=fopen(probe,"rb"); }
         if (fp) fclose(fp);
-        if (!external && !fp) {
+        int builtin=PortContent_Has(rel);
+        if (!external && !fp && !builtin) {
             snprintf(path,sizeof(path),"%s/%s",Port_FileRoot(),rel);
             fp=Port_PackOpen(path,&base,&packedSize);
         } else fp=NULL;

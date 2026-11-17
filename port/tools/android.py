@@ -210,6 +210,8 @@ def compile_cached_job(task):
     fn, f, common, old = task
     key = fn.__name__ + '/' + f.relative_to(ROOT).as_posix()
     signing = repr(BUILD_KEY_FLAGS).encode() if f.name == 'net_sign.c' else b''
+    if f.name == "plat_content.c":
+        signing += (ROOT / "port/build/generated/content_assets.inc").read_bytes()
     stamp = hashlib.sha256(common + f.read_bytes() + signing).hexdigest()
     if old.get('stamp') == stamp and pathlib.Path(old.get('object', '')).is_file():
         return pathlib.Path(old['object']), f.name, '', key, stamp
@@ -220,6 +222,8 @@ def compile_cached_job(task):
 
 
 def compile_all():
+    from assets.build import generate
+    generate()
     OBJ.mkdir(parents=True, exist_ok=True)
     DATA.mkdir(parents=True, exist_ok=True)
     shaders()
@@ -409,7 +413,7 @@ def link():
 
 # The game's own variables in the program, for saving and restoring its state (online play, gs/state.c): what
 # make_state.py writes from a GNU map for the PC, here from lld's. The same rule for what counts as the game's
-# (plat_game too, as on the PC since the Tag Team mod: its BT4 animation layers change during a fight and a rollback
+# (plat_game too, as on the PC since the Tag Team mod: its animation layers change during a fight and a rollback
 # must put them back)
 # (everything but the port's renderer, sound, input and UI files and some of its pc_* files); read-only data left
 # out (.data.rel.ro is made read-only by the loader after the move). Addresses as linked (BASE): the engine adds

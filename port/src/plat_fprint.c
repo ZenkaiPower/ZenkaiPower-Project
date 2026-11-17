@@ -1276,7 +1276,10 @@ static int file_update(int n) {
 
     snprintf(rel, sizeof(rel), "pzs3us1/%05d.bin", x->fid - 1);
     f = Port_FileOpenHost(rel, path, sizeof(path));
-    if (f == NULL || Port_PackStat(path, &st) != 0) {
+    /* Built-in content is a composed temporary stream, not a path on disk. */
+    int statResult = f == NULL ? -1 : !strncmp(path,"builtin:",8)
+        ? fstat(fileno(f), &st) : Port_PackStat(path, &st);
+    if (f == NULL || statResult != 0) {
         if (f != NULL) {
             fclose(f);
         }

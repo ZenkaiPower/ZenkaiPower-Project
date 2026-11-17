@@ -383,6 +383,8 @@ def compile_host(task):
 
 
 def main():
+    from assets.build import generate
+    generate()
     OBJ.mkdir(parents=True, exist_ok=True)
     key = (
         buildkey.flags()
@@ -408,7 +410,7 @@ def main():
         or not stamp.exists()
         or stamp.read_text() != signature
     )
-    # Only compilation tools invalidate objects; editing extraction or packaging tools does not.
+    # Only compilation tools invalidate objects; editing data preparation or packaging tools does not.
     tools = [
         "undefined.py",
         "builddeps.py",

@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "name": "Future Gohan one-armed outfit",
+  "costumes": {
+    "159": 4,
+    "160": 4
+  },
+  "resources": [
+    {
+      "target": "pzs3us1/03015.bin",
+      "base": "pzs3us1/03013.bin",
+      "asset": "base-normal.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03019.bin",
+      "base": "pzs3us1/03017.bin",
+      "asset": "base-damaged.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03025.bin",
+      "base": "pzs3us1/03023.bin",
+      "asset": "ssj-normal.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03029.bin",
+      "base": "pzs3us1/03027.bin",
+      "asset": "ssj-damaged.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03016.bin",
+      "base": "pzs3us1/03014.bin",
+      "asset": "base-alt-normal.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03020.bin",
+      "base": "pzs3us1/03018.bin",
+      "asset": "base-alt-damaged.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03026.bin",
+      "base": "pzs3us1/03024.bin",
+      "asset": "ssj-alt-normal.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    },
+    {
+      "target": "pzs3us1/03030.bin",
+      "base": "pzs3us1/03028.bin",
+      "asset": "ssj-alt-damaged.bin",
+      "replace_entries": [
+        3,
+        17
+      ]
+    }
+  ],
+  "appearance": "Clean one-armed normal models, switching to authored torn models after battle damage."
+}

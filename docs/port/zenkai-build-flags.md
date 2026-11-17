@@ -1,6 +1,6 @@
 # Zenkai gameplay build flags
 
-The eight independent switches below are defined in
+The ten independent switches below are defined in
 [`include/sys/port_zenkai_features.h`](../../include/sys/port_zenkai_features.h).
 The Ginyu Body Change flag defaults to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
 the compiler, then rebuild the game. These are build choices, not menu options.
@@ -14,6 +14,8 @@ Original mode retains its original behavior regardless of these switches.
 | `PORT_ZENKAI_RAISED_DIFFICULTY` | Applies Zenkai's +10 CPU rebase (capped at 29) and its -5/0/+5 story difficulty offsets. | Uses original CPU levels and original 0/+6/+9 story offsets. |
 | `PORT_ZENKAI_SSJ2_MOVESET` | Enables Goku (End) SSJ2 replacement blasts. | Uses his original moveset. |
 | `PORT_ZENKAI_GINYU_BODY_CHANGE` | Body Change selects Goku (Mid) outfit 1, Kid Gohan outfit 1, Krillin outfit 2, or Vegeta (Scouter) outfit 3. Nail, Jeice and the current body are excluded. Keeps Ginyu?s blasts, support skills, camera tables, move names and pause-menu View Skill list, and removes all four changed-body stat penalties. Requires the Zenkai pack (Classic Mode off). | Restores the original six-body selection and outfits. |
+| `PORT_ZENKAI_FUTURE_GOHAN_GRAB` | Base Future Gohan uses Super Saiyan Future Gohan's normal grab attacker, victim and recovery animations in the offline Zenkai pack, with Classic Mode off. Applies to every outfit. | Retains base Future Gohan's original grab. |
+| `PORT_ZENKAI_EXTRA_OUTFITS` | Adds Future Gohan outfits 3 and 4 for both forms, including clean and damaged states, only with the Zenkai pack active and Classic Mode off. | Retains only the original outfits; built-in outfit payloads are excluded from compilation. |
 | `PORT_ZENKAI_KAIOKEN` | Enables tiered Kaioken bonuses, upgrade costs, and HP drain. | Uses original Kaioken behavior. |
 | `PORT_ZENKAI_STORY_RESTRICTIONS` | Restricts Goku (Early)'s Kaioken Attack, Spirit Bomb/Genki Dama, and Kaioken support ability in the first story episode, and his special Kienzan blast in Saiyan Saga episodes. | Removes these story-specific restrictions; moves use their normal eligibility rules. |
 
@@ -49,7 +51,7 @@ kind of change.
 
 ## Runtime pack
 
-All seven flags default to **1** in the shared header. They set which features
+Extra outfits default to **1** in the shared header; giant scaling defaults to **0**. They set which features
 are compiled in; they do not override a saved decision to disable the pack.
 [Classic Mode](zenkai-pack.md) controls the complete `zenkai_pack` at runtime.
 The two combat headers retain guarded fallbacks with the same enabled defaults.
