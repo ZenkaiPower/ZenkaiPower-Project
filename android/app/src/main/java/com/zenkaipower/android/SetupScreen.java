@@ -48,6 +48,8 @@ final class SetupScreen {
     private int generation;
     private final Bitmap[] logoCovers=new Bitmap[2];
     private int selectedLogo;
+    private final LinearLayout startupOptions;
+    private final Button[] shortcutButtons=new Button[2];
 
     SetupScreen(LauncherActivity activity, ExecutorService artwork, String[] descriptions) {
         this.activity=activity; this.artwork=artwork;
@@ -111,11 +113,38 @@ final class SetupScreen {
             preferences.edit().putBoolean("japanese-logo",selectedLogo==1).apply();
             showLogoCover();
         });
+        startupOptions=column();startupOptions.setVisibility(View.GONE);layout.addView(startupOptions);
+        section("Startup and shortcuts",startupOptions);
+        android.widget.Switch autoStart=new android.widget.Switch(activity);
+        autoStart.setText("Start game automatically when opening the app");
+        autoStart.setTextColor(INK);
+        autoStart.setChecked(preferences.getBoolean("auto-start",false));
+        autoStart.setOnCheckedChangeListener((button,checked) -> preferences.edit().putBoolean("auto-start",checked).apply());
+        startupOptions.addView(autoStart);
+        startupOptions.addView(text("Long-press the app icon and choose Setup to return to these settings.",12,DIM));
+        for(int i=0;i<2;i++) {
+            final boolean japanese=i==1;
+            Button shortcut=button("Add "+(japanese ? "Sparking! METEOR" : "Budokai Tenkaichi 3")+" shortcut",false);
+            shortcut.setEnabled(false);shortcutButtons[i]=shortcut;startupOptions.addView(shortcut);
+            shortcut.setOnClickListener(v -> {
+                File selected=root;shortcut.setEnabled(false);
+                artwork.execute(() -> {
+                    Bitmap bitmap=SetupArtwork.titleLogo(selected,japanese);
+                    activity.runOnUiThread(() -> {
+                        shortcut.setEnabled(true);
+                        if(activity.isDestroyed()) {if(bitmap!=null) bitmap.recycle();return;}
+                        if(bitmap==null) android.widget.Toast.makeText(activity,"Install the corresponding disc to prepare its logo.",android.widget.Toast.LENGTH_LONG).show();
+                        else {try {LauncherShortcuts.pin(activity,bitmap,japanese);} finally {bitmap.recycle();}}
+                    });
+                });
+            });
+        }
         cancel=button("Cancel installation",false); layout.addView(cancel);
         TextView version=text("",12,DIM);
         try { version.setText("Version "+activity.getPackageManager().getPackageInfo(activity.getPackageName(),0).versionName); }
         catch(android.content.pm.PackageManager.NameNotFoundException ignored) { }
         LinearLayout footer=new LinearLayout(activity); footer.setGravity(Gravity.TOP);
+        footer.setPadding(0,dp(24),0,0);
         TextView updates=text("",12,BLUE);
         android.text.SpannableString updateLink=new android.text.SpannableString("Check for a new version here.");
         updateLink.setSpan(new android.text.style.ClickableSpan() {
@@ -172,7 +201,8 @@ final class SetupScreen {
     }
     private LinearLayout column() { LinearLayout l=new LinearLayout(activity); l.setOrientation(LinearLayout.VERTICAL); return l; }
     private TextView text(String s,int size,int color) { TextView v=new TextView(activity); v.setText(s); v.setTextSize(size); v.setTextColor(color); return v; }
-    private void section(String title) { TextView t=text(title,18,INK); t.setTypeface(null,android.graphics.Typeface.BOLD); t.setPadding(0,dp(18),0,dp(9)); layout.addView(t); }
+    private void section(String title) { section(title,layout); }
+    private void section(String title,LinearLayout parent) { TextView t=text(title,18,INK); t.setTypeface(null,android.graphics.Typeface.BOLD); t.setPadding(0,dp(18),0,dp(9)); parent.addView(t); }
     private GradientDrawable box(int fill,int edge) { GradientDrawable b=new GradientDrawable(); b.setColor(fill); b.setStroke(dp(1),edge); return b; }
     private Button button(String title,boolean primary) {
         Button b=new Button(activity); b.setText(title); b.setAllCaps(false); b.setMinHeight(dp(44));
@@ -186,6 +216,8 @@ final class SetupScreen {
     }
     void states(boolean[] installed, int verified) {
         mask=verified;
+        startupOptions.setVisibility(installed[0] ? View.VISIBLE : View.GONE);
+        shortcutButtons[1].setVisibility(installed[3] ? View.VISIBLE : View.GONE);
         for(int i=0;i<4;i++) {
             boolean ok=(mask&(1<<i))!=0;
             states[i].setText((ok ? installed[i]?"Installed":"Verified" : installed[i]?"Not verified":"Not installed")+"  |  "+IDS[i]);
@@ -207,6 +239,7 @@ final class SetupScreen {
         root=selected; mask=verified; final int ticket=++generation;
         cover.setImageDrawable(null); cover.setVisibility(View.GONE);
         logoCovers[0]=logoCovers[1]=null; cover.setClickable(false);
+        for(Button button:shortcutButtons) button.setEnabled(false);
         for(ImageView icon:icons) icon.setImageDrawable(new Disc());
         if(selected==null) return;
         artwork.execute(() -> {
@@ -223,6 +256,8 @@ final class SetupScreen {
                 if(ticket!=generation || activity.isDestroyed()) return;
                 logoCovers[0]=banners[0]; logoCovers[1]=banners[1];
                 showLogoCover();
+                shortcutButtons[0].setEnabled(banners[0]!=null && (verified&1)!=0);
+                shortcutButtons[1].setEnabled(banners[1]!=null && (verified&8)!=0);
                 for(int i=0;i<4;i++) if(discs[i]!=null) icons[i].setImageBitmap(discs[i]);
             });
         });

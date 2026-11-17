@@ -18,6 +18,22 @@ suspend/resume and netplay still need broader validation.
 Packed-file temporary streams use the app's private cache, and the loader
 synchronizes its paths with SDL's cached environment.
 
+## Startup and home-screen shortcuts
+
+Setup's **Startup and shortcuts** section can add **Budokai Tenkaichi 3** and
+**Sparking! METEOR** home-screen shortcuts using title logos prepared from the
+installed discs. This section appears only after the base game is installed; the
+METEOR shortcut option appears only after the Japanese disc is installed. The corresponding logo must be available; the Japanese logo
+requires the Japanese disc. Android's launcher asks before adding a shortcut.
+These shortcuts start the game after checking and preparing the selected folder.
+They do not replace the app drawer icon.
+
+**Start game automatically when opening the app** is off by default and persists
+across launches. It starts a ready installation after folder preparation; missing
+files or permissions leave setup available. Long-press the app icon and choose
+**Setup** to bypass auto-start and change this setting. This controls app opening,
+not device boot.
+
 ## Build on Windows
 
 Install Docker Desktop with Linux containers. The unified root `zenkaipower` image

@@ -36,6 +36,7 @@ public final class LauncherActivity extends Activity {
     private TextView status, folder;
     private Button play, choose, cancel;
     private boolean busy;
+    private boolean autoStartPending;
     private int folderPreparationPercent = -1;
     private int selectedDisc;
     private volatile int verifiedMask;
@@ -48,6 +49,10 @@ public final class LauncherActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        autoStartPending=state==null ? !getIntent().getBooleanExtra("showSetup",false) &&
+                (getIntent().getBooleanExtra("startGame",false) || getSharedPreferences("setup",MODE_PRIVATE).getBoolean("auto-start",false))
+                : state.getBoolean("autoStartPending",false);
+        LauncherShortcuts.publishSetup(this);
         root = GameStorage.selected(this);
         if (state != null) selectedDisc = state.getInt("selectedDisc", 0);
         screen = new SetupScreen(this, artworkWorker, DETAILS);
@@ -85,6 +90,7 @@ public final class LauncherActivity extends Activity {
         intent.putExtra(Intent.EXTRA_TITLE, DISCS[disc]); startActivityForResult(intent, DISC);
     }
     @Override protected void onSaveInstanceState(Bundle state) {
+        state.putBoolean("autoStartPending",autoStartPending);
         state.putInt("selectedDisc", selectedDisc); super.onSaveInstanceState(state);
     }
     private void prepareFolder(File selected) {
@@ -126,7 +132,11 @@ public final class LauncherActivity extends Activity {
                     updateDiscState(selected);
                 }
                 folderProgress(100, "Game folder ready");
-                runOnUiThread(() -> { root = selected; finishWork(""); });
+                runOnUiThread(() -> {
+                    root = selected; finishWork("");
+                    boolean launch=autoStartPending;autoStartPending=false;
+                    if(launch && GameStorage.hasAccess(this) && GameFiles.ready(root)) play.performClick();
+                });
             } catch (Exception error) { showError(error); }
         });
     }
@@ -200,6 +210,7 @@ public final class LauncherActivity extends Activity {
     }
     private void showError(Exception error) {
         runOnUiThread(() -> {
+            autoStartPending=false;
             String message=error.getMessage() == null ? "Installation failed." : error.getMessage();
             finishWork(message);
             screen.showError(message);

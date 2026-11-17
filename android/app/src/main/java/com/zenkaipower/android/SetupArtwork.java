@@ -10,6 +10,14 @@ import java.io.IOException;
 final class SetupArtwork {
     static native int verify(String root);
     private static final String[] DISCS = {"SLUS-21678", "SLES-54945", "RDSPAF", "SLPS-25815"};
+    static Bitmap titleLogo(File root, boolean japanese) {
+        try {
+            byte[] bytes=GamePak.read(GameIO.file(root,"gamedata/game-text.pak"),
+                    japanese ? "title-sm.png" : "title-zenkaipower.png");
+            try { return BitmapFactory.decodeByteArray(bytes,0,bytes.length); }
+            finally { java.util.Arrays.fill(bytes,(byte)0); }
+        } catch(IOException | SecurityException error) { return null; }
+    }
     static Bitmap load(File root, int disc, int kind) {
         if (disc < 0 || disc >= DISCS.length || kind < 0 || kind > 4) return null;
         String name = kind == 0 ? "cover.jpg" : DISCS[disc] +
