@@ -1,6 +1,6 @@
 # Zenkai gameplay build flags
 
-The ten independent switches below are defined in
+The eleven independent switches below are defined in
 [`include/sys/port_zenkai_features.h`](../../include/sys/port_zenkai_features.h).
 The Ginyu Body Change flag defaults to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
 the compiler, then rebuild the game. These are build choices, not menu options.
@@ -8,6 +8,7 @@ Original mode retains its original behavior regardless of these switches.
 
 | Flag | Enabled (`1`) | Disabled (`0`) |
 |---|---|---|
+| `PORT_ZENKAI_GREAT_APE_MOON` | On full-moon stages, Vegeta (Scouter), King Vegeta and Turles use Nappa?s complete Great Ape transformation motions and matching moon-framing camera tracks instead of creating a Power Ball. Limited to the offline Zenkai pack, outside Classic Mode. | Keeps the original Power Ball presentation on all stages. |
 | `PORT_ZENKAI_GIANTS` | Enables 2.5× giant models, collision/effect/prop scaling, camera and aiming adjustments, and temporary original model/effect sizing during technique cinematics. | Uses original giant sizing and behavior, including original cinematic sizing, cameras, aiming, effects, and props. |
 | `PORT_ZENKAI_STORY_UNLOCKS` | New Zenkai games start with ten characters, lock the twelve story-reward stage entries, and use additional Dragon History character and stage rewards (including variations). | New games use the original 132 characters and stage availability; story rewards use original character and stage lists, including Nail's original reward. |
 | `PORT_ZENKAI_TOURNAMENT` | Enables the documented Dragon World Tour progression pools, tournament locks, boss eligibility, identity/incarnation/form priorities, individual participant slots, DP-weighted CPU results, and fixed Yamcha stages. | Restores legacy tournament behavior: full-roster Zenkai CPU generation, original boss selection and exact-ID duplicate rules, no new Cell-completion lock, 50/50 CPU results, and random Yamcha maps. |

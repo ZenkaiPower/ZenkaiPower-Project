@@ -34,6 +34,9 @@ static ZenkaiMove sMoves[2];
 static s32 sMovesReady;
 /* Normal grab: attacker, paired victim and recovery, animation IDs 0x96..0x98. */
 static void *sFutureGohanGrab[3];
+static void *sGreatApeMoon[2][3];
+static void *sGreatApeMoonCamera[2];
+extern s32 BtlStage_HasMoon(void);
 static u8 sSuper[ZENKAI_OBJECTS][SUPER_BYTES] __attribute__((aligned(16)));
 static u16 *sText[ZENKAI_OBJECTS];
 
@@ -79,11 +82,19 @@ static void clear_ssj2_moves(void) {
 }
 
 void Port_ZenkaiMovesClear(void) {
-    s32 i;
+    s32 i, j;
     clear_ssj2_moves();
     for (i = 0; i < 3; i++) {
         if (sFutureGohanGrab[i]) Heap_Free(sFutureGohanGrab[i]);
         sFutureGohanGrab[i] = NULL;
+    }
+    for (i = 0; i < 2; i++) {
+        for (j = 0; j < 3; j++) {
+            if (sGreatApeMoon[i][j]) Heap_Free(sGreatApeMoon[i][j]);
+            sGreatApeMoon[i][j] = NULL;
+        }
+        if (sGreatApeMoonCamera[i]) Heap_Free(sGreatApeMoonCamera[i]);
+        sGreatApeMoonCamera[i] = NULL;
     }
 }
 
@@ -198,6 +209,50 @@ void *Port_ZenkaiMoveLip(void *object, int voice) {
     return sMoves[1].voiceLip[(gSaveData->flags & SAVE_FLAG_VOICE) != 0][phase];
 }
 
+/* Copy Nappa's complete transformation motion set. The incoming Great Ape
+ * needs its own closing animation. Camera tracks are separate model-pack entries:
+ * the human intro must frame the moon while motion events 0x4000 show its sprite. */
+int Port_ZenkaiGreatApeMoonBind(void *object, int giant) {
+    BObj *obj = object;
+    u32 *pack;
+    s32 form, i, j;
+    if (!PORT_ZENKAI_GREAT_APE_MOON || !obj || giant < 0 || giant > 1 ||
+        !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive() || !BtlStage_HasMoon()) return 0;
+    if (!sGreatApeMoon[0][0]) {
+        for (form = 0; form < 2; form++) {
+            pack = File_LoadSync(0x598 + (80 + form) * 10, NULL, 0);
+            if (!pack) break;
+            if (pack[0] < 0x17A) { Heap_Free(pack); break; }
+            for (i = 0; i < 3; i++) {
+                sGreatApeMoon[form][i] = clone_entry(pack, 0x178 + i);
+                if (!sGreatApeMoon[form][i]) break;
+            }
+            Heap_Free(pack);
+            if (i != 3) break;
+            pack = File_LoadSync(0x590 + (80 + form) * 10, NULL, 0);
+            if (!pack) break;
+            if (pack[0] >= (u32)(0x25 + form * 2))
+                sGreatApeMoonCamera[form] = clone_entry(pack, 0x25 + form * 2);
+            Heap_Free(pack);
+            if (!sGreatApeMoonCamera[form]) break;
+        }
+        if (form != 2) {
+            for (i = 0; i < 2; i++) for (j = 0; j < 3; j++) {
+                if (sGreatApeMoon[i][j]) Heap_Free(sGreatApeMoon[i][j]);
+                sGreatApeMoon[i][j] = NULL;
+            }
+            for (i = 0; i < 2; i++) {
+                if (sGreatApeMoonCamera[i]) Heap_Free(sGreatApeMoonCamera[i]);
+                sGreatApeMoonCamera[i] = NULL;
+            }
+            return 0;
+        }
+    }
+    for (i = 0; i < 3; i++) obj->mdl.anims[0x177 + i] = sGreatApeMoon[giant][i];
+    obj->mdl.unk8F0[giant * 2] = sGreatApeMoonCamera[giant];
+    return 1;
+}
+
 static void bind_future_gohan_grab(BObj *obj, s32 chara, s32 type) {
     u32 *pack;
     s32 i;
@@ -229,6 +284,8 @@ void Port_ZenkaiMovesBind(void *object, s32 id, s32 chara, s32 type) {
     u16 *text;
     u8 *original;
     bind_future_gohan_grab(obj, chara, type);
+    if (type == 0 && (chara == 30 || chara == 72 || chara == 122))
+        Port_ZenkaiGreatApeMoonBind(obj, 1);
     if (!PORT_ZENKAI_SSJ2_MOVESET) return;
     original = obj->mdl.unk914;
     if (type != 0 || chara != 5 || id < 0 || id >= ZENKAI_OBJECTS || !Port_ZenkaiPackEnabled() ||

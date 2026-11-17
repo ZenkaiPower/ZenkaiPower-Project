@@ -9,6 +9,7 @@ extern "C" {
 int Port_ZenkaiEnabled(void);
 /* Per-save Classic Mode. Disabling the pack does not change save selection. */
 int Port_ZenkaiPackEnabled(void);
+int Port_ZenkaiGreatApeMoonBind(void *object, int giant);
 int Port_ZenkaiPackCanDisable(void);
 int Port_ZenkaiPackDisable(void);
 void Port_ZenkaiPackInit(void *save);

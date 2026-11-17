@@ -6,7 +6,8 @@
 #include <stdlib.h>
 extern s32 memcmp(const void *, const void *, u32);
 static const char *directory;
-static int active, online, allocations;
+static int active, online, allocations, moon;
+s32 BtlStage_HasMoon(void) {return moon;}
 static SaveData save;
 SaveData *gSaveData = &save;
 int Port_ZenkaiEnabled(void) { return active; }
@@ -52,6 +53,56 @@ static void equal_span(const u16 *text, const u16 *source, int slot) {
     assert(b - a == d - c);
     while (a < b) assert(*a++ == *c++);
 }
+static void test_great_ape_moon(void) {
+    BObj obj;
+    BObjSlot source = {0};
+    int form, i, mode;
+    for (form = 0; form < 2; form++) {
+        source.file[0].buf = File_LoadSync(0x590 + (80 + form) * 10, NULL, 0);
+        source.file[1].buf = File_LoadSync(0x598 + (80 + form) * 10, NULL, 0);
+        for (mode = 0; mode < 4; mode++) {
+            memset(&obj, 0, sizeof(obj));
+            active = mode != 0; online = mode == 1; moon = mode != 2;
+            assert(Port_ZenkaiGreatApeMoonBind(&obj, form) == (mode == 3 && PORT_ZENKAI_GREAT_APE_MOON));
+            {
+                int entry=0x25+form*2;
+                u32 *pack=source.file[0].buf;
+                void *original=BObjFile_GetEntry(&source.file[0],entry);
+                int size=(pack[entry+1]&~3u)-(pack[entry]&~3u);
+                if (mode==3 && PORT_ZENKAI_GREAT_APE_MOON) {
+                    assert(obj.mdl.unk8F0[form*2]!=original);
+                    assert(!memcmp(obj.mdl.unk8F0[form*2],original,size));
+                } else assert(!obj.mdl.unk8F0[form*2]);
+                assert(!obj.mdl.unk8F0[1]);
+                assert(!obj.mdl.unk8F0[2-form*2]);
+            }
+            for (i = 0; i < 3; i++) {
+                u32 *pack = source.file[1].buf;
+                void *original = BObjFile_GetEntry(&source.file[1], 0x178 + i);
+                int size = (pack[0x179 + i] & ~3u) - (pack[0x178 + i] & ~3u);
+                if (mode == 3 && PORT_ZENKAI_GREAT_APE_MOON) {
+                    assert(obj.mdl.anims[0x177 + i] != original);
+                    assert(!memcmp(obj.mdl.anims[0x177 + i], original, size));
+                } else assert(!obj.mdl.anims[0x177 + i]);
+            }
+        }
+        Heap_Free(source.file[0].buf);
+        Heap_Free(source.file[1].buf);
+    }
+    {
+        static const int ids[] = {30,72,122,12,74,76,78,81};
+        active=moon=1;online=0;
+        for (i=0;i<8;i++) {
+            memset(&obj,0,sizeof(obj));
+            Port_ZenkaiMovesBind(&obj,0,ids[i],0);
+            assert((obj.mdl.anims[0x179]!=NULL)==(i<3 && PORT_ZENKAI_GREAT_APE_MOON));
+        }
+    }
+    Port_ZenkaiMovesClear();assert(allocations == 0);
+    active=online=moon=0;
+    puts("PASS: Nappa Great Ape motions and moon-framing cameras, mode gates and cleanup.");
+}
+
 static void test_future_gohan_grab(void) {
     BObjSlot base = {0}, ssj = {0};
     BObj obj, other;
@@ -97,6 +148,7 @@ int main(int argc, char **argv) {
     int i, language, base[3] = {0x590, 0x598, 0x599};
     u8 *original;
     assert(argc == 2); directory = argv[1];
+    test_great_ape_moon();
     test_future_gohan_grab();
     active=online=0;
     if (!PORT_ZENKAI_SSJ2_MOVESET) {

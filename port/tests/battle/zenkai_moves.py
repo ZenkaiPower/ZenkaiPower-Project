@@ -17,7 +17,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='zenkaipower-zenkai-moves-') as tmp:
         tmp = Path(tmp)
         with (data / 'pzs3us1.afs').open('rb') as archive:
-            for chara in (4, 5, 6, 159, 160):
+            for chara in (4, 5, 6, 80, 81, 159, 160):
                 for base in (0x590, 0x598, 0x599):
                     fid = base + chara * 10
                     archive.seek(8 + (fid - 1) * 8)
@@ -26,10 +26,10 @@ def main():
                     blob = archive.read(size)
                     (tmp / f'{fid}.bin').write_bytes(bpe_decode(blob) or blob)
         exe = tmp / 'test'
-        for grab, moves in ((0,1),(1,0),(1,1)):
+        for grab, moves, moon in ((0,1,1),(1,0,1),(1,1,1),(1,1,0)):
             subprocess.run(['gcc', '-std=gnu99', '-g', '-fsanitize=address,undefined', '-fno-builtin', '-ffunction-sections', '-fdata-sections',
                             '-Iinclude', '-Iport/include', '-include', 'port_compat.h',
-                            f'-DPORT_ZENKAI_FUTURE_GOHAN_GRAB={grab}', f'-DPORT_ZENKAI_SSJ2_MOVESET={moves}',
+                            f'-DPORT_ZENKAI_GREAT_APE_MOON={moon}', f'-DPORT_ZENKAI_FUTURE_GOHAN_GRAB={grab}', f'-DPORT_ZENKAI_SSJ2_MOVESET={moves}',
                             'port/tests/battle/zenkai_moves.c', '-Wl,--gc-sections', '-o', str(exe)], cwd=ROOT, check=True)
             subprocess.run([str(exe), str(tmp)], check=True)
         queue_test = tmp / 'voice_queue'

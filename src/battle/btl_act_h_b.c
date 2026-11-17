@@ -1,5 +1,6 @@
 #ifdef PORT
 #include "battle/port_hp_drain.h"
+#include "sys/port_zenkai.h"
 #endif
 #include "common.h"
 #include "battle/btl_act_h.h"
@@ -813,8 +814,20 @@ s32 BtlAct_TransformB(BtlActHChr *chr, s32 phase) {
  * then the closing 0x179 (voice 0x22, stream sound 0x8D36). Gravity applies; the placement is taken (flag 0xF5) on
  * leaving unless a warp flag (0xFC / 0xFD) is set.
  */
+#ifdef PORT
+extern s32 BtlStage_HasMoon(void);
+#endif
 s32 BtlAct_TransformC(BtlActHChr *chr, s32 phase) {
+#ifdef PORT
+    /* Kind 4 creates a Power Ball; use Nappa's natural-moon presentation
+       only when the complete donor motion set is available. */
+    s32 stageMoon = PORT_ZENKAI_GREAT_APE_MOON && Port_ZenkaiPackEnabled() &&
+                    chr->form.kind == 4 && BtlStage_HasMoon();
+#endif
     if (phase == 0) {
+#ifdef PORT
+        if (stageMoon && Port_ZenkaiGreatApeMoonBind(BtlChar_GetObj(chr), 0)) chr->form.kind = 3;
+#endif
         BtlAnim_Play(chr, 0x177, 0.0f);
         BtlChar_GetPos(chr)->unk98 = 0.0f;
         BtlChar_GetPos(chr)->unk9C = 0.0f;
