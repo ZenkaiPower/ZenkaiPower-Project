@@ -289,7 +289,7 @@ int main(void) {
     }
     {
         SDL_Event event={0};int before[PORT_GAMEPAD_BINDINGS],after[PORT_GAMEPAD_BINDINGS];
-        unsigned char lx=128,ly=128,rx=128;
+        unsigned char lx=128,ly=128,rx=128,ry=128;
         PortInput_GamepadGet(before);zenkai=1;
         PortInput_GamepadCaptureStart(3);
         event.type=SDL_EVENT_KEY_DOWN;event.key.scancode=SDL_SCANCODE_N;
@@ -302,7 +302,7 @@ int main(void) {
         assert(PortInput_PcCaptureEvent(&event) && PortInput_PcCapturePoll()==1);
         PortInput_GamepadGet(after);assert(after[3]==SDL_GAMEPAD_BUTTON_EAST+1 && after[6]==0);
         padButtons[SDL_GAMEPAD_BUTTON_EAST]=true;
-        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx)==B_SQUARE);
+        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry)==B_SQUARE);
         padButtons[SDL_GAMEPAD_BUTTON_EAST]=false;
         PortInput_GamepadCaptureStart(0);event.type=SDL_EVENT_GAMEPAD_AXIS_MOTION;
         event.gaxis.axis=SDL_GAMEPAD_AXIS_RIGHT_TRIGGER;event.gaxis.value=30000;
@@ -310,16 +310,23 @@ int main(void) {
         event.gaxis.value=0;assert(PortInput_PcCaptureEvent(&event) && PortInput_PcCapturePoll()==1);
         PortInput_GamepadGet(after);assert(after[0]==111 && after[4]==0);
         padAxes[SDL_GAMEPAD_AXIS_RIGHT_TRIGGER]=30000;
-        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx)==B_L2);
+        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry)==B_L2);
         memset(padAxes,0,sizeof(padAxes));
         PortInput_GamepadSet(before);sDeadzone[0][0]=-1;
         padAxes[SDL_GAMEPAD_AXIS_LEFTX]=16384;
-        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx)==0 && lx>128 && lx<255 && ly==128 && rx==128);
+        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry)==0 && lx>128 && lx<255 && ly==128 && rx==128);
         padAxes[SDL_GAMEPAD_AXIS_LEFTX]=0;
+        padAxes[SDL_GAMEPAD_AXIS_RIGHTY]=-32768;
+        gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry); assert(ry==0);
+        padAxes[SDL_GAMEPAD_AXIS_RIGHTY]=32767;
+        gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry); assert(ry==255);
+        padAxes[SDL_GAMEPAD_AXIS_RIGHTY]=0;
+        gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry); assert(ry==128);
+
         padButtons[SDL_GAMEPAD_BUTTON_LEFT_STICK]=true;
-        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx)==0);
+        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry)==0);
         padButtons[SDL_GAMEPAD_BUTTON_RIGHT_STICK]=true;
-        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx)==(B_L3|B_R3));
+        assert(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry)==(B_L3|B_R3));
         padButtons[SDL_GAMEPAD_BUTTON_LEFT_STICK]=padButtons[SDL_GAMEPAD_BUTTON_RIGHT_STICK]=false;
         { char name[128];PortInput_GamepadBindingName(15,name,sizeof(name));assert(!strcmp(name,"L3 + R3"));
           PortInput_GamepadBindingName(14,name,sizeof(name));assert(!strcmp(name,"Select"));
@@ -416,7 +423,7 @@ int main(void) {
         unsigned char data[18], lx, ly;
         unsigned buttons;
         zenkai=1;context=PORT_MOUSE_GAME_FIGHT;
-        PortInput_PcDefaults();sPcKeys[3]=SDL_SCANCODE_N;
+        PortInput_PcDefaults();sPcKeys[0][3]=SDL_SCANCODE_N;
         sPcRelease=sGamepadRelease=sKeySwallow=sPcMouseHeld=sPcMousePressed=sPcMouseBlocked=0;
         memset(keyboard,0,sizeof(keyboard));physicalMouse=0;
         Port_ClashSquareApply(0);testClash=1;

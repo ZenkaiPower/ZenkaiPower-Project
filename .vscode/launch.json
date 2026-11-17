@@ -36,7 +36,8 @@
                     "ignoreFailures": false
                 }
             ]
-        },{
+        },
+        {
             "name": "Build complete release",
             "type": "cppdbg",
             "request": "launch",
@@ -60,6 +61,13 @@
                     "ignoreFailures": false
                 }
             ]
+        },
+        {
+            "name": "Build and run Android",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/android/run.ps1\"",
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

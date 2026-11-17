@@ -9,6 +9,7 @@ code = r'''
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 #include <pthread.h>
 #include <SDL3/SDL.h>
 #include "menu/port_pc_bindings.h"
@@ -33,10 +34,12 @@ int Port_ZenkaiEnabled(void) {return zenkai;}
 int Port_NetOptionsControlsEnabled(void) {return 0;}
 unsigned Port_PcActionMask(int action) {return 1u<<(action+8);}
 static int pc_wheel_binding(const SDL_Event *ev) {return ev->wheel.y>0 ? 6:7;}
-static void stick_bytes(int dz,int x,int y,unsigned char *bx,unsigned char *by) {*bx=128;*by=128;}
+static int range(int x,int lo,int hi) {return x<lo ? lo:x>hi ? hi:x;}
+''' + s[s.index('static unsigned char game_byte('):s.index('/* What the game makes of a stick')] + r'''
 static int heldButton=-1;
 bool SDL_GetGamepadButton(SDL_Gamepad *g,SDL_GamepadButton b) {return b==heldButton;}
-Sint16 SDL_GetGamepadAxis(SDL_Gamepad *g,SDL_GamepadAxis a) {return 0;}
+static Sint16 testRightY;
+Sint16 SDL_GetGamepadAxis(SDL_Gamepad *g,SDL_GamepadAxis a) {return a==SDL_GAMEPAD_AXIS_RIGHTY ? testRightY:0;}
 ''' + s[s.index('#define SPCDEFAULTKEYS_INIT'):s.index('static unsigned keyboard_secondary_buttons')] + s[s.index('/* Run on the game thread after a completed capture'):s.index('/* ZENKAIPOWER_PAD=')] + r'''
 int main(void) {
     int pc[2][PORT_PC_BINDINGS],pad[2][PORT_GAMEPAD_BINDINGS],out[PORT_PC_BINDINGS],padout[PORT_GAMEPAD_BINDINGS];
@@ -62,8 +65,11 @@ int main(void) {
     PortInput_GamepadSlotsSet(0x12);assert(pad_of(1)==(SDL_Gamepad *)1 && pad_of(0)==NULL);
     PortInput_PlayerGet(0,out,padout);assert(!memcmp(padout,pad[0],sizeof(padout)));
     heldButton=SDL_GAMEPAD_BUTTON_NORTH;
-    assert(!(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx)&Port_PcActionMask(3)));
-    assert(gamepad_battle_buttons((SDL_Gamepad *)1,1,&lx,&ly,&rx)&Port_PcActionMask(3));
+    assert(!(gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry)&Port_PcActionMask(3)));
+    assert(gamepad_battle_buttons((SDL_Gamepad *)1,1,&lx,&ly,&rx,&ry)&Port_PcActionMask(3));
+    testRightY=-32768; gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry); assert(ry==0);
+    testRightY=32767; gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry); assert(ry==255);
+    testRightY=0; gamepad_battle_buttons((SDL_Gamepad *)1,0,&lx,&ly,&rx,&ry); assert(ry==128);
     char name[128];PortInput_PcBindingName(PORT_PC_STORAGE_ACTIONS+3,name,sizeof(name));assert(!strcmp(name,"Z"));
     PortInput_GamepadBindingName(PORT_PC_STORAGE_ACTIONS+3,name,sizeof(name));assert(!strcmp(name,"Triangle"));
     ev.type=SDL_EVENT_KEY_DOWN;ev.key.scancode=SDL_SCANCODE_ESCAPE;
@@ -82,6 +88,6 @@ with tempfile.TemporaryDirectory(prefix='player-bindings-') as tmp:
     (path / 'test.c').write_text(code)
     flags = subprocess.check_output(['pkg-config', '--cflags', '--libs', 'sdl3'], text=True).split()
     subprocess.run(['cc', '-std=gnu11', '-Iinclude', '-fsanitize=undefined', str(path / 'test.c'),
-                    '-o', str(path / 'test'), '-pthread', *flags], cwd=root, check=True)
+                    '-o', str(path / 'test'), '-pthread', '-lm', *flags], cwd=root, check=True)
     subprocess.run([str(path / 'test')], check=True)
 print('Per-player capture, keyboard/gamepad battle routing and defaults passed')

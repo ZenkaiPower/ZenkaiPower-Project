@@ -658,7 +658,7 @@ static int gamepad_held(SDL_Gamepad *g,int b) {
     return b>0 && SDL_GetGamepadButton(g,(SDL_GamepadButton)(b-1));
 }
 static void stick_bytes(int deadzone,int x,int y,unsigned char *bx,unsigned char *by);
-static unsigned gamepad_battle_buttons(SDL_Gamepad *g,int socket,unsigned char *lx,unsigned char *ly,unsigned char *rx) {
+static unsigned gamepad_battle_buttons(SDL_Gamepad *g,int socket,unsigned char *lx,unsigned char *ly,unsigned char *rx,unsigned char *ry) {
     unsigned btn=0;int a,axes[3]={0,0,0};pthread_mutex_lock(&sPcLock);
     for(a=0;a<PORT_PC_ACTIONS;a++) {
         int b=sGamepadBindings[socket][a];
@@ -679,6 +679,10 @@ static unsigned gamepad_battle_buttons(SDL_Gamepad *g,int socket,unsigned char *
     *lx=axes[0]<-128 ? 0:axes[0]>127 ? 255:128+axes[0];
     *ly=axes[1]<-128 ? 0:axes[1]>127 ? 255:128+axes[1];
     *rx=axes[2]<-128 ? 0:axes[2]>127 ? 255:128+axes[2];
+    /* Vertical right-stick input selects the next teammate; it has no remap
+       action and must survive semantic battle-button translation. */
+    unsigned char unused;
+    stick_bytes(sDeadzone[socket][1],0,SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTY),&unused,ry);
     pthread_mutex_unlock(&sPcLock);return btn;
 }
 
@@ -1816,7 +1820,7 @@ int Port_PadRead(int socket, unsigned char *data) {
                 btn |= kActions[a].bit;
             }
         }
-        if(battle) btn|=gamepad_battle_buttons(g,socket,&lx,&ly,&rx);
+        if(battle) btn|=gamepad_battle_buttons(g,socket,&lx,&ly,&rx,&ry);
         else {
             stick_bytes(sDeadzone[socket][0], SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFTX), SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_LEFTY), &lx, &ly);
             stick_bytes(sDeadzone[socket][1], SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHTX), SDL_GetGamepadAxis(g, SDL_GAMEPAD_AXIS_RIGHTY), &rx, &ry);

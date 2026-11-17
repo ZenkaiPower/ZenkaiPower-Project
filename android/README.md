@@ -208,7 +208,7 @@ python port/tests/android/installer_fixtures.py
 # generated android/app/src/androidTest/jniLibs back to the checkout.
 .\android\gradlew.bat -p android assembleDebugAndroidTest
 adb install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w com.zenkaipower.android.test/com.zenkaipower.android.InstallerChecks
+adb shell am instrument -w com.zenkaipower.android.debug.test/com.zenkaipower.android.InstallerChecks
 ```
 
 These checks reject invalid discs and malformed DOL metadata, compare Japanese
@@ -222,7 +222,7 @@ Android toolchain environment (the container wrapper copies the test library),
 then install the instrumentation APK as above and run:
 
 ```sh
-adb shell am instrument -w com.zenkaipower.android.test/com.zenkaipower.android.StorageChecks
+adb shell am instrument -w com.zenkaipower.android.debug.test/com.zenkaipower.android.StorageChecks
 ```
 
 These checks exercise Java descriptor seeking/appending, save replacement and
@@ -315,3 +315,33 @@ created by older Android builds are removed. Mod overrides belong under
 `gamedata/mods/`; `songs/` and `stages/` remain optional desktop features rather
 than directories created by Android. Pak conversion checks:
 `python port/tests/android/game_pak.py`.
+
+## VS Code F5 (Windows)
+
+Select **Build and run Android** in Run and Debug, then press **F5**. The
+configuration uses the existing Docker build to compile the engine and package
+the debug APK, installs it with ADB, and opens the Android launcher. This is a
+build-and-launch configuration; it does not attach a native debugger.
+
+Docker Desktop must be running. Install Android platform-tools and put `adb` on
+PATH, or set `ANDROID_HOME` / `ANDROID_SDK_ROOT`. Connect an arm64 Android device
+with USB debugging enabled and authorize the computer, or start an arm64
+emulator. With multiple devices, the terminal prompts you to select one. Set
+`ANDROID_SERIAL` before starting VS Code, or pass `-Serial`, to skip the picker.
+
+The same flow is available through **Tasks: Run Task ? Build and run Android**
+or `powershell -File android/run.ps1`. Use `-SkipBuild` to install and launch the
+existing `build/android-arm64/ZenkaiPower-debug.apk` without rebuilding. The
+debug app uses `com.zenkaipower.android.debug` and a **(Debug)** label, so it
+installs alongside the release app. Its settings and folder grants are separate;
+choose the game folder on its first launch. Rebuilding updates the debug app
+without clearing its data. The release app and its data are preserved.
+
+### Touch direction gestures
+
+With the touchscreen gamepad active, drag in empty space on the right half of
+the screen to send a right-stick direction. After a short movement threshold,
+the dominant direction is held at full strength until release. There is no
+visible right joystick or variable sensitivity. Release and drag again to send
+another direction. Up/down selects the switch candidate when the battle rules
+allow it. Buttons and left-stick movement remain independent.

@@ -179,6 +179,16 @@ void Pad_Update(void) {
                     }
                 }
 
+#ifdef PORT
+                /* Share the existing deadzone/dominant-axis decision with the
+                 * D-pad during combat, before deriving pressed and repeat. */
+                if (Port_GameMouseMode() == PORT_MOUSE_GAME_FIGHT) {
+                    if (btn & PAD_LSTICK_UP) btn |= PAD_UP;
+                    if (btn & PAD_LSTICK_DOWN) btn |= PAD_DOWN;
+                    if (btn & PAD_LSTICK_LEFT) btn |= PAD_LEFT;
+                    if (btn & PAD_LSTICK_RIGHT) btn |= PAD_RIGHT;
+                }
+#endif
                 pad->held = btn;
                 pad->pressed = btn & ~pad->prev;
                 pad->prev = btn;

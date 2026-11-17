@@ -91,6 +91,9 @@ final class VirtualPadView extends View {
     private int timerId=-1;
     private float timerStartX,timerStartY;
     private int stickId = -1;
+    private int rightDragId = -1;
+    private float rightDragX, rightDragY;
+    private boolean rightDragSent;
     private float stickX, stickY, stickDX, stickDY, radius, unit;
 
     VirtualPadView(Context context, TouchMouseSurface surface, File gameRoot) {
@@ -263,6 +266,17 @@ final class VirtualPadView extends View {
         TouchPadBridge.axis(1, dy * factor);
     }
 
+    private void rightDrag(float x, float y) {
+        if (rightDragSent) return;
+        float dx = x - rightDragX, dy = y - rightDragY;
+        if (dx * dx + dy * dy < unit * unit * .0625f) return;
+        // One cardinal direction per drag, at full strength until release.
+        boolean horizontal = Math.abs(dx) > Math.abs(dy);
+        TouchPadBridge.axis(2, horizontal ? (dx < 0 ? -1 : 1) : 0);
+        TouchPadBridge.axis(3, horizontal ? 0 : (dy < 0 ? -1 : 1));
+        rightDragSent = true;
+    }
+
     void release() {
         vibration.update(0);
         pointers.clear();
@@ -274,6 +288,8 @@ final class VirtualPadView extends View {
             held(button, false);
         }
         if (stickId >= 0) { TouchPadBridge.axis(0, 0); TouchPadBridge.axis(1, 0); }
+        if (rightDragId >= 0) { TouchPadBridge.axis(2, 0); TouchPadBridge.axis(3, 0); }
+        rightDragId = -1; rightDragSent = false;
         stickId = -1;
         timerId = -1;
         stickDX = stickDY = 0;
@@ -324,11 +340,18 @@ final class VirtualPadView extends View {
                 stickX = x;
                 stickY = y;
                 stick(x, y);
+            } else if (x >= getWidth() * .5f && rightDragId < 0) {
+                rightDragId = id;
+                rightDragSent = false;
+                rightDragX = x;
+                rightDragY = y;
+                rightDrag(x, y);
             } else pointers.put(id, -1);
         }
         for (int i = 0; i < event.getPointerCount(); i++) {
             int pointer = event.getPointerId(i);
             if (pointer == stickId) stick(event.getX(i), event.getY(i));
+            else if (pointer == rightDragId) rightDrag(event.getX(i), event.getY(i));
             else if (pointers.indexOfKey(pointer) >= 0)
                 pointers.put(pointer, hit(event.getX(i), event.getY(i)));
         }
@@ -336,6 +359,10 @@ final class VirtualPadView extends View {
             if (id == stickId) {
                 TouchPadBridge.axis(0, 0); TouchPadBridge.axis(1, 0);
                 stickId = -1; stickDX = stickDY = 0;
+            }
+            if (id == rightDragId) {
+                TouchPadBridge.axis(2, 0); TouchPadBridge.axis(3, 0);
+                rightDragId = -1; rightDragSent = false;
             }
             pointers.delete(id);
         }
