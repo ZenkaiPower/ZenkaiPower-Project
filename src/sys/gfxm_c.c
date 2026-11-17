@@ -197,15 +197,15 @@ s32 Port_FlashQuitMouseRow(s32 x16, s32 y16) {
 
 void FlashDraw_TransformQuad(FlashQuad *q, FlashMtx *mtx, FlashCxform *cx, FlashProp *prop, s32 *ofs);
 
-static void Flash_MouseRegion(PortMousePlate *plates, s32 row, f32 width, f32 height, f32 pivot, FlashProp *prop, Flash *flash) {
+static void Flash_MouseLocalRegion(PortMousePlate *plates, s32 row, f32 left, f32 top, f32 width, f32 height, f32 pivot, FlashProp *prop, Flash *flash) {
     FlashQuad q;
     FlashMtx identity = {{1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
     FlashCxform color = {{1.0f, 1.0f, 1.0f, 1.0f}, {0, 0, 0, 0}};
     s32 i;
     f32 narrow = 1.0f;
     memset(&q, 0, sizeof(q));
-    q.pt[1][0] = width;
-    q.pt[2][1] = height;
+    q.pt[0][0]=q.pt[2][0]=left;q.pt[1][0]=left+width;
+    q.pt[0][1]=q.pt[1][1]=top;q.pt[2][1]=top+height;
     q.rgba[3] = 128;
     FlashDraw_TransformQuad(&q, &identity, &color, prop, flash->ofs);
     if (q.rgba[3] == 0) return;
@@ -216,6 +216,10 @@ static void Flash_MouseRegion(PortMousePlate *plates, s32 row, f32 width, f32 he
         plates[row].pt[i][1] = q.pt[i][1];
     }
     plates[row].valid = 1;
+}
+
+static void Flash_MouseRegion(PortMousePlate *plates, s32 row, f32 width, f32 height, f32 pivot, FlashProp *prop, Flash *flash) {
+    Flash_MouseLocalRegion(plates,row,0,0,width,height,pivot,prop,flash);
 }
 
 typedef struct PortSelectionMouseClip {
@@ -293,6 +297,7 @@ int Port_FlashMenuMouseHit(int scope, const char *name, float width, float heigh
             PortMousePlate plate;
             memset(&plate, 0, sizeof(plate));
             FlashProp hitProp = clip->prop;
+            f32 left=0,top=0;
             if(Flash_CharRefMouseControl(scope,name) || Flash_EvoMouseArrow(scope,name) || (scope==33 && (strcmp(name,"mc_yajirusi_l")==0 || strcmp(name,"mc_yajirusi_r")==0)) ||
                (scope==31 && strncmp(name,"mc_dragonball_off_",18)==0) ||
                (scope==62 && strncmp(name,"mc_input_code_",14)==0) ||
@@ -304,9 +309,14 @@ int Port_FlashMenuMouseHit(int scope, const char *name, float width, float heigh
             /* Portraits are centred on their clip origin, not top-left.
                Their 64px art overlaps at 60px spacing; use the inner cell. */
             if (strncmp(name, "mc_chara_chip_", 14) == 0) {
-                hitProp.mtx.m[2] -= 30.0f * (hitProp.mtx.m[0] + hitProp.mtx.m[1]);
-                hitProp.mtx.m[5] -= 30.0f * (hitProp.mtx.m[3] + hitProp.mtx.m[4]);
+                left=top=-30;
                 width = height = 60.0f;
+            } else if ((scope==11 || scope==12 || scope==32 || scope==57) &&
+                       strncmp(name,"mc_team_",8)==0 && name[8]>='0' && name[8]<='4' && name[9]==0) {
+                /* Team cards are centred on their clip: the backing child
+                   starts at (-32,-36), not at the card's centre. */
+                left=-32;top=-36;
+                width=64.0f;height=72.0f;
             } else if (scope == 10 && strncmp(name, "mc_map_chip_", 12) == 0) {
                 /* Stage thumbnails also use a centred origin. */
                 hitProp.mtx.m[2] -= 32.0f * (hitProp.mtx.m[0] + hitProp.mtx.m[1]);
@@ -319,7 +329,7 @@ int Port_FlashMenuMouseHit(int scope, const char *name, float width, float heigh
                 hitProp.mtx.m[5] += 32.0f * hitProp.mtx.m[3] - 32.0f * hitProp.mtx.m[4];
                 width = height = 64.0f;
             }
-            Flash_MouseRegion(&plate, 0, width, height, pivot, &hitProp, clip->flash);
+            Flash_MouseLocalRegion(&plate,0,left,top,width,height,pivot,&hitProp,clip->flash);
             if (Flash_MouseRow(&plate, 1, x, y) == 0) {
                 PortMenuMouse_SetHover(1);
                 return 1;
@@ -344,7 +354,8 @@ static void Flash_MousePlate(PortMousePlate *plates, s32 row, f32 height, f32 pi
 }
 
 static void Flash_MainMousePlate(s32 row, FlashProp *prop, Flash *flash) {
-    Flash_MousePlate(sMainMousePlates, row, 64.0f, 0.0f, prop, flash);
+    /* Exclude the transparent padding and selected glow of the 512x64 art. */
+    Flash_MouseLocalRegion(sMainMousePlates,row,20,6,295,26,0,prop,flash);
 }
 
 /* Buy-list background shape at root depth 2 animates from x=-520 to zero.

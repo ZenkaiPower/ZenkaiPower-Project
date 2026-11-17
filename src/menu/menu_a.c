@@ -465,11 +465,12 @@ void MainMenu_Input(s32 *result) {
         /* A dimmed neighbor scrolls into the selectable area. Do not enter
            its mode until the user clicks the now-focused entry again. */
         if (mouse.confirm && row >= MAINMENU_ROWS) {
+            MainMenu_PlateGoto(0, "fl_off");
             gMainMenu->cursor = row == 4 ? 0 : MAINMENU_ROWS - 1;
             repeat = row == 4 ? 8 : 4;
         }
         if (row >= 0 && row < MAINMENU_ROWS && row != gMainMenu->cursor) {
-            MainMenu_PlateGoto(0, "fl_off_start");
+            MainMenu_PlateGoto(0, "fl_off");
             gMainMenu->cursor = row;
             gMainMenu->iconTimer = gMainMenu->iconFrame = 0;
             MainMenu_PlateGoto(0, "fl_on_start");

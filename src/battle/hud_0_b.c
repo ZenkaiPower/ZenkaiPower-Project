@@ -646,6 +646,9 @@ void BtlMenu_SetTop(BtlMenu *menu) {
    Returns 1 when the menu has finished closing. */
 #ifdef PORT
 static void BtlMenu_MouseInput(BtlMenu *menu,s32 pad) {
+    static BtlMenu *scrollMenu;
+    static s32 scrollPad,scrollPage;
+    static f32 scrollGrab;
     PortMenuMouse mouse;
     s32 i,hit=-1,w,h;
     f32 x,y,rowHeight;
@@ -655,18 +658,54 @@ static void BtlMenu_MouseInput(BtlMenu *menu,s32 pad) {
     if(!PortMenuMouse_Enabled()) PortMenuMouse_Enable(1);
     PortMenuMouse_Ready(menu->state==BTL_MENU_STATE_ACTIVE);
     PortMenuMouse_Read(&mouse);
-    if(menu->state!=BTL_MENU_STATE_ACTIVE) return;
+    if(menu->state!=BTL_MENU_STATE_ACTIVE) {scrollMenu=NULL;return;}
+    if(!PortMenuMouse_LeftHeld() || mouse.cancel) scrollMenu=NULL;
+    /* Pause sprites and text narrow around the page centre on widescreen.
+       Convert the pointer back to their native coordinates before hit testing. */
+    {
+        extern int Port_PageAspectMilli(void);
+        s32 aspect=Port_PageAspectMilli();
+        if(aspect>1340) mouse.x=256.0f+(mouse.x-256.0f)*(f32)aspect/1333.333f;
+    }
     w=BtlMenu_GetWidth(menu);h=BtlMenu_GetHeight(menu);
     x=(512-w)*0.5f;y=(448-h)*0.5f+menu->padY;rowHeight=28*menu->scale;
     if(BtlMenu_IsSkillList(menu)) {
         BtlMenuList *list=&gBtlMenu->list[pad];
         f32 top=(448-h)*0.5f;
-        if(mouse.moved || mouse.confirm) {
+        s32 page=list->page,count=list->count[page];
+        s32 barHit=mouse.x>=x+w-menu->padX-3 && mouse.x<x+w-menu->padX+12 &&
+                   mouse.y>=top+62 && mouse.y<top+256;
+        s32 scrolling=0;
+        if(barHit) PortMenuMouse_SetHover(1);
+        if(scrollMenu!=menu || scrollPad!=pad || scrollPage!=page) scrollMenu=NULL;
+        if(count>7) {
+            /* Match BtlText_DrawScrollBar's inset, unit and cursor-based thumb. */
+            f32 unit=190.0f/(count+6),thumb=7*unit;
+            f32 thumbTop=top+64+(s32)(list->cursor[page]*unit);
+            if(mouse.confirm && barHit) {
+                scrollGrab=mouse.y>=thumbTop && mouse.y<thumbTop+thumb ? mouse.y-thumbTop:thumb*.5f;
+                scrollMenu=menu;scrollPad=pad;scrollPage=page;
+            }
+            if(scrollMenu==menu) {
+                s32 cursor=(s32)((mouse.y-top-64-scrollGrab)/unit+.5f);
+                s32 scroll;
+                if(cursor<0) cursor=0;
+                if(cursor>=count) cursor=count-1;
+                scroll=cursor-3;
+                if(scroll<0) scroll=0;
+                if(scroll>count-7) scroll=count-7;
+                if(list->cursor[page]!=cursor) Snd_PlaySe(1,0);
+                list->cursor[page]=cursor;list->scroll[page]=scroll;
+                PortMenuMouse_SetHover(1);scrolling=1;
+                if(!PortMenuMouse_LeftHeld()) scrollMenu=NULL;
+            }
+        }
+        if(!scrolling && (mouse.moved || mouse.confirm)) {
             if(mouse.y>=top+6 && mouse.y<top+25 && mouse.x>=x+20 && mouse.x<x+20+50*list->pages) {
                 s32 page=(s32)((mouse.x-x-20)/50);
                 PortMenuMouse_SetHover(1);
                 if(mouse.confirm && list->page!=page) {list->page=page;Snd_PlaySe(1,0);}
-            } else if(mouse.x>=x+menu->padX && mouse.x<x+w-menu->padX && mouse.y>=top+62 && mouse.y<top+258) {
+            } else if(!barHit && mouse.x>=x+menu->padX && mouse.x<x+w-menu->padX && mouse.y>=top+62 && mouse.y<top+258) {
                 s32 row=(s32)((mouse.y-top-62)/28)+list->scroll[list->page];
                 if(row<list->count[list->page]) {
                     PortMenuMouse_SetHover(1);

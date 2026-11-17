@@ -304,3 +304,15 @@ rows finish entering. Returning from More Options restores the native top-page
 state and restarts `fl_menu_change`, including the focused row's
 `fl_on_start`, so the parent Options rows and EXIT follow the native return
 animation. The bottom help window stays open throughout these transitions.
+
+Pointer selection uses the main menu's visible unselected plate rather than its
+transparent texture padding. Changing pointer focus clears the previous plate
+immediately, including when a dimmed neighbor scrolls the list. Team member
+cards use their centred 64-by-72 bounds, including the next empty member slot.
+Pause-menu hit testing reverses the renderer's widescreen scaling around the
+page centre so View Skills tabs and rows align with the displayed controls.
+Focused checks: `port/tests/ui/menu_mouse_geometry.c`,
+`port/tests/ui/menu_mouse_navigation.c`, `python3 port/tests/ui/team_selection_mouse.py`
+and `python3 port/tests/ui/pause_mouse.py`.
+
+View Skills supports tapping its scrollbar track and dragging its thumb with a mouse or touchscreen. Scrolling stays within the active tab and keeps the selected skill visible.

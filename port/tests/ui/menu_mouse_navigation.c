@@ -12,13 +12,17 @@ static SaveData save;
 SaveData *gSaveData = &save;
 s32 gPortScreen;
 static PortMenuMouse pending;
+static int focus[8];
 static int hitRow = -1, hitArrow, moves, confirms, cancels;
 void PortMenuMouse_Read(PortMenuMouse *mouse) { *mouse = pending; memset(&pending, 0, sizeof(pending)); }
 int Port_FlashMainMouseRow(float x, float y) { (void)x; (void)y; return hitRow; }
 int Port_FlashMainMouseArrow(float x, float y) { (void)x; (void)y; return hitArrow; }
 u32 Rand_Range(u32 n) { (void)n; return 0; }
-void Flash_FindLabel(MFlash *f, char *p, char *n, MFlashRef *r) { (void)f; (void)p; (void)n; r->id = 0; r->more = 0; }
-void Flash_ClipGotoLabel(MFlash *f, MFlashRef *r, char *n) { (void)f; (void)r; (void)n; }
+void Flash_FindLabel(MFlash *f, char *p, char *n, MFlashRef *r) { (void)f; (void)p; (void)n; r->id = n[14]-'0'; r->more = 0; }
+void Flash_ClipGotoLabel(MFlash *f, MFlashRef *r, char *n) { (void)f;
+    if(!strcmp(n,"fl_on_start")) focus[r->id]=1;
+    if(!strcmp(n,"fl_off") || !strcmp(n,"fl_off_start")) focus[r->id]=0;
+}
 void Flash_GotoLabel(MFlash *f, char *n, s32 start) { (void)f; (void)n; (void)start; }
 void Voice_PlayWithSubtitle(void *text, s32 base, s32 line) { (void)text; (void)base; (void)line; }
 s32 Snd_PlaySe(u32 mask, s32 id) { (void)mask; if (id == 0) moves++; if (id == 1) confirms++; if (id == 2) cancels++; return 0; }
@@ -46,8 +50,10 @@ int main(void) {
     hitArrow = 1; menu.cursor = 3; pending.confirm = 1;
     MainMenu_Input(&result); CHECK(menu.cursor == 3 && menu.top == 0 && !confirms);
     hitArrow = 0;
+    memset(focus,0,sizeof(focus));focus[4]=1;
     hitRow=4;menu.cursor=2;pending.confirm=1;
     MainMenu_Input(&result); CHECK(menu.cursor==0 && menu.top==10 && !confirms);
+    CHECK(!focus[4] && focus[2]);
     hitRow=5;pending.confirm=1;
     MainMenu_Input(&result); CHECK(menu.cursor==3 && menu.top==0 && !confirms);
     pending.confirm = 1; hitRow = -1;

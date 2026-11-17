@@ -292,45 +292,46 @@ int main(void) {
     }
     Port_FlashMenuMouseBegin();
     Flash_MainMousePlate(0, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(110, 100) == 0);
-    CHECK(Port_FlashMainMouseRow(365, 131) == 0);
-    CHECK(Port_FlashMainMouseRow(109, 120) == -1);
-    CHECK(Port_FlashMainMouseRow(200, 132) == -1);
-    /* Adjacent rows keep the same boundaries when selection/glow changes. */
-    prop.mtx.m[5] += 38;
-    Flash_MainMousePlate(1, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(200, 140) == 1);
-    CHECK(Port_FlashMainMouseRow(200, 135) == -1); /* gap between rows */
-    prop.mtx.m[5] -= 38;
-    /* A skewed plate rejects empty corners of its axis-aligned bounding box. */
-    memset(sMainMousePlates, 0, sizeof(sMainMousePlates));
-    prop.mtx.m[3] = 0.25f;
-    Flash_MainMousePlate(0, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(111, 130) == -1);
-    CHECK(Port_FlashMainMouseRow(130, 130) == 0);
-    prop.mtx.m[3] = 0;
-    /* Overlap during travel chooses the nearest row, not the first row. */
-    memset(sMainMousePlates, 0, sizeof(sMainMousePlates));
-    Flash_MainMousePlate(0, &prop, &flash);
-    prop.mtx.m[5] += 20; Flash_MainMousePlate(1, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(200, 121) == 0);
-    CHECK(Port_FlashMainMouseRow(200, 130) == 1);
-    prop.mtx.m[5] -= 20;
-    /* Wide correction follows the left anchor; whole-page 4:3 stays native. */
-    memset(sMainMousePlates, 0, sizeof(sMainMousePlates)); art43 = 1;
-    Flash_MainMousePlate(0, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(90, 120) == 0);
-    CHECK(Port_FlashMainMouseRow(300, 120) == -1);
-    memset(sMainMousePlates, 0, sizeof(sMainMousePlates)); page43 = 1;
-    Flash_MainMousePlate(0, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(300, 120) == 0);
-    /* A hidden or collapsed plate cannot leave an interactive region. */
-    memset(sMainMousePlates, 0, sizeof(sMainMousePlates)); prop.cx.mul[3] = 0;
-    Flash_MainMousePlate(0, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(200, 120) == -1);
-    prop.cx.mul[3] = 1; prop.mtx.m[4] = 0;
-    Flash_MainMousePlate(0, &prop, &flash);
-    CHECK(Port_FlashMainMouseRow(200, 100) == -1);
+    CHECK(Port_FlashMainMouseRow(121,104)==0);
+    CHECK(Port_FlashMainMouseRow(266,115)==0);
+    CHECK(Port_FlashMainMouseRow(119,110)==-1);
+    CHECK(Port_FlashMainMouseRow(268,110)==-1);
+    CHECK(Port_FlashMainMouseRow(150,102)==-1);
+    CHECK(Port_FlashMainMouseRow(150,116)==-1);
+    prop.mtx.m[5]+=18; Flash_MainMousePlate(1,&prop,&flash);
+    CHECK(Port_FlashMainMouseRow(150,120)==-1); /* no overlap through padding */
+    CHECK(Port_FlashMainMouseRow(150,123)==1);
+    prop.mtx.m[5]-=18;
+    /* Skew and scale apply to the crop, not to an axis-aligned estimate. */
+    memset(sMainMousePlates,0,sizeof(sMainMousePlates));prop.mtx.m[3]=.25f;
+    Flash_MainMousePlate(0,&prop,&flash);
+    CHECK(Port_FlashMainMouseRow(121,115)==-1);
+    CHECK(Port_FlashMainMouseRow(150,110)==0);
+    prop.mtx.m[3]=0;
+    memset(sMainMousePlates,0,sizeof(sMainMousePlates));art43=1;
+    Flash_MainMousePlate(0,&prop,&flash);
+    CHECK(Port_FlashMainMouseRow(100,110)==0);
+    CHECK(Port_FlashMainMouseRow(210,110)==-1);
+    memset(sMainMousePlates,0,sizeof(sMainMousePlates));page43=1;
+    Flash_MainMousePlate(0,&prop,&flash);
+    CHECK(Port_FlashMainMouseRow(210,110)==0);
+    memset(sMainMousePlates,0,sizeof(sMainMousePlates));prop.cx.mul[3]=0;
+    Flash_MainMousePlate(0,&prop,&flash);
+    CHECK(Port_FlashMainMouseRow(150,110)==-1);
+    prop.cx.mul[3]=1;prop.mtx.m[4]=0;
+    Flash_MainMousePlate(0,&prop,&flash);
+    CHECK(Port_FlashMainMouseRow(150,103)==-1);
+    /* Team cards include their upper/left halves and reject the old offset area. */
+    prop.mtx.m[4]=.5f;page43=1;sSelectionMouseCount=1;
+    for(int side=0;side<2;side++) {
+        PortSelectionMouseClip *clip=&sSelectionMouseClips[0];
+        strcpy(clip->name,"mc_team_0");clip->scope=side ? 12:11;
+        clip->prop=prop;clip->flash=&flash;
+        CHECK(Port_FlashMenuMouseHit(clip->scope,clip->name,64,32,side ? 512:0,95,90));
+        CHECK(Port_FlashMenuMouseHit(clip->scope,clip->name,64,32,side ? 512:0,125,117));
+        CHECK(!Port_FlashMenuMouseHit(clip->scope,clip->name,64,32,side ? 512:0,130,120));
+        CHECK(!Port_FlashMenuMouseHit(clip->scope,clip->name,64,32,side ? 512:0,100,80));
+    }
     /* Title plates are 32 pixels tall and pivot around the page centre. */
     prop.mtx.m[0] = prop.mtx.m[4] = 1;
     prop.mtx.m[2] = 0; prop.mtx.m[5] = 284;
