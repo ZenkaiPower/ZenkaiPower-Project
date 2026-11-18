@@ -8,7 +8,9 @@ $release = Join-Path $root 'release'
 New-Item -ItemType Directory -Force $release | Out-Null
 $expected = @(
     "ZenkaiPower-v$version-windows-x64.zip",
+    "ZenkaiPower-v$version-windows-x64.zip.sig",
     "ZenkaiPower-v$version-linux-x64.zip",
+    "ZenkaiPower-v$version-linux-x64.zip.sig",
     "ZenkaiPower-v$version-android-arm64.apk",
     "ZenkaiPower-v$version-android-arm64.apk.sha256"
 )

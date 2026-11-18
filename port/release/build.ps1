@@ -146,6 +146,8 @@ try {
                 $archive = "ZenkaiPower-v$version-$exportPlatform-x64.zip"
                 & docker cp "${releaseContainer}:/src/release/$archive" (Join-Path $repoRoot "release/$archive")
                 if ($LASTEXITCODE -ne 0) { throw 'Release built, but exporting the archive failed. Outputs remain in the Docker artifacts volume.' }
+                & docker cp "${releaseContainer}:/src/release/$archive.sig" (Join-Path $repoRoot "release/$archive.sig")
+                if ($LASTEXITCODE -ne 0) { throw 'Release built, but exporting the signature failed. Outputs remain in the Docker artifacts volume.' }
             }
         } finally {
             & docker rm $releaseContainer | Out-Null

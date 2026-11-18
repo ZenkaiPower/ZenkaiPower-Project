@@ -117,3 +117,5 @@ archive/
 
 # Other related projects
 /projects/
+# Private release signing key
+/.signing/

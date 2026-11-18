@@ -1,0 +1,3 @@
+
+# Never send private release keys to the Docker build context.
+.signing/

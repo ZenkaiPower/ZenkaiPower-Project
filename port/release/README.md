@@ -70,6 +70,23 @@ ZIP names include the version from `game-info.json`, for example
 `ZenkaiPower-v1.0.0-windows-x64.zip` and `ZenkaiPower-v1.0.0-linux-x64.zip`.
 Their top-level folders are `ZenkaiPower-Windows/` and `ZenkaiPower-Linux/`,
 respectively.
+Each Windows and Linux release ZIP has a detached RSA/SHA-256 `.sig` signature.
+The private key is stored in the ignored `.signing/release-private.pem` file.
+Back it up securely and never publish it. Packaging requires this key.
+For direct packaging, `ZENKAIPOWER_SIGNING_KEY` can select another key path.
+The public verification key is `port/release/signing-public.pem`.
+
+Verify a download with OpenSSL:
+
+```sh
+openssl dgst -sha256 -verify port/release/signing-public.pem -signature <download>.sig <download>
+```
+
+Success prints `Verified OK`. Obtain the public key from a trusted copy of this
+repository. Android APKs retain their built-in Android signature and have a
+matching `.apk.sha256` checksum file. Verify it with
+`sha256sum -c <download>.apk.sha256`.
+
 Use a matching GitHub release tag (for example `v1.0.0`) so setup finds its update archive.
 
 Windows setup runs update checks, checksum checks, self-tests, text preparation,

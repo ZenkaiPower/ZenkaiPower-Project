@@ -52,6 +52,8 @@ def release_archive(destination):
         try:
             shutil.copyfile(staged, pending)
             pending.replace(destination)
+            from release_sign import sign
+            sign(destination)
         finally:
             pending.unlink(missing_ok=True)
 
