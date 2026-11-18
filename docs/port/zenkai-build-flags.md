@@ -1,6 +1,6 @@
 # Zenkai gameplay build flags
 
-The eleven independent switches below are defined in
+The independent switches below are defined in
 [`include/sys/port_zenkai_features.h`](../../include/sys/port_zenkai_features.h).
 The Ginyu Body Change flag defaults to **1** (enabled). Set a default to **0**, or pass `-DNAME=0` to
 the compiler, then rebuild the game. These are build choices, not menu options.
@@ -8,6 +8,7 @@ Original mode retains its original behavior regardless of these switches.
 
 | Flag | Enabled (`1`) | Disabled (`0`) |
 |---|---|---|
+| `PORT_ZENKAI_ORIGINAL_FIXES` | Enables the documented original-game corrections in Zenkai mode, including Classic Mode. Defaults to `1`; independent of the optional pack. See [Original-game fixes](original-game-fixes.md). | Retains the original behavior for these defects and the original English text for correction keys. |
 | `PORT_ZENKAI_GREAT_APE_MOON` | On full-moon stages, Vegeta (Scouter), King Vegeta and Turles use Nappa?s complete Great Ape transformation motions and matching moon-framing camera tracks instead of creating a Power Ball. Limited to the offline Zenkai pack, outside Classic Mode. | Keeps the original Power Ball presentation on all stages. |
 | `PORT_ZENKAI_GIANTS` | Enables 2.5× giant models, collision/effect/prop scaling, camera and aiming adjustments, and temporary original model/effect sizing during technique cinematics. | Uses original giant sizing and behavior, including original cinematic sizing, cameras, aiming, effects, and props. |
 | `PORT_ZENKAI_STORY_UNLOCKS` | New Zenkai games start with ten characters, lock the twelve story-reward stage entries, and use additional Dragon History character and stage rewards (including variations). | New games use the original 132 characters and stage availability; story rewards use original character and stage lists, including Nail's original reward. |
@@ -55,6 +56,8 @@ kind of change.
 Extra outfits default to **0** in the shared header; giant scaling defaults to **0**. They set which features
 are compiled in; they do not override a saved decision to disable the pack.
 [Classic Mode](zenkai-pack.md) controls the complete `zenkai_pack` at runtime.
+`PORT_ZENKAI_ORIGINAL_FIXES` is separate from that pack and remains active in
+Classic Mode. Its corrections still require Zenkai mode.
 The two combat headers retain guarded fallbacks with the same enabled defaults.
 
 ## Verification

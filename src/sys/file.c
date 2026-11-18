@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "sys/file.h"
 #include "sys/heap.h"
 
@@ -329,6 +330,13 @@ void *File_Request(s32 id, void *buf) {
     void *dst;
     FileReq *req;
 
+#ifdef PORT
+    /* Finish the existing batch before reserving a 33rd request. This drains
+     * I/O without advancing a gameplay frame or changing the request ABI. */
+    if (Port_OriginalFixesEnabled() && List_GetHead(&queue->free) == NULL) {
+        while (!File_UpdateRequests()) {}
+    }
+#endif
     do {
         adxf = File_OpenById(id);
     } while (adxf == NULL);

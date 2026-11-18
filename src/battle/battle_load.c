@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "battle/battle_work.h"
 #include "battle/battle_setup.h"
 #include "battle/btl_seq.h"
@@ -1444,6 +1445,11 @@ void BtlMember_Init(BattleMember *m, s32 chara, s32 costume, s32 variant, s32 cp
     if (items != NULL) {
         m->items = *items;
     }
+#ifdef PORT
+    if (Port_OriginalFixesEnabled()) {
+        m->chara = chara;
+    }
+#endif
     BtlMember_ApplyItems(m);
     m->chara = chara;
     m->costume = costume;

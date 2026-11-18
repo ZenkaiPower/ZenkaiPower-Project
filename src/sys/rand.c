@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "sys/rand.h"
 
 extern void *memset(void *dst, s32 c, u32 n);
@@ -68,6 +69,14 @@ u32 Rand_Next(void) {
             y = (gRandState[kk] & RAND_UPPER_MASK) | (gRandState[kk + 1] & RAND_LOWER_MASK);
             gRandState[kk] = gRandState[kk + RAND_M] ^ (y >> 1) ^ gRandMag01[y & 1];
         }
+#ifdef PORT
+        if (Port_OriginalFixesEnabled()) {
+            for (; kk < RAND_N - 1; kk++) {
+                y = (gRandState[kk] & RAND_UPPER_MASK) | (gRandState[kk + 1] & RAND_LOWER_MASK);
+                gRandState[kk] = gRandState[kk + RAND_M - RAND_N] ^ (y >> 1) ^ gRandMag01[y & 1];
+            }
+        }
+#endif
         y = (gRandState[RAND_N - 1] & RAND_UPPER_MASK) | (gRandState[0] & RAND_LOWER_MASK);
         gRandState[RAND_N - 1] = gRandState[RAND_M - 1] ^ (y >> 1) ^ gRandMag01[y & 1];
         gRandIndex = 0;

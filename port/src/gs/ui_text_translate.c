@@ -4,6 +4,7 @@
 #include "ui_text_translate.h"
 #include "ui_text_extract.h"
 #include "menu_translation.h"
+#include "../../../include/sys/port_original_fixes.h"
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,7 +44,7 @@ static void ui_translated_free(void *p) { (void)p; } /* (all of it at once: ui_c
 #define UI_WORD_SLOTS 131072
 
 typedef struct UiParser { const char *p, *end; } UiParser;
-typedef struct UiRow { char *id; uint16_t *original, *translated; } UiRow;
+typedef struct UiRow { char *id; uint16_t *original, *translated, *corrected; } UiRow;
 typedef struct UiGroup {
     char *id;
     UiRow **rows;
@@ -51,9 +52,9 @@ typedef struct UiGroup {
     uint64_t hash;
 } UiGroup;
 typedef struct UiWord {
-    const uint16_t *original, *translated;
+    const uint16_t *original, *translated, *corrected;
     uint64_t hash;
-    int ambiguous;
+    int ambiguous, correctionAmbiguous;
 } UiWord;
 
 static UiRow **sRows;
@@ -213,7 +214,7 @@ static UiGroup *ui_group(const char *id, size_t len) {
     memcpy(g->id, id, len); g->id[len] = 0;
     return g;
 }
-static int ui_add_row(char *id, uint16_t *original, uint16_t *translated) {
+static int ui_add_row(char *id, uint16_t *original, uint16_t *translated, int correction) {
     const char *slash = strrchr(id, '/');
     char *end;
     long index;
@@ -236,6 +237,19 @@ static int ui_add_row(char *id, uint16_t *original, uint16_t *translated) {
     if (g->rows[index]) {
         /* A bundled catalog is an override layer on top of the generated disc catalog. */
         r = g->rows[index];
+        if (correction) {
+            /* Apply a fix only to the expected source at this exact catalog ID. */
+            if (ui_equal(r->original, original)) {
+                ui_translated_free(r->corrected);
+                r->corrected = translated;
+            } else ui_translated_free(translated);
+            free(id); free(original);
+            return 1;
+        }
+        if (r->corrected && !ui_equal(r->original, original)) {
+            ui_translated_free(r->corrected);
+            r->corrected = NULL;
+        }
         free(r->id); free(r->original); ui_translated_free(r->translated);
         r->id = id; r->original = original; r->translated = translated;
         return 1;
@@ -243,7 +257,9 @@ static int ui_add_row(char *id, uint16_t *original, uint16_t *translated) {
     if (sRowCount >= UI_MAX_ROWS) return 0;
     r = malloc(sizeof(*r));
     if (!r) return 0;
-    r->id = id; r->original = original; r->translated = translated;
+    r->id = id; r->original = original;
+    r->translated = correction ? NULL : translated;
+    r->corrected = correction ? translated : NULL;
     g->rows[index] = r;
     sRows[sRowCount++] = r;
     return 1;
@@ -251,7 +267,7 @@ static int ui_add_row(char *id, uint16_t *original, uint16_t *translated) {
 static int ui_parse_row(UiParser *p, char *id) {
     char *key, *original = NULL, *text = NULL;
     uint16_t *a = NULL, *b = NULL;
-    int closed = 0;
+    int closed = 0, correction = 0;
     if (!ui_take(p, '{')) goto fail;
     if (ui_take(p, '}')) closed = 1;
     else do {
@@ -259,6 +275,12 @@ static int ui_parse_row(UiParser *p, char *id) {
         if (!key || !ui_take(p, ':')) { free(key); goto fail; }
         if (!strcmp(key, "original")) { free(original); original = ui_string(p); if (!original) { free(key); goto fail; } }
         else if (!strcmp(key, "text")) { free(text); text = ui_string(p); if (!text) { free(key); goto fail; } }
+        else if (!strcmp(key, "zenkai_fix")) {
+            ui_space(p);
+            if (p->end - p->p >= 4 && !memcmp(p->p, "true", 4)) { correction = 1; p->p += 4; }
+            else if (p->end - p->p >= 5 && !memcmp(p->p, "false", 5)) p->p += 5;
+            else { free(key); goto fail; }
+        }
         else if (!ui_skip(p, 0)) { free(key); goto fail; }
         free(key);
         if (ui_take(p, '}')) { closed = 1; break; }
@@ -267,7 +289,7 @@ static int ui_parse_row(UiParser *p, char *id) {
     if (*text && strcmp(text, original) != 0 && !(b = ui_utf16(text, 1))) goto fail;
     free(original); free(text);
     original = text = NULL; /* (a row that cannot be added, a duplicate ID: freed once, below) */
-    if (ui_add_row(id, a, b)) return 1;
+    if (ui_add_row(id, a, b, correction)) return 1;
 fail:
     free(id); free(original); free(text); free(a); ui_translated_free(b);
     return 0;
@@ -309,7 +331,8 @@ static int ui_parse(const char *data, size_t size, const char *locale) {
 static void ui_clear(void) {
     int i;
     for (i = 0; i < sRowCount; i++) {
-        free(sRows[i]->id); free(sRows[i]->original); ui_translated_free(sRows[i]->translated); free(sRows[i]);
+        free(sRows[i]->id); free(sRows[i]->original); ui_translated_free(sRows[i]->translated);
+        ui_translated_free(sRows[i]->corrected); free(sRows[i]);
     }
     for (i = 0; i < sGroupCount; i++) { free(sGroups[i].id); free(sGroups[i].rows); }
     free(sRows); free(sGroups); free(sWords); free(sOwn);
@@ -327,7 +350,7 @@ static int ui_ptr_compare(const void *a, const void *b) {
 static int ui_prepare(void) {
     int i, j;
     sWords = calloc(UI_WORD_SLOTS, sizeof(*sWords));
-    sOwn = malloc((size_t)sRowCount * sizeof(*sOwn));
+    sOwn = malloc((size_t)sRowCount * 2 * sizeof(*sOwn));
     if (!sWords || !sOwn) return 0;
     for (i = 0; i < sGroupCount; i++) {
         UiGroup *g = &sGroups[i];
@@ -354,7 +377,10 @@ static int ui_prepare(void) {
            parent table rather than the catalog's nested table to TranslateLine. */
         else if (r->translated && !w->translated) w->translated = r->translated;
         else if (r->translated && w->translated && !ui_equal(w->translated, r->translated)) w->ambiguous = 1;
+        if (r->corrected && w->corrected && !ui_equal(w->corrected, r->corrected)) w->correctionAmbiguous = 1;
+        else if (r->corrected) w->corrected = r->corrected;
         if (r->translated) sOwn[sOwnCount++] = r->translated;
+        if (r->corrected) sOwn[sOwnCount++] = r->corrected;
     }
     qsort(sOwn, (size_t)sOwnCount, sizeof(*sOwn), ui_ptr_compare);
     return 1;
@@ -437,6 +463,7 @@ const uint16_t *UiText_TranslateString(const uint16_t *original) {
     slot = (unsigned)h & (UI_WORD_SLOTS - 1);
     while (sWords[slot].original && !ui_equal(sWords[slot].original, original)) slot = (slot + 1) & (UI_WORD_SLOTS - 1);
     w = &sWords[slot];
+    if (Port_OriginalFixesEnabled() && w->corrected && !w->correctionAmbiguous) return w->corrected;
     return w->original && !w->ambiguous && w->translated ? w->translated : original;
 }
 int UiText_TranslateIdUtf8(const char *group, int line, char *out, int capacity) {
@@ -445,9 +472,12 @@ int UiText_TranslateIdUtf8(const char *group, int line, char *out, int capacity)
     if (!__atomic_load_n(&sReady, __ATOMIC_ACQUIRE) || !group || !out || capacity < 1 || line < 0) return 0;
     for (i = 0; i < sGroupCount; i++) {
         UiGroup *g = &sGroups[i];
-        if (strcmp(g->id, group) != 0 || line >= g->count || !g->rows[line] || !g->rows[line]->translated)
+        if (strcmp(g->id, group) != 0 || line >= g->count || !g->rows[line])
             continue;
-        p = g->rows[line]->translated + 1; /* Skip the catalog's UTF-16 BOM. */
+        p = g->rows[line]->translated;
+        if (Port_OriginalFixesEnabled() && g->rows[line]->corrected) p = g->rows[line]->corrected;
+        if (!p) continue;
+        p++; /* Skip the catalog's UTF-16 BOM. */
         check = p;
         while (*check) {
             uint32_t c = *check++;
@@ -499,6 +529,7 @@ const uint16_t *UiText_TranslateLine(const uint32_t *table, int line, const uint
         const uint16_t *text;
         if (g->count != (int)count || g->hash != h || !(r = g->rows[line]) || !ui_equal(r->original, original)) continue;
         text = r->translated ? r->translated : r->original;
+        if (Port_OriginalFixesEnabled() && r->corrected) text = r->corrected;
         if (found && !ui_equal(candidate, text)) return original;
         candidate = text;
         found = 1;

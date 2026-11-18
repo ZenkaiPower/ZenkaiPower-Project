@@ -66,6 +66,7 @@
  * and the names sceSdRemote / sceSdRemoteCallbackInit / sceSifCheckStatRpc / sceSifAllocIopHeap for the callees.
  */
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "sys/snd.h"
 #include "sys/adx.h"
 #include "sys/dma.h"
@@ -152,9 +153,26 @@ void Snd_RpcFreeBank(s32 mask) {
     Snd_RpcCall(SND_RPC_FREE_BANK, &gSndRpcBuf, 4);
 }
 
+#ifdef PORT
+/* Send a full batch before appending, retaining the driver's 32-command ABI.
+ * Do not send TICK here: it still runs exactly once in Snd_RpcFlush. */
+static void Snd_FlushFullQueue(void) {
+    if (Port_OriginalFixesEnabled() && gSndRpc->queue.count >= SND_QUEUE_MAX) {
+        FlushCache(0);
+        gSndRpcBuf.queue = gSndRpc->queue;
+        Snd_RpcCall(SND_RPC_QUEUE, &gSndRpcBuf, sizeof(SndQueue));
+        memset(&gSndRpc->queue, 0, sizeof(SndQueue));
+    }
+}
+#endif
+
 /* Queues a PLAY command; returns the voice handle (a 16-bit serial) or -1 when the queue is full or an argument is out of range. */
 s32 Snd_QueuePlay(s32 mask, u32 id, u32 volume, u32 pan, s32 pitch, s32 loop) {
     SndCmd *cmd;
+
+#ifdef PORT
+    Snd_FlushFullQueue();
+#endif
 
     if (gSndRpc->queue.count >= SND_QUEUE_MAX) {
         return -1;
@@ -189,6 +207,10 @@ s32 Snd_QueuePlay(s32 mask, u32 id, u32 volume, u32 pan, s32 pitch, s32 loop) {
 void Snd_QueueStopId(s32 mask, u32 id) {
     SndCmd *cmd;
 
+#ifdef PORT
+    Snd_FlushFullQueue();
+#endif
+
     if (gSndRpc->queue.count < SND_QUEUE_MAX) {
         if (id < 0x100) {
             cmd = &gSndRpc->queue.cmd[gSndRpc->queue.count];
@@ -203,6 +225,10 @@ void Snd_QueueStopId(s32 mask, u32 id) {
 /* Queues a STOP for the voice a PLAY returned `handle` for. */
 void Snd_QueueStopHandle(s32 handle) {
     SndCmd *cmd;
+
+#ifdef PORT
+    Snd_FlushFullQueue();
+#endif
 
     if (gSndRpc->queue.count < SND_QUEUE_MAX) {
         if (handle >= 0) {

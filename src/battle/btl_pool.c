@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "battle/btl_pool.h"
 #include "sys/heap.h"
 
@@ -7,6 +8,24 @@ extern void *memset(void *dst, s32 c, u32 n);
 extern BtlPool *gBtlPool;
 /* Written by BtlPool_Init and BtlPool_SetInitArg, never read. */
 extern s32 gBtlPoolInitArg;
+
+#ifdef PORT
+/* Overflow blocks keep the arena's lifetime and cannot overwrite its neighbor. */
+typedef struct BtlPoolSpill {
+    struct BtlPoolSpill *next;
+} BtlPoolSpill;
+static BtlPoolSpill *sPoolSpills[BTL_POOL_SLOT_COUNT];
+
+static void BtlPool_ClearSpills(s32 slot) {
+    BtlPoolSpill *p = sPoolSpills[slot];
+    while (p != NULL) {
+        BtlPoolSpill *next = p->next;
+        Heap_Free(p);
+        p = next;
+    }
+    sPoolSpills[slot] = NULL;
+}
+#endif
 
 /* The arena block is reached through a pointer to the field, not as a plain member: after a store to it
  * the compiler reloads gBtlPool, which a direct `gBtlPool->arenaMem = x` does not reproduce. */
@@ -34,6 +53,12 @@ void BtlPool_Init(s32 arg) {
 
 /* Frees the arena memory and the pool manager. */
 void BtlPool_Term(void) {
+#ifdef PORT
+    s32 i;
+    for (i = 0; i < BTL_POOL_SLOT_COUNT; i++) {
+        BtlPool_ClearSpills(i);
+    }
+#endif
     if (ARENA_MEM != NULL) {
         Heap_Free(ARENA_MEM);
         ARENA_MEM = NULL;
@@ -51,6 +76,17 @@ void *BtlPool_Alloc(s32 slot, s32 size) {
     void *ptr;
 
     if (gBtlPool->arenaMask & BTL_POOL_ARENA_BIT(slot)) {
+#ifdef PORT
+        if (Port_OriginalFixesEnabled() && aligned > s->size - s->used) {
+            BtlPoolSpill *spill = Heap_Alloc(aligned + 32, 0x20, 0, HEAP_ANY);
+            if (spill == NULL) {
+                return NULL;
+            }
+            spill->next = sPoolSpills[slot];
+            sPoolSpills[slot] = spill;
+            return (u8 *)spill + 32;
+        }
+#endif
         ptr = s->cur;
         s->cur += aligned;
         s->used += aligned;
@@ -63,6 +99,18 @@ void *BtlPool_Alloc(s32 slot, s32 size) {
 
 /* Frees a pointer from a slot; a no-op for arena slots, which are only released by BtlPool_Reset. */
 void BtlPool_Free(s32 slot, void *ptr) {
+#ifdef PORT
+    BtlPoolSpill **at = &sPoolSpills[slot];
+    while (*at) {
+        if ((u8 *)*at + 32 == ptr) {
+            BtlPoolSpill *found = *at;
+            *at = found->next;
+            Heap_Free(found);
+            return;
+        }
+        at = &(*at)->next;
+    }
+#endif
     if (!(gBtlPool->arenaMask & BTL_POOL_ARENA_BIT(slot))) {
         if (ptr != NULL) {
             Heap_Free(ptr);
@@ -74,6 +122,9 @@ void BtlPool_Free(s32 slot, void *ptr) {
 void BtlPool_Reset(s32 slot) {
     BtlPoolSlot *s = &gBtlPool->slots[slot];
 
+#ifdef PORT
+    BtlPool_ClearSpills(slot);
+#endif
     if (gBtlPool->arenaMask & BTL_POOL_ARENA_BIT(slot)) {
         s->cur = s->base;
         s->used = 0;

@@ -2,6 +2,7 @@
 #include "battle/port_hp_drain.h"
 #endif
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "battle/btl_act_j.h"
 
 /*
@@ -450,6 +451,13 @@ s32 BtlAct_QueueFusion(BtlActJChr *chr, s32 index, s32 partner) {
 
 /* Can the fighter switch member? Needs two living members, no flag 0xAF, and (needGauge) a full switch gauge. */
 s32 BtlAct_CanSwitch(BtlActJChr *chr, s32 needGauge, s32 needAllowed) {
+#ifdef PORT
+    /* Versus transformation rules must not also prohibit teammate switches.
+     * Apply this to both the AI query and the subsequent switch input check. */
+    if (Port_OriginalFixesEnabled() && Battle_GetMode() == 0) {
+        needAllowed = 0;
+    }
+#endif
     if (needAllowed && chr->form.allowed == 0) {
         return 0;
     }

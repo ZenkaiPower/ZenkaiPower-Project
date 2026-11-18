@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "battle/eft_n.h"
 #include "sys/gfx_ot.h"
 
@@ -732,7 +733,11 @@ void EftAuraMgr_Update(void) {
         }
     }
     for (i = 0; i < gPool->count; i++) {
-        if (!gPool->started || BtlCharApi_IsModelNew(i)) {
+        if (!gPool->started || BtlCharApi_IsModelNew(i)
+#ifdef PORT
+            || Port_OriginalFixesEnabled()
+#endif
+        ) {
             EftAura_UpdateLightning(i);
         }
     }

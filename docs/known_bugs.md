@@ -3,6 +3,10 @@
 Things a port must either reproduce exactly (when game behaviour depends on them) or fix on
 purpose. Each is confirmed by C that compiles to the original bytes unless marked inferred.
 
+The table describes original behavior. Selected defects now have gated port
+corrections; see [Original-game fixes](port/original-game-fixes.md) for the
+implemented changes, mode rules, tests and reports still awaiting confirmation.
+
 ## Behaviour-affecting
 
 | Where | What | Consequence |

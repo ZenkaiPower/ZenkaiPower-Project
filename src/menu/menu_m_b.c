@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "menu/port_ultimate_art.h"
 #ifdef PORT
 extern void Port_ItemPanelDrawMenuArt(s32 side);
@@ -1011,6 +1012,14 @@ void UbTeamSel_Input(s32 *result) {
                     gUbTeamSel->sel->cur = gUbTeamSel->teamMax - 1;
                 }
             }
+#ifdef PORT
+            /* Backward movement from Done may land exactly on memberCount.
+             * Equality must also skip the disabled fifth slot in four-person teams. */
+            if (Port_OriginalFixesEnabled() && gUbTeamSel->sel->cur != UB_CUR_MENU &&
+                gUbTeamSel->sel->cur >= gUbTeamSel->teamMax) {
+                gUbTeamSel->sel->cur = gUbTeamSel->teamMax - 1;
+            }
+#endif
             UbTeamSel_ClipGoto(1, UBTEAM_CLIP_TEAM, "fl_on_start");
             if (gUbTeamSel->sel->cur == UB_CUR_MENU) {
                 gUbTeamSel->sel->chara = gUbTeamSel->sel->team.member[0].chara;
@@ -1038,6 +1047,13 @@ void UbTeamSel_Input(s32 *result) {
             UbTeamSel_RequestFace();
             Snd_PlaySe(1, 0);
         } else if (gPad[0].gamePressed & 0x200) {
+#ifdef PORT
+            if (Port_OriginalFixesEnabled() && gUbTeamSel->sel->cur != UB_CUR_MENU &&
+                gUbTeamSel->sel->cur >= gUbTeamSel->teamMax) {
+                Snd_PlaySe(1, 7);
+                break;
+            }
+#endif
             if (gUbTeamSel->sel->cur != UB_CUR_MENU) {
                 /* choose (or change) the member under the cursor */
                 UbTeamSel_SumCost(1);

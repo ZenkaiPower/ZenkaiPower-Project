@@ -1,4 +1,5 @@
 #include "common.h"
+#include "sys/port_original_fixes.h"
 #include "sys/adx.h"
 
 /* CRI ADX */
@@ -144,6 +145,14 @@ void Adx_Play(s32 ch, s32 id, s32 vol, s32 pan) {
         }
         break;
     }
+#ifdef PORT
+    /* PAN_AUTO is the port decoder's per-input-channel default: stereo stays
+     * left/right, while a mono music file remains centered. */
+    if (ch == ADX_CH_BGM && pan == 0 && Port_OriginalFixesEnabled()) {
+        ADXT_SetOutPan(gAdxPlayerTbl[ch].adxt, 0, -128);
+        ADXT_SetOutPan(gAdxPlayerTbl[ch].adxt, 1, -128);
+    } else
+#endif
     Adx_SetPan(ch, pan, pan);
     Adx_SetVolume(ch, vol);
     ADXT_Pause(gAdxPlayerTbl[ch].adxt, 0);
