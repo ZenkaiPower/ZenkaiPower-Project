@@ -222,12 +222,14 @@ sessions retain the original moves, voice lines and View Skills entries.
 | First Blast 2 | Kamehameha | Super Kamehameha | Goku (End) Super Saiyan 3 |
 | Ultimate Blast | Super Kamehameha | Instant Kamehameha | Goku (End) Super Saiyan |
 
-The replacement includes the donor's attack parameters (including cost and
-damage), motion block, effect sequence, and complete View Skills entry in the
+The replacement includes the donor's attack parameters (including cost),
+motion block, effect sequence, and complete View Skills entry in the
 selected language. The regular Super Kamehameha uses SSJ2's original Ultimate
 Blast charge/fire dialogue and lip tracks. Instant Kamehameha uses SSJ1's
 charge/fire dialogue and matching lip tracks. Both follow the selected English
 or Japanese voice language independently of the text language. Meteor Blast and both Blast 1 moves remain unchanged.
+SSJ2 retains its original base damage: **7,460** for the first Blast 2 and
+**13,640** for the Ultimate, including with the replacement moves enabled.
 It applies when selecting SSJ2 directly and when transforming into it, for either
 fighter. Other forms retain their original moves.
 

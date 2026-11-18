@@ -287,8 +287,12 @@ int main(int argc, char **argv) {
         assert(((s16 *)(params + 0x18))[2] == 603);
         assert(params[0x140] == 9); /* Instant Kamehameha's attack handler */
         assert(((s32 *)(params + 0x19C))[2] == 100000); /* donor's ultimate cost */
+        assert(((s32 *)(params + 0x184))[0] == 7460); /* SSJ2's first Blast 2 damage */
+        assert(((s32 *)(params + 0x184))[1] == 7270); /* Meteor Blast unchanged */
+        assert(((s32 *)(params + 0x184))[2] == 13640); /* SSJ2's Ultimate damage */
         memcpy(expected, original, SUPER_BYTES);
         copy_super(expected, sMoves[0].super, 0); copy_super(expected, sMoves[1].super, 2);
+        memcpy(expected + 0x184, original + 0x184, 3 * sizeof(s32));
         for (i = 0; i < SUPER_BYTES; i++) assert(params[i] == expected[i]);
         for (i = 0; i < 5; i++) {
             BObjSlot *donor = i == 2 ? &ssj3 : i == 4 ? &ssj : &target;

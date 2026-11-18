@@ -490,6 +490,8 @@ void Port_ZenkaiMovesBind(void *object, s32 id, s32 chara, s32 type) {
     memcpy(sSuper[id], original, SUPER_BYTES);
     copy_super(sSuper[id], sMoves[0].super, 0);
     copy_super(sSuper[id], sMoves[1].super, 2);
+    /* Keep SSJ2's own base damage while borrowing the moves' presentation. */
+    memcpy(sSuper[id] + 0x184, original + 0x184, 3 * sizeof(s32));
     obj->mdl.unk914 = sSuper[id];
     for (i = 0; i < SUPER_MOTIONS; i++) {
         obj->mdl.anims[0x105 + i] = sMoves[0].motion[i];
