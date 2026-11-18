@@ -2,6 +2,7 @@
 from contextlib import closing
 from pathlib import Path
 import tempfile
+import sqlite3
 import time
 import unittest
 
@@ -62,6 +63,49 @@ class ResultSecurity(unittest.TestCase):
         Matchmaking(self.path)
         with closing(self.service.connect()) as db:
             self.assertEqual(tuple(db.execute('SELECT p1_game_version,p2_game_version FROM battles WHERE uid=3').fetchone()), (129,130))
+
+    def test_battle_classic_modes_are_snapshots(self):
+        self.request(action='save', classic_mode=True)
+        self.request(side=2, action='save', classic_mode=False)
+        result = self.request(action='get')['battle']
+        self.assertEqual((result['p1_classic_mode'], result['p2_classic_mode']), (1, 0))
+        # Retries, or a later loaded save, cannot overwrite the recorded battle.
+        self.request(action='save', classic_mode=False)
+        self.request(side=2, action='save', classic_mode=True)
+        result = self.request(action='get')['battle']
+        self.assertEqual((result['p1_classic_mode'], result['p2_classic_mode']), (1, 0))
+        for invalid in (0, 1, 'true', [], {}):
+            with self.assertRaises(ApiError):
+                self.request(action='save', classic_mode=invalid)
+        with self.assertRaises(ApiError):
+            self.request(action='save', classic_mode=False, account_token='2' * 64)
+        with closing(self.service.connect()) as db, db:
+            self.assertEqual(tuple(db.execute('SELECT p1_classic_mode,p2_classic_mode FROM battles WHERE uid=1').fetchone()), (None, None))
+            db.execute("INSERT INTO battles(uid,start_datetime,player1,player2,player1_uid,player2_uid,battle_type) VALUES(3,1,'user1','user2',1,2,1)")
+            db.execute("INSERT INTO battle_sessions(uid,wire_uid,host_hash,join_hash,started,request_id) VALUES(3,?,?,?,?,?)",
+                       ('00000000-0000-4000-8000-000000000003', digest('host'), digest('join'), self.now, 'classic-snapshot'))
+        wire = '00000000-0000-4000-8000-000000000003'
+        self.request(action='save', uid=wire, classic_mode=False)
+        self.request(side=2, action='save', uid=wire, classic_mode=True)
+        result = self.request(action='get', uid=wire)['battle']
+        self.assertEqual((result['p1_classic_mode'], result['p2_classic_mode']), (0, 1))
+        Matchmaking(self.path)
+        result = self.request(action='get')['battle']
+        self.assertEqual((result['p1_classic_mode'], result['p2_classic_mode']), (1, 0))
+
+    def test_classic_mode_d1_migrations_match_lan(self):
+        def triggers(db):
+            return {row[0]: ' '.join(row[1].split()).rstrip(';').lower()
+                    for row in db.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'battle_classic_modes_%'")}
+
+        with sqlite3.connect(':memory:') as migrated, closing(self.service.connect()) as lan:
+            for path in sorted((Path(__file__).resolve().parents[1] / 'migrations').glob('*.sql')):
+                migrated.executescript(path.read_text())
+            self.assertEqual(triggers(migrated), triggers(lan))
+            self.assertEqual(triggers(migrated), {})
+            self.assertNotIn('classic_mode', {row[1] for row in migrated.execute('PRAGMA table_info(accounts)')})
+            columns = {row[1] for row in migrated.execute('PRAGMA table_info(battles)')}
+            self.assertTrue({'p1_classic_mode', 'p2_classic_mode'} <= columns)
 
     def test_host_alone_cannot_award_points(self):
         self.request()

@@ -1,5 +1,6 @@
 #include "../port_save.h"
 #include "../zenkai_crypto.h"
+#include "../../../include/sys/port_zenkai_pack.h"
 /*
  * Online play, first step: two copies of the game kept in step by exchanging the pads' input (branch netplay).
  *
@@ -466,6 +467,11 @@ static void restore_custom(int player) {
    Copy bytes rather than importing game headers with host-sized pointer types. */
 /* The loaded save before ZENKAIPOWER_SAVES switches to the isolated online folder. */
 static int sSourceZenkai;
+static int sSourceClassic;
+int Port_NetClassicMode(void) {
+    if (getenv("ZENKAIPOWER_SAVES")) return sSourceClassic;
+    return Port_ZenkaiEnabled() && (Port_ZenkaiPackFlags(gSaveData) & PORT_ZENKAI_PACK_DISABLED) != 0;
+}
 /* The online game uses a separate temporary save. Capture the player's own
  * authenticated metadata BEFORE switching ZENKAIPOWER_SAVES, and retain it across
  * both in-process sessions and process-relaunch sessions. */
@@ -499,6 +505,7 @@ static void restore_source_metadata(void) {
 
 static void capture_unlocks(int player) {
     sSourceZenkai = Port_ZenkaiEnabled();
+    sSourceClassic = Port_ZenkaiEnabled() && (Port_ZenkaiPackFlags(gSaveData) & PORT_ZENKAI_PACK_DISABLED) != 0;
     capture_source_metadata();
     memset(sUnlocks, 0, sizeof(sUnlocks));
     capture_custom(player);
@@ -521,6 +528,8 @@ static void restore_unlocks(int player) {
     uint32_t words[NET_UNLOCK_WORDS];
     int i;
     sSourceZenkai = mode != NULL && strcmp(mode, "zenkai") == 0;
+    sSourceClassic = sSourceZenkai && getenv("ZENKAIPOWER_NET_CLASSIC_MODE") &&
+        strcmp(getenv("ZENKAIPOWER_NET_CLASSIC_MODE"), "1") == 0;
     restore_source_metadata();
     if (getenv("ZENKAIPOWER_NET_BOT") != NULL) {
         capture_unlocks(player);
@@ -1982,6 +1991,7 @@ static void relaunch(int role, const char *join, int port) {
         SETENV("ZENKAIPOWER_NET_PC_BINDINGS", pcBindings);
         SETENV("ZENKAIPOWER_NET_GAMEPAD_BINDINGS", gamepadBindings);
         SETENV("ZENKAIPOWER_NET_SAVE_MODE", sSourceZenkai ? "zenkai" : "regular");
+        SETENV("ZENKAIPOWER_NET_CLASSIC_MODE", sSourceClassic ? "1" : "0");
         SETENV("ZENKAIPOWER_NET_SAVE_ID", sSourceSaveId[0] ? sSourceSaveId : NULL);
         SETENV("ZENKAIPOWER_NET_SAVE_HASH", sSourceSaveHash[0] ? sSourceSaveHash : NULL);
         for (i = 0; i < NET_UNLOCK_WORDS; ++i) {
@@ -2043,6 +2053,7 @@ static void relaunch(int role, const char *join, int port) {
     } else {
         SETENV("ZENKAIPOWER_NET_UNLOCKS", NULL);
         SETENV("ZENKAIPOWER_NET_SAVE_MODE", NULL);
+        SETENV("ZENKAIPOWER_NET_CLASSIC_MODE", NULL);
         SETENV("ZENKAIPOWER_NET_SAVE_ID", NULL);
         SETENV("ZENKAIPOWER_NET_SAVE_HASH", NULL);
         SETENV("ZENKAIPOWER_NET_CUSTOM", NULL);

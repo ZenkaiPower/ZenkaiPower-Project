@@ -52,6 +52,33 @@ class AccountWork(unittest.TestCase):
         with closing(reopened.connect()) as db:
             self.assertEqual(db.execute('SELECT game_version FROM accounts WHERE uid=?', (user['user_uid'],)).fetchone()[0], 128)
 
+    def test_account_creation_game_version_is_preserved(self):
+        user = self.call('register', username='CreatedUser', rel=129)
+        self.call('session', account_token=user['token'], rel=130)
+        self.call('login', username='CreatedUser', code=user['code'], rel=131)
+        prepared = self.call('prepare', username='ConfirmUser', rel=128)
+        confirmed = self.call('confirm', ticket=prepared['ticket'], rel=129)
+        self.call('confirm', ticket=prepared['ticket'], rel=130)
+        legacy = self.call('register', username='LegacyVersion')
+        self.call('session', account_token=legacy['token'], rel=131)
+        Matchmaking(self.service.database)
+        with closing(self.service.connect()) as db:
+            def versions(uid):
+                return tuple(db.execute('SELECT created_game_version,game_version FROM accounts WHERE uid=?', (uid,)).fetchone())
+            self.assertEqual(versions(user['user_uid']), (129, 131))
+            self.assertEqual(versions(confirmed['user_uid']), (129, 130))
+            self.assertEqual(versions(legacy['user_uid']), (None, 131))
+        for invalid in (True, -1, 2147483648, '129'):
+            with self.assertRaises(ApiError):
+                self.call('register', username='InvalidVersion', rel=invalid)
+
+    def test_classic_mode_is_not_account_state(self):
+        user = self.call('register', username='ClassicUser', classic_mode=True)
+        self.call('session', account_token=user['token'], classic_mode=False)
+        with closing(self.service.connect()) as db:
+            columns = {row['name'] for row in db.execute('PRAGMA table_info(accounts)')}
+            self.assertNotIn('classic_mode', columns)
+
     def test_hashing_does_not_hold_write_transaction(self):
         user = self.call('register', username='FreshUser')
         entered, release = threading.Event(), threading.Event()

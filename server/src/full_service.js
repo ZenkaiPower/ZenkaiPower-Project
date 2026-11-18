@@ -100,9 +100,12 @@ export class FullService {
         return user;
     }
     versionWrites(user, body) {
-        if (body.rel === undefined || body.rel === null) return [];
-        if (!validInt(body.rel, 0, 2147483647)) throw new ApiError("invalid game version");
-        return [this.stmt("UPDATE accounts SET game_version=? WHERE uid=?", body.rel, user.uid)];
+        const writes = [];
+        if (body.rel !== undefined && body.rel !== null) {
+            if (!validInt(body.rel, 0, 2147483647)) throw new ApiError("invalid game version");
+            writes.push(this.stmt("UPDATE accounts SET game_version=? WHERE uid=?", body.rel, user.uid));
+        }
+        return writes;
     }
     async token(user, now, body, writes = []) {
         const token = random(32), expires = now + 90 * 86400000;
@@ -139,6 +142,8 @@ export class FullService {
             salt: action === 'login' ? user?.code_salt || '00'.repeat(16) : random(16), verifier: user?.code_hash ?? null};
     }
     async account(action, body, ip, now, prepared = null) {
+        if (['register', 'confirm'].includes(action) && body.rel !== undefined && body.rel !== null &&
+            !validInt(body.rel, 0, 2147483647)) throw new ApiError('invalid game version');
         if (!prepared) await this.accountLimits(action, body, ip, now);
         if (['session', 'logout', 'stats'].includes(action)) {
             const user = await this.auth(body, now);
@@ -162,7 +167,7 @@ export class FullService {
             if (await this.first('SELECT 1 FROM accounts WHERE username=?', pending.username)) throw new ApiError('username already exists', 409);
             const uid = await this.nextId('accounts');
             return this.token({uid, username: pending.username, display_name: pending.display_name}, now, body, [
-                this.stmt('INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,created_datetime) VALUES(?,?,?,?,?,?)', uid, pending.display_name, pending.username, pending.code_salt, pending.code_hash, now),
+                this.stmt('INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,created_datetime,created_game_version) VALUES(?,?,?,?,?,?,?)', uid, pending.display_name, pending.username, pending.code_salt, pending.code_hash, now, body.rel ?? null),
                 this.stmt('UPDATE account_registrations SET user_uid=? WHERE ticket_hash=?', uid, ticketHash)]);
         }
         if (!['lookup', 'prepare', 'register', 'login'].includes(action)) throw new ApiError('unknown account endpoint', 404);
@@ -188,7 +193,7 @@ export class FullService {
         }
         const uid = await this.nextId('accounts');
         return {...await this.token({uid, username: canonical, display_name: name}, now, body, [this.stmt(
-            'INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,created_datetime) VALUES(?,?,?,?,?,?)', uid, name, canonical, salt, hashed, now)]), code};
+            'INSERT INTO accounts(uid,display_name,username,code_salt,code_hash,created_datetime,created_game_version) VALUES(?,?,?,?,?,?,?)', uid, name, canonical, salt, hashed, now, body.rel ?? null)]), code};
     }
     async points(uid) {
         if (uid === null) return 0;
@@ -302,15 +307,27 @@ export class FullService {
         const session = await this.first('SELECT s.*,b.player1_uid,b.player2_uid FROM battle_sessions s JOIN battles b USING(uid) WHERE wire_uid=?', wire);
         const host = session && secretEqual(session.host_hash, hashed);
         if (action === 'start') return this.start(body, user, now, hashed, session);
-        if (!['end', 'get', 'interrupt', 'connection'].includes(action)) throw new ApiError('bad request', 404);
+        if (!['end', 'get', 'interrupt', 'connection', 'save'].includes(action)) throw new ApiError('bad request', 404);
         if (!session) throw new ApiError('no battle', 404);
         if ((!host && !secretEqual(session.join_hash, hashed)) || session[host ? 'player1_uid' : 'player2_uid'] !== user.uid) throw new ApiError('unauthorized account', 403);
         const row = await this.row(wire), writes = [];
         // Retained sessions remain readable, but stop accepting mutations after 30 days.
         if (action !== 'get' && now / 1000 - session.started > 30 * 86400) throw new ApiError('battle reporting expired', 403);
+        if (action === 'save' || action === 'connection') {
+            const field = `p${host ? 1 : 2}_classic_mode`;
+            if (body.classic_mode !== undefined && body.classic_mode !== null) {
+                if (typeof body.classic_mode !== 'boolean') throw new ApiError('invalid classic mode');
+                writes.push(this.stmt(`UPDATE battles SET ${field}=? WHERE uid=? AND ${field} IS NULL`, Number(body.classic_mode), session.uid));
+            }
+            if (action === 'save') {
+                await this.commit(writes);
+                return {uid: wire};
+            }
+        }
         if (action === 'connection') {
             validateConnection(body.connection);
-            await this.commit([this.stmt(`UPDATE battle_sessions SET p${host ? 1 : 2}_connection=? WHERE uid=?`, JSON.stringify(body.connection), session.uid)]);
+            writes.push(this.stmt(`UPDATE battle_sessions SET p${host ? 1 : 2}_connection=? WHERE uid=?`, JSON.stringify(body.connection), session.uid));
+            await this.commit(writes);
             return {uid: wire, player: host ? 1 : 2, connection: body.connection};
         }
         if (action === 'interrupt') {

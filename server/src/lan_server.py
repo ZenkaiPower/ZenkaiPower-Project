@@ -200,6 +200,8 @@ class Matchmaking:
                     db.execute("ALTER TABLE accounts RENAME COLUMN username_key TO username")
                 if "game_version" not in account_columns:
                     db.execute("ALTER TABLE accounts ADD COLUMN game_version INTEGER CHECK(game_version BETWEEN 0 AND 2147483647)")
+                if "created_game_version" not in account_columns:
+                    db.execute("ALTER TABLE accounts ADD COLUMN created_game_version INTEGER CHECK(created_game_version BETWEEN 0 AND 2147483647)")
                 columns = {row["name"] for row in db.execute("PRAGMA table_info(battles)")}
                 for field in ("player1_uid", "player2_uid"):
                     if field not in columns:
@@ -252,6 +254,9 @@ BEGIN
     WHERE uid=NEW.uid;
 END;""")
                 session_columns = {row["name"] for row in db.execute("PRAGMA table_info(battle_sessions)")}
+                for field in ("p1_classic_mode", "p2_classic_mode"):
+                    if field not in battle_columns:
+                        db.execute(f"ALTER TABLE battles ADD COLUMN {field} INTEGER CHECK({field} IN (0, 1))")
                 for field in ("p1_connection", "p2_connection"):
                     if field not in session_columns:
                         db.execute(f"ALTER TABLE battle_sessions ADD COLUMN {field} TEXT")
@@ -458,11 +463,10 @@ END;""")
     @staticmethod
     def store_game_version(db, user, body):
         version = body.get("rel")
-        if version is None:
-            return
-        if not integer(version) or not 0 <= version <= 2147483647:
+        if version is not None and (not integer(version) or not 0 <= version <= 2147483647):
             raise ApiError("invalid game version")
-        db.execute("UPDATE accounts SET game_version=? WHERE uid=?", (version, user["uid"]))
+        if version is not None:
+            db.execute("UPDATE accounts SET game_version=? WHERE uid=?", (version, user["uid"]))
 
     @staticmethod
     def rank_policy(db, now):
@@ -539,6 +543,9 @@ END;""")
         return {"offset": offset, "total": total, "entries": entries}
 
     def account(self, db, action, body, now, prepared=None):
+        if action in ("register", "confirm") and body.get("rel") is not None:
+            if not integer(body["rel"]) or not 0 <= body["rel"] <= 2147483647:
+                raise ApiError("invalid game version")
         if action == "stats":
             user = self.account_auth(db, body, now)
             return {"rank_points": self.rank_points(db, user["uid"])}
@@ -559,8 +566,8 @@ END;""")
             if pending["user_uid"] is None:
                 if db.execute("SELECT 1 FROM accounts WHERE username=?", (pending["username"],)).fetchone():
                     raise ApiError("username already exists", 409)
-                uid = db.execute("INSERT INTO accounts(display_name,username,code_salt,code_hash,created_datetime) VALUES(?,?,?,?,?)",
-                                 (pending["display_name"], pending["username"], pending["code_salt"], pending["code_hash"], round(now * 1000))).lastrowid
+                uid = db.execute("INSERT INTO accounts(display_name,username,code_salt,code_hash,created_datetime,created_game_version) VALUES(?,?,?,?,?,?)",
+                                 (pending["display_name"], pending["username"], pending["code_salt"], pending["code_hash"], round(now * 1000), body.get("rel"))).lastrowid
                 db.execute("UPDATE account_registrations SET user_uid=? WHERE ticket_hash=?", (uid, digest(ticket)))
             else:
                 uid = pending["user_uid"]
@@ -586,9 +593,9 @@ END;""")
             if user:
                 raise ApiError("username already exists", 409)
             code, salt = prepared['code'], prepared['salt']
-            uid = db.execute("INSERT INTO accounts(display_name,username,code_salt,code_hash,created_datetime) "
-                             "VALUES (?,?,?,?,?)", (name, name.casefold(), salt, prepared['computed'],
-                                                  round(now * 1000))).lastrowid
+            uid = db.execute("INSERT INTO accounts(display_name,username,code_salt,code_hash,created_datetime,created_game_version) "
+                             "VALUES (?,?,?,?,?,?)", (name, name.casefold(), salt, prepared['computed'],
+                                                  round(now * 1000), body.get("rel"))).lastrowid
             user = {"uid": uid, "username": name.casefold(), "display_name": name}
             return {**self.account_token(db, user, now, body), "code": code}
         if action == "login":
@@ -957,7 +964,7 @@ END;""")
             db.execute("INSERT INTO battle_sessions (uid,wire_uid,host_hash,join_hash,started,request_id) VALUES (?,?,?,?,?,?)",
                        (numeric_uid, uid, hashed, join_hash, now, uid))
             return {"uid": uid, "start_datetime": start}
-        if action not in ("end", "get", "interrupt", "connection"):
+        if action not in ("end", "get", "interrupt", "connection", "save"):
             raise ApiError("bad request", 404)
         uid = body.get("uid")
         if not isinstance(uid, str):
@@ -971,6 +978,16 @@ END;""")
         row = self.battle_row(db, uid)
         if action == "get":
             return {"battle": dict(row)}
+        if action in ("save", "connection"):
+            classic = body.get("classic_mode")
+            if classic is not None:
+                if not isinstance(classic, bool):
+                    raise ApiError("invalid classic mode")
+                field = f"p{1 if host else 2}_classic_mode"
+                db.execute(f"UPDATE battles SET {field}=? WHERE uid=? AND {field} IS NULL",
+                           (int(classic), session["uid"]))
+            if action == "save":
+                return {"uid": uid}
         if action == "connection":
             summary = self.connection_summary(body.get("connection"))
             side = 1 if host else 2
