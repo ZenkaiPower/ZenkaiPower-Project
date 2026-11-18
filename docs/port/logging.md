@@ -22,3 +22,5 @@ when writing or cleaning logs. Logging failures do not prevent the game from run
 Development builds keep their normal console output without automatically creating
 these files. Verify routing, retention, and concurrent writers with
 `make -f port/release/tests.mk release-logging-test`.
+
+Distribution builds write diagnostics to log files without echoing stdout/stderr to the console. Debug builds keep console output. The bot process retains its console protocol. Check with `python3 port/tests/build/release_console.py`.

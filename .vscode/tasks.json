@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Build complete release",
+            "label": "Build Windows debug",
             "type": "process",
             "command": "powershell.exe",
             "args": [
@@ -11,33 +11,7 @@
                 "Bypass",
                 "-File",
                 "${workspaceFolder}/port/release/build.ps1",
-                "all",
-                "-Release"
-            ],
-            "options": {
-                "cwd": "${workspaceFolder}"
-            },
-            "problemMatcher": [
-                "$gcc"
-            ],
-            "group": "build",
-            "presentation": {
-                "reveal": "always",
-                "panel": "dedicated"
-            }
-        },
-        {
-            "label": "Build Windows release",
-            "type": "process",
-            "command": "powershell.exe",
-            "args": [
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                "${workspaceFolder}/port/release/build.ps1",
-                "win",
-                "-Release"
+                "win"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"
@@ -55,7 +29,7 @@
             }
         },
         {
-            "label": "Build Linux release",
+            "label": "Build Linux debug",
             "type": "process",
             "command": "powershell.exe",
             "args": [
@@ -64,8 +38,7 @@
                 "Bypass",
                 "-File",
                 "${workspaceFolder}/port/release/build.ps1",
-                "linux",
-                "-Release"
+                "linux"
             ],
             "options": {
                 "cwd": "${workspaceFolder}"

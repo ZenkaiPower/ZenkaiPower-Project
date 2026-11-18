@@ -2,7 +2,7 @@
 
 The ZENKAI Options menu extends the original Options movie. It preserves the original backdrop, header, Dende, dialogue window, plate decorations and footer timelines. More Options settings use the same runtime owners as the external settings overlay. In ZENKAI mode, native and port Options persist together in the save companion `savegame/zenkaipower.sav.options`. Original mode retains its original menu and navigation.
 
-Launch with `--settings` to enable the F1 external menu. It opens in a separate, movable desktop window and has **Video Settings** and **Cheats** tabs (when cheats are enabled). Video Settings uses the same eight descriptors and `Port_OptionsVideoChange` bridge as the in-game Video Settings page. Changes therefore update the same runtime settings and persistence path, including settings that require a restart to take effect.
+In debug builds, launch with `--settings` to enable the F1 external menu. Release builds ignore this argument. It opens in a separate, movable desktop window and has **Video Settings** and **Cheats** tabs (when cheats are enabled). Video Settings uses the same eight descriptors and `Port_OptionsVideoChange` bridge as the in-game Video Settings page. Changes therefore update the same runtime settings and persistence path, including settings that require a restart to take effect.
 
 ## Menu structure
 

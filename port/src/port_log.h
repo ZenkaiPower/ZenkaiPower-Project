@@ -1,4 +1,4 @@
-/* Release diagnostics mirror stdout/stderr without changing the bot's protocol. */
+/* Release diagnostics capture stdout/stderr without changing the bot's protocol. */
 #ifndef PORT_LOG_H
 #define PORT_LOG_H
 #include <stdio.h>

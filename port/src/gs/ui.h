@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-int Port_SettingsEnabled(void); /* enabled by --settings in normal and release builds */
+int Port_SettingsEnabled(void); /* enabled by --settings in debug builds only */
 
 typedef struct PortVideo {
     int scale;       /* 0 Auto, 1..8 whole multipliers; Android half steps: 50, 150, 250 */

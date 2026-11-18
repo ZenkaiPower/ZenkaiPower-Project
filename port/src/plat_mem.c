@@ -20,22 +20,25 @@ extern int Port_EnsureTextPackage(const char *program);
 #include <stdlib.h>
 #include <string.h>
 
-static int sSettingsEnabled;
-int Port_SettingsEnabled(void) { return sSettingsEnabled; }
 #if defined(PORT_DISTRIBUTION_BUILD) && PORT_DISTRIBUTION_BUILD
+int Port_SettingsEnabled(void) { return 0; }
 int Port_CheatsEnabled(void) { return 0; }
 #else
+static int sSettingsEnabled;
 static int sCheatsEnabled;
+int Port_SettingsEnabled(void) { return sSettingsEnabled; }
 int Port_CheatsEnabled(void) { return sCheatsEnabled; }
 #endif
 static void Port_ParseLaunchArgs(int argc, char **argv) {
+#if !defined(PORT_DISTRIBUTION_BUILD) || !PORT_DISTRIBUTION_BUILD
     int i;
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--settings") == 0) sSettingsEnabled = 1;
-#if !defined(PORT_DISTRIBUTION_BUILD) || !PORT_DISTRIBUTION_BUILD
         if (strcmp(argv[i], "--cheats") == 0) sCheatsEnabled = 1;
-#endif
     }
+#else
+    (void)argc; (void)argv;
+#endif
 }
 
 #define HEAP_BASE 0x003BE000u  /* page that holds the first address */

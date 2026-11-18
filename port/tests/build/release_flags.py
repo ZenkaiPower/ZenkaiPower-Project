@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[3]
 mem=(root/'port/src/plat_mem.c').read_text()
-a=mem.index('static int sSettingsEnabled;')
+a=mem.index('#if defined(PORT_DISTRIBUTION_BUILD)')
 b=mem.index('\n#define HEAP_BASE',a)
 with tempfile.TemporaryDirectory() as tmp:
     tmp=Path(tmp)
@@ -19,10 +19,11 @@ int main(void) {
     Port_ParseLaunchArgs(3,argv);
 #if PORT_DISTRIBUTION_BUILD
     assert(!Port_CheatsEnabled());
+    assert(!Port_SettingsEnabled());
 #else
     assert(Port_CheatsEnabled());
-#endif
     assert(Port_SettingsEnabled());
+#endif
 }
 ''')
     for release in (0,1):
@@ -44,3 +45,17 @@ int main(void) {
     result=subprocess.run(['sh','port/release/build.sh','--invalid'],cwd=root,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     assert result.returncode==2
 print('Release launch gates and script forwarding checks passed')
+
+launch=json.loads((root/'.vscode/launch.json').read_text())['configurations']
+tasks=json.loads((root/'.vscode/tasks.json').read_text())['tasks']
+by_label={task['label']:task for task in tasks}
+assert launch[0]['name']=='Build and run Windows debug'
+for platform in ('Windows','Linux'):
+    config=next(c for c in launch if c['name']==f'Build and run {platform} debug')
+    assert config['args']==['--settings','--cheats']
+    task=by_label[config['preLaunchTask']]
+    assert '-Release' not in task['args']
+    assert 'port/release/build.ps1' in task['args'][-2]
+    assert config['program'].endswith('ZenkaiPower.exe' if platform=='Windows' else 'ZenkaiPower')
+assert by_label['Build Windows debug']['group']['isDefault']
+print('Desktop F5 checks passed: debug tasks, settings/cheats arguments and Windows default.')

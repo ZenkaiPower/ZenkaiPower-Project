@@ -215,18 +215,30 @@ static void record(const char *source, const char *text) {
     UNLOCK();
 }
 
+/* Release diagnostics go to log files. Bots retain their console protocol. */
+static int mirror_console(void) {
+#if defined(PORT_DISTRIBUTION_BUILD) && PORT_DISTRIBUTION_BUILD
+    return getenv("ZENKAIPOWER_NET_BOT") != NULL;
+#else
+    return 1;
+#endif
+}
+
 int Port_LogVPrintf(const char *source, FILE *stream, const char *format, va_list args) {
     va_list copy;
     int result, n;
     char small[2048], *text = small;
-    va_copy(copy, args);
-    result = vfprintf(stream, format, copy);
-    va_end(copy);
-    if (stream != stdout && stream != stderr) return result;
+    if ((stream != stdout && stream != stderr) || mirror_console()) {
+        va_copy(copy, args);
+        result = vfprintf(stream, format, copy);
+        va_end(copy);
+        if (stream != stdout && stream != stderr) return result;
+    } else result = 0;
     va_copy(copy, args);
     n = vsnprintf(small, sizeof(small), format, copy);
     va_end(copy);
-    if (n < 0) return result;
+    if (n < 0) return n;
+    if (!mirror_console()) result = n;
     if (n >= (int)sizeof(small)) {
         text = malloc((size_t)n + 1);
         if (!text) return result;
@@ -249,13 +261,13 @@ int Port_LogPrintf(const char *source, FILE *stream, const char *format, ...) {
 }
 
 int Port_LogPuts(const char *source, const char *text, FILE *stream) {
-    int result = fputs(text, stream);
+    int result = (stream != stdout && stream != stderr) || mirror_console() ? fputs(text, stream) : 0;
     if (stream == stdout || stream == stderr) record(source, text);
     return result;
 }
 
 int Port_LogLine(const char *source, const char *text) {
-    int result = puts(text);
+    int result = mirror_console() ? puts(text) : 0;
     record(source, text);
     return result;
 }

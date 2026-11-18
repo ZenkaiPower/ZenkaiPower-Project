@@ -52,7 +52,7 @@ kind of change.
 
 ## Runtime pack
 
-Extra outfits default to **1** in the shared header; giant scaling defaults to **0**. They set which features
+Extra outfits default to **0** in the shared header; giant scaling defaults to **0**. They set which features
 are compiled in; they do not override a saved decision to disable the pack.
 [Classic Mode](zenkai-pack.md) controls the complete `zenkai_pack` at runtime.
 The two combat headers retain guarded fallbacks with the same enabled defaults.

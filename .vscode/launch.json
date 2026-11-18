@@ -2,24 +2,29 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Build and run Windows release",
+            "name": "Build and run Windows debug",
             "type": "cppvsdbg",
             "request": "launch",
-            "noDebug": true,
             "program": "${workspaceFolder}/build/ZenkaiPower-Windows/ZenkaiPower.exe",
-            "args": [],
+            "args": [
+                "--settings",
+                "--cheats"
+            ],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Build Windows release",
+            "preLaunchTask": "Build Windows debug",
             "externalConsole": false
         },
         {
-            "name": "Build and run Linux release",
+            "name": "Build and run Linux debug",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/ZenkaiPower-Linux/ZenkaiPower",
-            "args": [],
+            "args": [
+                "--settings",
+                "--cheats"
+            ],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Build Linux release",
+            "preLaunchTask": "Build Linux debug",
             "stopAtEntry": false,
             "externalConsole": false,
             "MIMode": "gdb",
@@ -38,32 +43,7 @@
             ]
         },
         {
-            "name": "Build complete release",
-            "type": "cppdbg",
-            "request": "launch",
-            "program": "${workspaceFolder}/build/ZenkaiPower-Linux/ZenkaiPower",
-            "args": [],
-            "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Build complete release",
-            "stopAtEntry": false,
-            "externalConsole": false,
-            "MIMode": "gdb",
-            "miDebuggerPath": "/usr/bin/gdb",
-            "setupCommands": [
-                {
-                    "description": "Allow rollback write tracking to handle protected snapshot pages",
-                    "text": "handle SIGSEGV nostop noprint pass",
-                    "ignoreFailures": false
-                },
-                {
-                    "description": "Stop on actual crashes after rollback rejects a fault",
-                    "text": "break on_crash",
-                    "ignoreFailures": false
-                }
-            ]
-        },
-        {
-            "name": "Build and run Android",
+            "name": "Build and run Android debug",
             "type": "node-terminal",
             "request": "launch",
             "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"${workspaceFolder}/android/run.ps1\"",
