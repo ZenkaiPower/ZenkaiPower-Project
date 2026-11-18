@@ -2,6 +2,14 @@
 
 The **ZENKAI Power!** project aims to provide a complete version of **Dragon Ball Z Sparking! METEOR**, also known as **Dragon Ball Z Budokai Tenkaichi 3**, as if the game had been officially released for PC and mobile. The project also celebrates the different releases of the game by bringing together their unique features into a definitive edition.
 
+<p class="platform-downloads" id="downloads" aria-label="Download the latest release">
+  <a data-download="android" href="https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/download/v1.0.0/ZenkaiPower-v1.0.0-android-arm64.apk"><img src="./figs/download-android.svg" alt="" width="24" height="24"/> <span>Download for Android</span></a>
+  <a data-download="windows" href="https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/download/v1.0.0/ZenkaiPower-v1.0.0-windows-x64.zip"><img src="./figs/download-windows.svg" alt="" width="24" height="24"/> <span>Download for Windows</span></a>
+  <a data-download="linux" href="https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/download/v1.0.0/ZenkaiPower-v1.0.0-linux-x64.zip"><img src="./figs/download-linux.svg" alt="" width="24" height="24"/> <span>Download for Linux</span></a>
+</p>
+
+<p class="download-note">📀 You need your original game disc (SLUS-21678) to install.</p>
+
 ## Game Editions
 
 Three localized versions of the game were released on two different consoles between late 2007 and early 2008.
@@ -237,13 +245,13 @@ To install the game, you must own a copy of the North American NTSC PlayStation 
 
 ### Desktop
 
-Download the installation files for your platform (Windows or Linux), extract them, and follow the installer's instructions. The installation files are available on the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/latest).
+Download the [**Windows x64 ZIP**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/download/v1.0.0/ZenkaiPower-v1.0.0-windows-x64.zip) or [**Linux x64 ZIP**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/download/v1.0.0/ZenkaiPower-v1.0.0-linux-x64.zip), extract it, and follow the installer's instructions. Check the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/latest) for release notes and newer downloads.
 
 <img src="./figs/setup-desktop.gif" alt="Installer" width="320"/>
 
 ### Android
 
-Download the `.apk` file from the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/latest), install it on your Android device, and follow the instructions in the app.
+Download the [**Android ARM64 APK**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/download/v1.0.0/ZenkaiPower-v1.0.0-android-arm64.apk), install it on your Android device, and follow the instructions in the app. Check the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project/releases/latest) for newer downloads.
 
 <img src="./figs/setup-android.gif" alt="Installer" width="320"/>
 

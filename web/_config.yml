@@ -8,3 +8,4 @@ kramdown:
 exclude:
   - README.md
 repository_url: https://github.com/ZenkaiPower/ZenkaiPower-Project
+theme_switcher_enabled: false

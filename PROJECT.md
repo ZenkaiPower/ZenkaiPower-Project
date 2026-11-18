@@ -93,10 +93,16 @@ Release description follows the format:
 ⚠️ <Important 2 if any>
 
 **Added** <if any>
-- Item 1
+- Item 1 <with subtitems need ":", with no subitems need ".">:
   <figure here if any>
-- Item 2
-- Item 3
+  - Subitem 1.
+    <figure here if any>
+  - Subitem 2.
+    <figure here if any>
+- Item 2:
+  - Subitem 1.
+  - Subitem 2.
+- Item 3.
 
 **Changed** <if any>
 - Item 1

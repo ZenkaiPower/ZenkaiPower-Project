@@ -33,6 +33,8 @@ def prepare(destination):
     )
     readme = readme[:editions_start] + editions + readme[editions_end:]
     readme = readme.replace('(./LICENSE)', '(https://github.com/ZenkaiPower/ZenkaiPower-Project/blob/main/LICENSE)')
+    readme = re.sub(r'\]\((?:\./)?(docs/[^)]+)\)',
+                    r'](https://github.com/ZenkaiPower/ZenkaiPower-Project/blob/main/\1)', readme)
     (destination / 'README.md').write_text(readme, encoding='utf-8')
     print(f'Website source: {destination}')
 
