@@ -2,17 +2,17 @@
   "scheme": "zenkaipower-binaries-v2",
   "files": 68605,
   "signatures": {
-    "4bdfcac18ea141ff79b2924969d0fb1eb6502f275b249256262ed3bb8ec867fa": {
+    "0980b74be02242c1a16c0576838e87ea6d3315eb0dbedc9a7e2ed9ab5dcd714a": {
       "version": "1.0.0",
       "platform": "android-arm64"
     },
-    "509a4a1e3689645d192033805168b37402f8a2295a0074834f72d888b1aa609a": {
-      "version": "1.0.0",
-      "platform": "linux-x64"
-    },
-    "88f6c210c3ffde3026b8ac85b40629a5d6b390c8877a0935324dd7227be0bc03": {
+    "7e17675740888b343dc55155d098627df988809f8169aaafbfe82fc45bd95301": {
       "version": "1.0.0",
       "platform": "windows-x64"
+    },
+    "b1817405883020643d028b7a381cc20b62ab69fed85848c3f8ed240edf062202": {
+      "version": "1.0.0",
+      "platform": "linux-x64"
     }
   }
 }
