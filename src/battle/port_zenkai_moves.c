@@ -3,6 +3,7 @@
 #include "common.h"
 #ifdef PORT
 #include "battle/bobj_b.h"
+#include "sys/bpe.h"
 #include "sys/file.h"
 #include "sys/heap.h"
 #include "sys/port_zenkai.h"
@@ -36,6 +37,21 @@ static s32 sMovesReady;
 static void *sFutureGohanGrab[3];
 static void *sGreatApeMoon[2][3];
 static void *sGreatApeMoonCamera[2];
+/* Semi-Perfect Cell's Ultimate cinematic: opening, preparation and detonation poses.
+ * Keep the incoming Super Perfect Cell's own recovery animation. */
+static void *sCellTransform[3];
+static void *sCellWeakened;
+static void *sCellOriginalIdle[ZENKAI_OBJECTS];
+typedef struct CellCinematicEvent {
+    u32 attrLo, attrHi;
+    u16 frame, shape;
+    u32 arg;
+} CellCinematicEvent;
+static u8 *sCellVictim[3];
+static void *sCellTransformLip[2][2]; /* Japanese / English, preparation / detonation. */
+static s32 sCellTransformPartner[2];
+static void *sCellTransformActors[ZENKAI_OBJECTS];
+static u8 sCellCinematic[ZENKAI_OBJECTS];
 extern s32 BtlStage_HasMoon(void);
 static u8 sSuper[ZENKAI_OBJECTS][SUPER_BYTES] __attribute__((aligned(16)));
 static u16 *sText[ZENKAI_OBJECTS];
@@ -67,6 +83,26 @@ static void *clone_entry(u32 *pack, s32 entry) {
     return copy;
 }
 
+static void clear_cell_transform(void) {
+    s32 i;
+    if (sCellWeakened) Heap_Free(sCellWeakened);
+    sCellWeakened = NULL;
+    memset(sCellOriginalIdle, 0, sizeof(sCellOriginalIdle));
+    for (i = 0; i < 3; i++) {
+        if (sCellTransform[i]) Heap_Free(sCellTransform[i]);
+        sCellTransform[i] = NULL;
+        if (sCellVictim[i]) Heap_Free(sCellVictim[i]);
+        sCellVictim[i] = NULL;
+    }
+    for (i = 0; i < 4; i++) {
+        if (sCellTransformLip[i / 2][i % 2]) Heap_Free(sCellTransformLip[i / 2][i % 2]);
+        sCellTransformLip[i / 2][i % 2] = NULL;
+    }
+    memset(sCellTransformActors, 0, sizeof(sCellTransformActors));
+    memset(sCellCinematic, 0, sizeof(sCellCinematic));
+    memset(sCellTransformPartner, 0, sizeof(sCellTransformPartner));
+}
+
 static void clear_ssj2_moves(void) {
     s32 i, j;
     for (i = 0; i < 2; i++) {
@@ -84,6 +120,7 @@ static void clear_ssj2_moves(void) {
 void Port_ZenkaiMovesClear(void) {
     s32 i, j;
     clear_ssj2_moves();
+    clear_cell_transform();
     for (i = 0; i < 3; i++) {
         if (sFutureGohanGrab[i]) Heap_Free(sFutureGohanGrab[i]);
         sFutureGohanGrab[i] = NULL;
@@ -194,6 +231,8 @@ static s32 has_moves(void *object) {
 }
 
 int Port_ZenkaiMoveVoice(void *object, int slot, int line) {
+    if (Port_ZenkaiCellTransformCinematic(object) && slot == 4 && (line == 0x5B || line == 0x5C))
+        return PORT_ZENKAI_VOICE_TAG | (106 << 16) | line;
     if (!has_moves(object)) return line;
     /* SSJ2's former Ultimate dialogue becomes the new regular Super beam. */
     if (slot == 2 && (line == 0x57 || line == 0x58)) return line + 4;
@@ -204,6 +243,10 @@ int Port_ZenkaiMoveVoice(void *object, int slot, int line) {
 
 void *Port_ZenkaiMoveLip(void *object, int voice) {
     s32 phase = (voice & 0xFFFF) - 0x5B;
+    if ((voice & PORT_ZENKAI_VOICE_TAG) && ((voice >> 16) & 0xFF) == 106 &&
+        phase >= 0 && phase < 2 && Port_ZenkaiCellTransformTemporary(object)) {
+        return sCellTransformLip[(gSaveData->flags & SAVE_FLAG_VOICE) != 0][phase];
+    }
     if (!has_moves(object) || !(voice & PORT_ZENKAI_VOICE_TAG) ||
         ((voice >> 16) & 0xFF) != 4 || phase < 0 || phase > 1) return NULL;
     return sMoves[1].voiceLip[(gSaveData->flags & SAVE_FLAG_VOICE) != 0][phase];
@@ -253,6 +296,139 @@ int Port_ZenkaiGreatApeMoonBind(void *object, int giant) {
     return 1;
 }
 
+int Port_ZenkaiCellTransformBind(void *object, int character, int target) {
+    BObj *obj = object;
+    u32 *pack;
+    s32 i, actor;
+    if (!PORT_ZENKAI_CELL_TRANSFORMATION || !obj || character != 107 || target != 108 ||
+        !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive()) return 0;
+    for (actor = 0; actor < ZENKAI_OBJECTS; actor++) {
+        if (!sCellTransformActors[actor] || sCellTransformActors[actor] == obj) break;
+    }
+    if (actor == ZENKAI_OBJECTS) return 0;
+    if (!sCellTransform[0]) {
+        pack = File_LoadSync(0x598 + 106 * 10, NULL, 0);
+        if (!pack) return 0;
+        if (pack[0] < 0x168) { Heap_Free(pack); return 0; }
+        sCellWeakened = clone_entry(pack, 2); /* Semi-Perfect low-health idle, motion 1. */
+        for (i = 0; i < 3; i++) {
+            s32 size = 0;
+            void *compressed = clone_entry(pack, 0x166 + i);
+            sCellTransform[i] = clone_entry(pack, 0x161 + i);
+            if (compressed) {
+                sCellVictim[i] = Bpe_Decode(compressed, NULL, &size);
+                Heap_Free(compressed);
+            }
+            if (!sCellTransform[i] || !sCellVictim[i] || size < 0x94 ||
+                size < 0x94 + sCellVictim[i][1] * sizeof(CellCinematicEvent)) break;
+        }
+        Heap_Free(pack);
+        if (i != 3 || !sCellWeakened) {
+            clear_cell_transform();
+            return 0;
+        }
+        pack = File_LoadSync(0x590 + 106 * 10, NULL, 0);
+        if (!pack) { clear_cell_transform(); return 0; }
+        if (pack[0] >= 0x35 + 100 + 0x5C) {
+            u8 *super = (u8 *)pack + (pack[0x18] & ~3u);
+            s32 size = (pack[0x19] & ~3u) - (pack[0x18] & ~3u);
+            if (size >= SUPER_BYTES) {
+                sCellTransformPartner[0] = ((s16 *)(super + 0x208))[2];
+                sCellTransformPartner[1] = ((s16 *)(super + 0x20E))[2];
+            }
+            for (i = 0; i < 4; i++) {
+                sCellTransformLip[i / 2][i % 2] = clone_entry(pack, 0x35 + (i / 2) * 100 + 0x5B + i % 2);
+                if (!sCellTransformLip[i / 2][i % 2]) break;
+            }
+        } else i = 0;
+        Heap_Free(pack);
+        if (i != 4 || sCellTransformPartner[0] < 0x100 || sCellTransformPartner[1] < 0x100) {
+            clear_cell_transform();
+            return 0;
+        }
+    }
+    if (sCellTransformActors[actor] != obj) sCellOriginalIdle[actor] = obj->mdl.anims[1];
+    /* Perfect Form's own motion 1 does not give the same exhausted stance.
+     * Borrow the actual Semi-Perfect pose only for this temporary presentation. */
+    obj->mdl.anims[1] = sCellWeakened;
+    sCellTransformActors[actor] = obj;
+    sCellCinematic[actor] = 0;
+    return 1;
+}
+
+int Port_ZenkaiCellTransformOpeningFrames(void) {
+    /* Paired opening motions share the same cinematic timeline. */
+    return sCellVictim[0] ? ((u16 *)sCellVictim[0])[1] : 0;
+}
+
+int Port_ZenkaiCellTransformPartner(int costume) {
+    return sCellTransformPartner[costume == 1];
+}
+
+int Port_ZenkaiCellTransformTemporary(void *object) {
+    s32 i;
+    if (!object) return 0;
+    for (i = 0; i < ZENKAI_OBJECTS; i++) {
+        if (sCellTransformActors[i] == object) return 1;
+    }
+    return 0;
+}
+
+void Port_ZenkaiCellTransformEnd(void *object) {
+    s32 i;
+    if (!object) return;
+    for (i = 0; i < ZENKAI_OBJECTS; i++) {
+        if (sCellTransformActors[i] == object) {
+            BObj *obj = object;
+            /* A subsequent full form load has its own table: never restore a
+             * pointer from the old model into that new form. */
+            if (obj->mdl.anims[1] == sCellWeakened) obj->mdl.anims[1] = sCellOriginalIdle[i];
+            sCellOriginalIdle[i] = NULL;
+            sCellTransformActors[i] = NULL;
+            sCellCinematic[i] = 0;
+        }
+    }
+}
+
+/* Presentation state is separate from the battle action: effects may see the
+ * Ultimate cinematic without activating its damage, costs or prone recovery. */
+void Port_ZenkaiCellTransformPresent(void *object, int on) {
+    s32 i;
+    if (!object) return;
+    for (i = 0; i < ZENKAI_OBJECTS; i++) {
+        if (sCellTransformActors[i] == object) sCellCinematic[i] = on != 0;
+    }
+}
+
+int Port_ZenkaiCellTransformCinematic(void *object) {
+    s32 i;
+    if (!object) return 0;
+    for (i = 0; i < ZENKAI_OBJECTS; i++) {
+        if (sCellTransformActors[i] == object) return sCellCinematic[i];
+    }
+    return 0;
+}
+
+/* The Ultimate's paired event track drives its flashes, blur and sub-effects.
+ * Read it without applying the victim's combat action or damage to the opponent. */
+u64 Port_ZenkaiCellTransformVictimAttrs(void *object, int motion, float previous, float current) {
+    u8 *data;
+    u64 attrs = 0;
+    s32 i;
+    if (!Port_ZenkaiCellTransformCinematic(object) || motion < 0x160 || motion > 0x162) return 0;
+    data = sCellVictim[motion - 0x160];
+    if (!data) return 0;
+    current += 1.0f / 60.0f;
+    previous += 1.0f / 60.0f;
+    if (current == previous) previous -= 1.0f;
+    for (i = 0; i < data[1]; i++) {
+        CellCinematicEvent *event = (CellCinematicEvent *)(data + 0x94) + i;
+        if (current >= event->frame && (previous > 0 ? previous < event->frame : previous <= event->frame))
+            attrs |= (u64)event->attrLo | ((u64)event->attrHi << 32);
+    }
+    return attrs;
+}
+
 static void bind_future_gohan_grab(BObj *obj, s32 chara, s32 type) {
     u32 *pack;
     s32 i;
@@ -283,6 +459,15 @@ void Port_ZenkaiMovesBind(void *object, s32 id, s32 chara, s32 type) {
     s32 i, language = -1;
     u16 *text;
     u8 *original;
+    /* A model-only swap keeps the fighter object but rebuilds its animation
+     * pointers. Reapply the cinematic motions to the temporary Semi-Perfect body. */
+    if (type == 0 && chara == 106 && Port_ZenkaiCellTransformTemporary(obj)) {
+        for (i = 0; i < ZENKAI_OBJECTS; i++)
+            if (sCellTransformActors[i] == obj && obj->mdl.anims[1] != sCellWeakened)
+                sCellOriginalIdle[i] = obj->mdl.anims[1];
+        obj->mdl.anims[1] = sCellWeakened;
+        for (i = 0; i < 3; i++) obj->mdl.anims[0x160 + i] = sCellTransform[i];
+    }
     bind_future_gohan_grab(obj, chara, type);
     if (type == 0 && (chara == 30 || chara == 72 || chara == 122))
         Port_ZenkaiGreatApeMoonBind(obj, 1);

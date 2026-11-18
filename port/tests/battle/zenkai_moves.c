@@ -1,17 +1,18 @@
 /* Invoked by zenkai_moves.py with extracted, user-owned character resources. */
 #include "../../../src/battle/port_zenkai_moves.c"
+#include "sys/bpe.h"
 #undef malloc
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 extern s32 memcmp(const void *, const void *, u32);
 static const char *directory;
-static int active, online, allocations, moon;
+static int active, online, allocations, moon, classic;
 s32 BtlStage_HasMoon(void) {return moon;}
 static SaveData save;
 SaveData *gSaveData = &save;
 int Port_ZenkaiEnabled(void) { return active; }
-int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && !classic; }
 int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return online; }
 void *Heap_Alloc(s32 size, u32 align, s32 tail, s32 heap) {
@@ -53,6 +54,101 @@ static void equal_span(const u16 *text, const u16 *source, int slot) {
     assert(b - a == d - c);
     while (a < b) assert(*a++ == *c++);
 }
+static void test_cell_transform(void) {
+    BObj obj;
+    BObjSlot donor = {0}, original = {0};
+    int mode, i;
+    unsigned sourceHash;
+    donor.file[1].buf = File_LoadSync(0x598 + 106 * 10, NULL, 0);
+    original.file[1].buf = File_LoadSync(0x598 + 107 * 10, NULL, 0);
+    sourceHash = hash((u8 *)donor.file[1].buf, pack_size(donor.file[1].buf));
+    for (mode = 0; mode < 4; mode++) {
+        memset(&obj, 0, sizeof(obj));
+        active = mode != 0; online = mode == 1; classic = mode == 2;
+        obj.mdl.anims[1] = BObjFile_GetEntry(&original.file[1], 2);
+        for (i = 0; i < 3; i++) obj.mdl.anims[0x160 + i] = BObjFile_GetEntry(&original.file[1], 0x161 + i);
+        obj.mdl.anims[0x179] = BObjFile_GetEntry(&original.file[1], 0x17A);
+        assert(!Port_ZenkaiCellTransformBind(&obj, 106, 107));
+        assert(!Port_ZenkaiCellTransformBind(&obj, 107, 106));
+        assert(Port_ZenkaiCellTransformBind(&obj, 107, 108) == (mode == 3 && PORT_ZENKAI_CELL_TRANSFORMATION));
+        assert(Port_ZenkaiCellTransformTemporary(&obj) == (mode == 3 && PORT_ZENKAI_CELL_TRANSFORMATION));
+        if (mode == 3 && PORT_ZENKAI_CELL_TRANSFORMATION) {
+            int language, phase;
+            BObjFile model = {0};
+            int size, rawSize;
+            u8 *raw = Bpe_Decode(obj.mdl.anims[1], NULL, &rawSize);
+            u8 *expected = Bpe_Decode(BObjFile_GetEntry(&donor.file[1], 2), NULL, &size);
+            assert(raw && expected && rawSize == size && !memcmp(raw, expected, size));
+            Heap_Free(raw); Heap_Free(expected);
+            /* Cancelling before the swap restores Perfect Form's own idle. */
+            Port_ZenkaiCellTransformEnd(&obj);
+            assert(obj.mdl.anims[1] == BObjFile_GetEntry(&original.file[1], 2));
+            assert(Port_ZenkaiCellTransformBind(&obj, 107, 108));
+            /* A full form reload must retain its new table on cleanup. */
+            obj.mdl.anims[1] = BObjFile_GetEntry(&donor.file[1], 2);
+            model.buf = File_LoadSync(0x590 + 106 * 10, NULL, 0);
+            for (language = 0; language < 2; language++) {
+                save.flags = language ? SAVE_FLAG_VOICE : 0;
+                assert(Port_ZenkaiCellTransformPartner(language) == 281 + language);
+                for (phase = 0; phase < 2; phase++) {
+                    int voice = PORT_ZENKAI_VOICE_TAG | (106 << 16) | (0x5B + phase);
+                    int entry = 0x35 + language * 100 + 0x5B + phase;
+                    int size = (model.buf[entry + 1] & ~3u) - (model.buf[entry] & ~3u);
+                    void *lip = Port_ZenkaiMoveLip(&obj, voice);
+                    assert(lip && !memcmp(lip, BObjFile_GetEntry(&model, entry), size));
+                }
+                {
+                    BObjFile prop = {0};
+                    u8 *animation;
+                    prop.buf = File_LoadSync(0xC1C + Port_ZenkaiCellTransformPartner(language), NULL, 0);
+                    animation = BObjFile_GetEntry(&prop, 0x1D);
+                    assert(animation && *(u16 *)(animation + 2) == 279);
+                    Heap_Free(prop.buf);
+                }
+            }
+            Heap_Free(model.buf);
+            obj.mdl.anims[0x160] = obj.mdl.anims[0x161] = obj.mdl.anims[0x162] = NULL;
+            Port_ZenkaiMovesBind(&obj, 0, 106, 0);
+            assert(obj.mdl.anims[1] == sCellWeakened);
+            for (i = 0; i < 3; i++) assert(obj.mdl.anims[0x160 + i] == sCellTransform[i]);
+            assert(Port_ZenkaiCellTransformOpeningFrames() == 45);
+            Port_ZenkaiCellTransformPresent(&obj, 1);
+            assert(Port_ZenkaiCellTransformCinematic(&obj));
+            assert(Port_ZenkaiMoveVoice(&obj, 4, 0x5B) == (PORT_ZENKAI_VOICE_TAG | (106 << 16) | 0x5B));
+            assert(Port_ZenkaiCellTransformVictimAttrs(&obj, 0x161, 334, 336) & 0x1000);
+            assert(!(Port_ZenkaiCellTransformVictimAttrs(&obj, 0x161, 336, 338) & 0x1000));
+            assert(Port_ZenkaiCellTransformVictimAttrs(&obj, 0x162, 248, 250) & 0x4000);
+        }
+        for (i = 0; i < 3; i++) {
+            void *expected = BObjFile_GetEntry(&donor.file[1], 0x161 + i);
+            if (mode == 3 && PORT_ZENKAI_CELL_TRANSFORMATION) {
+                int size, rawSize;
+                u8 *raw = Bpe_Decode(obj.mdl.anims[0x160 + i], NULL, &rawSize);
+                u8 *comparison = Bpe_Decode(expected, NULL, &size);
+                assert(raw[1] > 0 && rawSize == size && rawSize <= 0xC000);
+                assert(!memcmp(raw, comparison, size)); /* All pose tracks preserved. */
+                Heap_Free(raw); Heap_Free(comparison);
+            } else assert(obj.mdl.anims[0x160 + i] == BObjFile_GetEntry(&original.file[1], 0x161 + i));
+        }
+        assert(obj.mdl.anims[0x179] == BObjFile_GetEntry(&original.file[1], 0x17A));
+        assert(sourceHash == hash((u8 *)donor.file[1].buf, pack_size(donor.file[1].buf)));
+        Port_ZenkaiCellTransformEnd(&obj);
+        assert(obj.mdl.anims[1] == BObjFile_GetEntry(
+            mode == 3 && PORT_ZENKAI_CELL_TRANSFORMATION ? &donor.file[1] : &original.file[1], 2));
+        assert(!Port_ZenkaiCellTransformTemporary(&obj));
+        assert(!Port_ZenkaiMoveLip(&obj, PORT_ZENKAI_VOICE_TAG | (106 << 16) | 0x5B));
+        Port_ZenkaiMovesClear();
+        assert(!sCellTransform[0] && !sCellTransform[1] && !sCellTransform[2]);
+        assert(!sCellWeakened);
+        assert(!sCellVictim[0] && !sCellVictim[1] && !sCellVictim[2]);
+        assert(!Port_ZenkaiCellTransformCinematic(&obj));
+    }
+    classic = online = active = 0;
+    Heap_Free(donor.file[1].buf); Heap_Free(original.file[1].buf);
+    assert(!allocations);
+    puts("Cell transformation asset checks passed (gates, complete motions, paired effects and cleanup)");
+}
+
 static void test_great_ape_moon(void) {
     BObj obj;
     BObjSlot source = {0};
@@ -148,6 +244,7 @@ int main(int argc, char **argv) {
     int i, language, base[3] = {0x590, 0x598, 0x599};
     u8 *original;
     assert(argc == 2); directory = argv[1];
+    test_cell_transform();
     test_great_ape_moon();
     test_future_gohan_grab();
     active=online=0;

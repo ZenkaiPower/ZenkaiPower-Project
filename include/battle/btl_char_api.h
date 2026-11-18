@@ -82,7 +82,7 @@ typedef struct BtlCharApiObj {
     } u;
     /* 0xA48 */ u8 unkA48[0xC78 - 0xA48];
     /* 0xC78 */ f32 unkC78;
-    /* 0xC7C */ u8 unkC7C[0xC80 - 0xC7C];
+    /* 0xC7C */ f32 prevFrame;
     /* 0xC80 */ f32 unkC80;
     /* 0xC84 */ u8 unkC84[0xCAC - 0xC84];
     /* 0xCAC */ s8 unkCAC;

@@ -8,6 +8,7 @@ Original mode retains its original behavior regardless of these switches.
 
 | Flag | Enabled (`1`) | Disabled (`0`) |
 |---|---|---|
+| `PORT_ZENKAI_CELL_TRANSFORMATION` | Perfect Cell visibly detransforms into Semi-Perfect Cell, plays his Ultimate cinematic with its original camera, event-driven effects and sounds, skipping the opening punch, then returns directly to play as clean Super Perfect Cell. Defaults to `1`; offline Zenkai pack only, with Classic Mode off. See [Cell transformation](cell-transformation.md). | Retains the original transformation presentation. |
 | `PORT_ZENKAI_ORIGINAL_FIXES` | Enables the documented original-game corrections in Zenkai mode, including Classic Mode. Defaults to `1`; independent of the optional pack. See [Original-game fixes](original-game-fixes.md). | Retains the original behavior for these defects and the original English text for correction keys. |
 | `PORT_ZENKAI_GREAT_APE_MOON` | On full-moon stages, Vegeta (Scouter), King Vegeta and Turles use Nappa?s complete Great Ape transformation motions and matching moon-framing camera tracks instead of creating a Power Ball. Limited to the offline Zenkai pack, outside Classic Mode. | Keeps the original Power Ball presentation on all stages. |
 | `PORT_ZENKAI_GIANTS` | Enables 2.5× giant models, collision/effect/prop scaling, camera and aiming adjustments, and temporary original model/effect sizing during technique cinematics. | Uses original giant sizing and behavior, including original cinematic sizing, cameras, aiming, effects, and props. |

@@ -85,7 +85,9 @@ typedef struct BtlActHChr {
     /* 0x0DC4 */ s32 drainTo;        /* last frame of it */
     /* 0x0DC8 */ u8 unkDC8[0xE60 - 0xDC8];
     /* 0x0E60 */ s32 unkE60;         /* counter 0..10, +1 per throw by character 0x6E */
-    /* 0x0E64 */ u8 unkE64[0xFB0 - 0xE64];
+    /* 0x0E64 */ u8 unkE64[0xEFC - 0xE64];
+    /* 0x0EFC */ f32 stepFrame[5];
+    /* 0x0F10 */ u8 unkF10[0xFB0 - 0xF10];
     /* 0x0FB0 */ BtlActHReact react;
     /* 0x0FE0 */ u8 unkFE0[0x12CC - 0xFE0];
     /* 0x12CC */ BtlActHForm form;
@@ -113,6 +115,8 @@ typedef struct BtlActHObj {
 /* Member entry (BtlMember_GetActive). */
 typedef struct BtlActHMember {
     /* 0x00 */ s32 chara;
+    /* 0x04 */ u8 unk4[0x60 - 0x04];
+    /* 0x60 */ s32 variant; /* active gauge + 0x20: current outfit damage */
 } BtlActHMember;
 
 #define BTL_KMH(x) ((x) * 1000.0f / 3600.0f * (1.0f / 30.0f))

@@ -1,6 +1,9 @@
 #include "common.h"
 #include "battle/port_effect_vector.h"
 #include "battle/eft_k.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Effect scene, layer 1 (technique effects), 0x157398..0x15C728 (the former eft_l.c, 0x15B550..0x15C728, is
@@ -71,6 +74,7 @@ extern f32 BtlScene_GetCharScale(s32 chr);
 extern void *BtlTask_CreateChildList(EftKTask *task, s32 count, s32 workSize);
 extern void *BtlTaskList_AddTail(void *list, void *cls, void *arg);
 
+extern void *BtlObj_Get(s32 objId);
 extern s32 BtlCharApi_GetAuraType(s32 objId);
 extern f32 BtlCharApi_GetHeight(s32 objId);
 extern s32 BtlCharApi_GetOpponentObjId(s32 objId);
@@ -910,6 +914,17 @@ void EftTechEvtTask_UpdateRush(EftKTask *task) {
     EftKSrc *src = w->arg.src;
     EftTechEvtEntry *e;
     s32 i;
+#ifdef PORT
+    s32 pairedObject = -1;
+    u64 pairedAttrs = 0;
+    if (Port_ZenkaiCellTransformCinematic(BtlObj_Get(src->objId))) {
+        pairedObject = BtlCharApi_GetOpponentObjId(src->objId);
+        pairedAttrs = Port_ZenkaiCellTransformVictimEvents(src->objId);
+    }
+#define RUSH_EVENT(mask) (i == pairedObject ? (pairedAttrs & (mask)) != 0 : BtlCharApi_ObjTestAttr(i, (mask)))
+#else
+#define RUSH_EVENT(mask) BtlCharApi_ObjTestAttr(i, (mask))
+#endif
 
     if (BtlCharApi_IsRushConnected(src->objId)) {
         w->flags |= 8;
@@ -937,34 +952,35 @@ void EftTechEvtTask_UpdateRush(EftKTask *task) {
     }
     for (i = 0; i < gEftTechEvt->count; i++) {
         e = &gEftTechEvt->entries[i];
-        if (BtlCharApi_ObjTestAttr(i, 0x200)) {
+        if (RUSH_EVENT(0x200)) {
             e->events |= EFT_TECH_EVT_START;
             w->flags |= 2;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x400)) {
+        if (RUSH_EVENT(0x400)) {
             e->events |= EFT_TECH_EVT_FIRE;
             w->flags |= 4;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x1000)) {
+        if (RUSH_EVENT(0x1000)) {
             e->events |= EFT_TECH_EVT_10;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x2000)) {
+        if (RUSH_EVENT(0x2000)) {
             e->events |= EFT_TECH_EVT_20;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x4000)) {
+        if (RUSH_EVENT(0x4000)) {
             e->events |= EFT_TECH_EVT_40;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x200000)) {
+        if (RUSH_EVENT(0x200000)) {
             e->events |= EFT_TECH_EVT_80;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x400000)) {
+        if (RUSH_EVENT(0x400000)) {
             e->events |= EFT_TECH_EVT_100;
         }
-        if (BtlCharApi_ObjTestAttr(i, 0x800000)) {
+        if (RUSH_EVENT(0x800000)) {
             e->events |= EFT_TECH_EVT_200;
         }
     }
 }
+#undef RUSH_EVENT
 
 /* 1 for a rush technique: kind not 0 and either sub-kind 5 or the fighter is in the rush sequence. */
 s32 EftTechEvt_IsRushTech(EftKSrc *src) {

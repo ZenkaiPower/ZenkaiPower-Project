@@ -781,6 +781,9 @@ f32 BtlCharApi_GetChargeRate(s32 objId) {
    5 rush sequence, else 1. */
 s32 BtlCharApi_GetActionFxKind(s32 objId) {
     BtlCapiChr *chr = BtlChar_FindByObjId(objId);
+#ifdef PORT
+    if (chr && Port_ZenkaiCellTransformCinematic(BtlChar_GetObj(chr))) return 5;
+#endif
 
     if (chr != NULL) {
         switch (BtlAct_GetCurrent(chr)) {
@@ -826,6 +829,9 @@ f32 BtlCharApi_GetBlindRatio(s32 objId) {
 s32 BtlCharApi_GetRushFinishPhase(s32 objId) {
     s32 level = -1;
     BtlCapiChr *chr = BtlChar_FindByObjId(objId);
+#ifdef PORT
+    if (chr && Port_ZenkaiCellTransformCinematic(BtlChar_GetObj(chr))) return 0;
+#endif
 
     if (chr == NULL) {
         return -1;
@@ -1110,6 +1116,9 @@ s32 BtlCharApi_IsChargingKiBlast(s32 objId) {
 /* Whether the fighter is in a technique action (0x105..0x132). */
 s32 BtlCharApi_IsInTechnique(s32 objId) {
     BtlCapiChr *chr = BtlChar_FindByObjId(objId);
+#ifdef PORT
+    if (chr && Port_ZenkaiCellTransformCinematic(BtlChar_GetObj(chr))) return 1;
+#endif
 
     if (chr != NULL) {
         return BtlAct_IsTechniqueId(BtlAct_GetCurrent(chr));
@@ -1133,6 +1142,9 @@ s32 BtlCharApi_EnteredTechnique(s32 objId) {
 /* Fighter flag 0xA1 (raised when the damage of a rush technique is set up). */
 s32 BtlCharApi_IsRushConnected(s32 objId) {
     BtlCapiChr *chr = BtlChar_FindByObjId(objId);
+#ifdef PORT
+    if (chr && Port_ZenkaiCellTransformCinematic(BtlChar_GetObj(chr))) return 1;
+#endif
 
     if (chr != NULL) {
         return BtlChar_TestFlag(chr, 0xA1);
@@ -1143,6 +1155,9 @@ s32 BtlCharApi_IsRushConnected(s32 objId) {
 /* Whether the fighter is in a rush sequence action (0x12D..0x12F, 0x139..0x13B). */
 s32 BtlCharApi_IsInRushSequence(s32 objId) {
     BtlCapiChr *chr = BtlChar_FindByObjId(objId);
+#ifdef PORT
+    if (chr && Port_ZenkaiCellTransformCinematic(BtlChar_GetObj(chr))) return 1;
+#endif
 
     if (chr != NULL) {
         switch (BtlAct_GetCurrent(chr)) {

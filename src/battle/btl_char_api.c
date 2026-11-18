@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_api.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Fighter interface, 0x207020..0x208430: 58 accessors keyed by battle object id (or by nothing), used by the camera,
@@ -500,6 +503,16 @@ s32 BtlCharApi_ObjGetAttrKind(s32 objId, u64 mask) {
     }
     return 0;
 }
+
+#ifdef PORT
+u64 Port_ZenkaiCellTransformVictimEvents(int objectId) {
+    BtlCharApiChr *chr = BtlChar_FindByObjId(objectId);
+    BtlCharApiObj *obj;
+    if (!chr) return 0;
+    obj = BtlChar_GetObj(chr);
+    return Port_ZenkaiCellTransformVictimAttrs(obj, BtlAnim_GetId(chr), obj->prevFrame, obj->unkC78);
+}
+#endif
 
 /* Object float +0xC78, raised by the fighter's +0xEFC entries while it is in actions 0x12D..0x12F / 0x139..0x13B. */
 f32 BtlCharApi_GetChargedUnkC78(s32 objId) {

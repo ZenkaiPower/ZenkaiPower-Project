@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_fx.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Fighter effect requests, part 3: 0x1D1EC8..0x1D3B40.
@@ -733,6 +736,66 @@ void BtlPartner_UpdateEvents(FxChr *chr) {
         BtlPartner_HandleEvents(BtlObj_Get(p->objId), chr);
     }
 }
+
+#ifdef PORT
+extern void ChrCam_RequestCut(FxChr *chr, s32 table, s32 cut);
+extern void EftStage_SetDrawOn(s32 on);
+extern void BtlAnim_Play(FxChr *chr, s32 motion, f32 blend);
+
+void Port_ZenkaiCellTransformKeepPose(void *fighter, int restore) {
+    static f32 frame[2];
+    FxChr *chr = fighter;
+    FxObj *obj = BtlChar_GetObj(chr);
+    if (chr->player < 0 || chr->player > 1 ||
+        !Port_ZenkaiCellTransformTemporary(obj) || BtlAnim_GetId(chr) != 1) return;
+    if (!restore) frame[chr->player] = obj->anim.frame;
+    else {
+        /* Bind the weakened tracks before the loader samples the new body.
+         * Keep the breathing cycle at the same frame across both reloads. */
+        BtlAnim_Play(chr, 1, 0.0f);
+        obj->anim.frame = frame[chr->player];
+        obj->anim.prevFrame = frame[chr->player];
+    }
+}
+
+void Port_ZenkaiCellTransformFrontCamera(void *fighter) {
+    /* Native transformation framing follows the model's nodes and placement;
+     * it also uses the battle camera's projection and clipping setup. */
+    ChrCam_RequestCut(fighter, 0, 6);
+}
+
+void Port_ZenkaiCellTransformDialogue(void *fighter) {
+    FxObj *obj = BtlChar_GetObj(fighter);
+    /* Start just before the preparation line at frame 154. The earlier poses
+     * include both the caught-opponent recovery and the return from the punch. */
+    obj->anim.frame = 152.0f;
+    obj->anim.prevFrame = 152.0f;
+}
+
+void Port_ZenkaiCellTransformReveal(void *fighter) {
+    FxChr *chr = fighter;
+    FxObj *obj = BtlChar_GetObj(chr);
+    BtlChar_ClearFlag(chr, 0x30);
+    BtlObj_SetColorMode(obj, 3, 0);
+    obj->flags |= FX_OBJ_DRAWN;
+    EftStage_SetDrawOn(1);
+    StgTint_Start(1, 1, 0.0f);
+}
+
+void Port_ZenkaiCellTransformPartnerVisible(void *fighter, int visible) {
+    FxChr *chr = fighter;
+    FxObj *obj = NULL;
+    if (!Port_ZenkaiCellTransformTemporary(BtlChar_GetObj(chr))) return;
+    if (chr->partner.active) obj = BtlObj_Get(chr->partner.objId);
+    if (visible && !obj) return;
+    if (visible) BtlChar_SetHeldFlag(chr, 0x30);
+    else BtlChar_ClearFlag(chr, 0x30);
+    if (obj) {
+        if (visible) obj->flags |= 2;
+        else obj->flags &= ~2;
+    }
+}
+#endif
 
 /* Starts the partner animation that belongs to a fighter animation number (those from 0x19E up). */
 void BtlPartner_PlayAnim(FxChr *chr, s32 anim) {

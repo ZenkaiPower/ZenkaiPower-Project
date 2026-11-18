@@ -134,6 +134,11 @@ static void Port_EftHitScaleGiant(EftHitRec *rec) {
 
 /* Completes a record from its source (technique) or attack (blast) and appends it; nothing while time is stopped. */
 void EftHit_Add(EftHitRec *rec) {
+#ifdef PORT
+    /* The borrowed Cell Ultimate is a transformation cinematic, never an attack. */
+    if (Port_ZenkaiCellTransformTemporary(BtlObj_Get(
+            rec->src ? rec->src->objId : rec->atk ? rec->atk->objId : rec->objId))) return;
+#endif
     if (BtlScene_IsTimeStopped()) {
         return;
     }

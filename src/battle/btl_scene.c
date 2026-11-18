@@ -1,6 +1,7 @@
 #include "common.h"
 #ifdef PORT
 #include "sys/port_zenkai.h"
+extern void *BtlObj_Get(s32 objId);
 #endif
 #include "battle/battle.h"
 #include "battle/battle_setup.h"
@@ -544,7 +545,13 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
             result = 1;
         }
     }
-    if (BtlCharApi_IsChanging(objId)) {
+    if (BtlCharApi_IsChanging(objId)
+#ifdef PORT
+        /* Cell's borrowed Ultimate still runs inside the transformation action.
+         * Let its authored effects draw until the cinematic has finished. */
+        && !Port_ZenkaiCellTransformCinematic(BtlObj_Get(objId))
+#endif
+    ) {
         switch (kind) {
         case 5:
         case 6:

@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/eft_ab.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Transformation / fusion effect, 0x1A0020..0x1A0E58. Manager class 0x2C42C0 = {EftTransformMgr_Update, _Init,
@@ -440,6 +443,27 @@ s32 EftTransform_Flash(void) {
     w->flags |= EFT_TF_FLASH;
     return 1;
 }
+
+#ifdef PORT
+/* The Cell reveal needs the native after-particles without the flash's
+ * stage blanking and model hide. Other transformations retain the flash. */
+void Port_ZenkaiCellTransformGlow(int objectId) {
+    EftAbTask *task = gEftTransform->task;
+    EftTransform *w;
+    if (!task || !gEftTransform->busy) return;
+    w = task->work;
+    if (w->arg.objId != objectId) return;
+    if (w->flags & EFT_TF_TINT) {
+        StgTint_Start(1, 1, 0.0f);
+        BtlCharApi_ObjClearMaskBit3(objectId);
+        EftStage_SetDrawOn(1);
+        w->flags &= ~EFT_TF_TINT;
+    }
+    EftStage_SetDrawOn(1);
+    w->flags = (w->flags & ~EFT_TF_FLASH) | EFT_TF_AFTER;
+    task->step = 3;
+}
+#endif
 
 /* Fighter effect request 2: ends the running effect and lets a new one start. */
 s32 EftTransform_End(void) {

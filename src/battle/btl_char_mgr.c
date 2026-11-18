@@ -1,6 +1,7 @@
 #ifdef PORT
 #include "battle/port_hp_drain.h"
 #include "battle/port_ginyu_health.h"
+#include "sys/port_zenkai.h"
 #endif
 #include "common.h"
 #include "battle/battle.h"
@@ -356,6 +357,9 @@ void BtlChar_BindObject(BtlMgrChr *chr) {
     BtlChar_ClearFlagRange(chr, 0x98, 0x99);
     BtlObj_InitChains(obj);
     memset(chr->unkE00, 0, 0x40);
+#ifdef PORT
+    if (!Port_ZenkaiCellTransformTemporary(obj))
+#endif
     BtlStat_Reset(chr);
     OBJ_WORD_18028(obj) = 0;
 }
@@ -495,6 +499,9 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     else
 #endif
     BtlAnim_FlushRequest(chr);
+#ifdef PORT
+    Port_ZenkaiCellTransformKeepPose(chr, 1);
+#endif
     BtlObjAnim_SamplePose(obj);
     BtlChar_PoseToObj(chr, 1);
     BtlObjPose_CalcMatrices(obj);
@@ -504,6 +511,11 @@ void BtlChar_OnModelLoaded(BtlMgrChr *chr) {
     case 0xEE:
     case 0xEF:
     case 0xF0:
+#ifdef PORT
+        /* Cell's temporary Semi-Perfect body is presentation only. Do not
+         * change the member, HP ratio, stats or transformation recovery bonuses. */
+        if (Port_ZenkaiCellTransformTemporary(obj)) break;
+#endif
         /* transformation: keep the health ratio */
         m = BtlMember_GetActive(chr);
         m->chara = chr->newChara;

@@ -10,6 +10,8 @@ BtlFlagRoster *gBtlChars = &roster;
 static int slot, mapped = 1, mouthMode, mouthArg;
 static u64 event;
 static s32 object[8], lip[8];
+static int cellTransform;
+int Port_ZenkaiCellTransformCinematic(void *obj) { assert(obj == object); return cellTransform; }
 void Vec4_Copy(Vec4 *dst, Vec4 *src) { *dst = *src; }
 void BtlCharApi_GetNodePos(s32 id, s32 node, Vec4 *out) { Vec4 zero = {0}; (void)id; (void)node; *out = zero; }
 void *BtlChar_GetObj(BtlFlagChr *chr) { (void)chr; return object; }
@@ -21,6 +23,7 @@ void BtlObj_SetSubState(void *obj, s32 mode, s32 arg) { assert(obj == object); m
 /* Asset-backed routing/lip selection is tested separately in zenkai_moves.c. */
 int Port_ZenkaiMoveVoice(void *obj, int which, int line) {
     assert(obj == object);
+    if (cellTransform && which == 4) return PORT_ZENKAI_VOICE_TAG | (106 << 16) | line;
     if (!mapped) return line;
     return which == 2 ? line + 4 : which == 4 ? PORT_ZENKAI_VOICE_TAG | (4 << 16) | line : line;
 }
@@ -48,6 +51,19 @@ int main(void) {
         BtlCharSnd_PlayTechSounds(&chr);
         assert(request->id == 0x57 + phase && mouthMode == 2 && mouthArg == 0x57 + phase);
         mapped = 1;
+        mapped = 0; cellTransform = 1; roster.snd.count = 0;
+        slot = -1; BtlCharSnd_PlayTechSounds(&chr);
+        assert(roster.snd.count == 1 && ((request->id >> 16) & 255) == 106);
+        assert((request->id & PORT_ZENKAI_VOICE_TAG) && (request->id & 0xFFFF) == 0x5B + phase);
+        assert(request->owner == side && request->kind == side + 5);
+        assert(mouthMode == 14 && mouthArg == (s32)(unsigned long)lip);
+        roster.snd.count = 0; cellTransform = 0;
+        slot = -1; BtlCharSnd_PlayTechSounds(&chr);
+        assert(!roster.snd.count);
+        cellTransform = 1; event = 0;
+        BtlCharSnd_PlayTechSounds(&chr);
+        assert(!roster.snd.count);
+        mapped = 1; cellTransform = 0;
     }
     return 0;
 }

@@ -702,6 +702,18 @@ void ChrCam_RequestCut(ChrCamChr *chr, s32 table, s32 index) {
     BtlChar_SetFlag(chr, 0xDB);
 }
 
+#ifdef PORT
+static void Port_ChrCamCellDetransform(ChrCamChr *chr) {
+    if (chr->cut.unk0 == 0 && chr->cut.unk4 == 6 &&
+        Port_ZenkaiCellTransformTemporary(BtlChar_GetObj(chr)) && BtlAnim_GetId(chr) == 1) {
+        /* Keep the native front view and node tracking, with a fixed distance
+         * based on Cell's size instead of the transformation's pullback. */
+        chr->cut.valC = BtlCharApi_GetHeight(chr->objId) * 2.2f;
+        chr->cut.valCDelta = 0.0f;
+    }
+}
+#endif
+
 /* Starts the cut asked for with ChrCam_RequestCut from its table entry. */
 void ChrCam_StartCut(ChrCamChr *chr) {
     Vec4 vecA;
@@ -890,6 +902,9 @@ void ChrCam_StartCut(ChrCamChr *chr) {
         ChrCam_SetCut(chr, &vecA, &vecADelta, &vecB, (Vec4 *)&D_002EC2A0, &vecC, &vecCDelta, unk88, valA,
                       valADelta, valB, valBDelta, valC, valCDelta, unk8C, unk90, unk94, time, cutFlags);
     }
+#ifdef PORT
+    Port_ChrCamCellDetransform(chr);
+#endif
 }
 
 /* Ends the running cut, raising the flags its end bits ask for. */

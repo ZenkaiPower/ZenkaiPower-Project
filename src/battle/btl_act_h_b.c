@@ -648,19 +648,51 @@ void BtlActChange_Finish(BtlActHChr *chr) {
  * 0xEC: transformation. Lead-in 0x177 (camera cut 4), loop 0x178 until the model is in memory, closing 0x179
  * (camera cut 6, voice 0x22). Pushes back with BtlActChange_PushBack during the lead-in and the loop.
  */
+#ifdef PORT
+extern void BtlChar_RequestPlaceRelative(BtlActHChr *chr, s32 slot, s32 step, s32 self);
+extern f32 BtlAnim_GetFrame(BtlActHChr *chr);
+extern void EftTransform_End(void);
+extern void EftCam_Stop(void);
+extern void DemoCam_ClearFixed(void);
+extern void BtlSuper_SetRushFlags(BtlActHChr *chr);
+extern s32 BtlSuper_GetUnk223(BtlActHChr *chr, s32 slot);
+#endif
+
 s32 BtlAct_TransformA(BtlActHChr *chr, s32 phase) {
     BtlActHPose *pose;
     s32 waiting;
 
     if (phase == 0) {
+#ifdef PORT
+        chr->work[18] = Port_ZenkaiCellTransformBind(BtlChar_GetObj(chr),
+            BtlMember_GetActive(chr)->chara, chr->form.chara);
+#endif
         pose = BtlChar_GetPos(chr);
+#ifdef PORT
+        if (chr->work[18]) {
+            /* The final transformation request may clear damage. Capture the
+             * current body instead for both temporary Semi-Perfect loads. */
+            chr->work[15] = BtlMember_GetActive(chr)->variant;
+            BtlAnim_Play(chr, 1, 0.25f);
+            chr->work[17] = 0;
+            chr->work[19] = 11;
+        }
+        else
+#endif
         BtlAnim_Play(chr, 0x177, 0.0f);
+#ifdef PORT
+        if (!chr->work[18])
+#endif
         BtlAnim_PlaySub(chr, 0x178);
         pose->unk98 = 0.0f;
         pose->unk9C = 0.0f;
         BtlMove_SetHeading(chr, pose->rot.y, 0.0f);
         BtlChar_SetHeldFlag(chr, 0xE);
         BtlChar_SetFlag(chr, 0x29);
+#ifdef PORT
+        if (chr->work[18]) Port_ZenkaiCellTransformFrontCamera(chr);
+        else
+#endif
         ChrCam_RequestCut(chr, 0, 4);
         BtlChar_SavePlacement(chr);
         BtlChar_ResetLook(chr);
@@ -668,18 +700,209 @@ s32 BtlAct_TransformA(BtlActHChr *chr, s32 phase) {
     }
     if (phase == 1) {
         waiting = 0;
-        if (chr->actionFrame == 1) {
+#ifdef PORT
+        if (chr->work[18] && chr->work[19] == 11) {
+            /* Show Perfect Form Cell's weakened stance before starting the
+             * flash or loading Semi-Perfect Cell, rather than swapping at once. */
+            Port_ZenkaiCellTransformFrontCamera(chr);
+            BtlAnim_AdvanceLoop(chr, 0);
+            if (++chr->work[17] < 30) {
+                BtlActChange_SetFlags(chr);
+                return 0;
+            }
+        }
+#endif
+        if (chr->actionFrame == 1
+#ifdef PORT
+            || (chr->work[18] && chr->work[19] == 11)
+#endif
+        ) {
             BtlCharSnd_PlayCommon(chr, 0x54);
+#ifdef PORT
+            if (!chr->work[18])
+#endif
             BtlChar_PlayVoice(chr, 0xE);
             BtlChar_SetFxBit(chr, 0);
+#ifdef PORT
+            if (chr->work[18]) {
+                chr->work[19] = 0;
+                chr->work[17] = 0;
+                /* Keep the original model-only detransformation and its flash.
+                 * Load the Ultimate resources after this visible swap. */
+                BtlChange_RequestChara(chr->player, 106, chr->form.costume, chr->work[15], -1, -1, -1);
+                BtlChange_RequestObject(chr->player, Port_ZenkaiCellTransformPartner(chr->form.costume), 0, 0, 1);
+            } else
+#endif
             BtlChange_RequestChara(chr->player, chr->form.chara, chr->form.costume, chr->form.variant,
                                    chr->form.animChara, chr->form.unk1C, chr->form.voiceChara);
         }
-        switch (BtlAnim_GetId(chr)) {
-        case 0x177:
-            if (BtlAnim_Advance(chr, 0)) {
-                BtlAnim_RequestSubToMain(chr);
+#ifdef PORT
+        if (chr->work[18] && chr->work[19] == 0) {
+            /* Swap to Semi-Perfect Cell first; hold the low-health idle while the swelling
+             * prop loads. Neither presentation request spends stocks. */
+            BtlAnim_AdvanceLoop(chr, 0);
+            if (BtlChange_IsLoadedFor(chr->player)) {
+                BtlAnim_Request(chr, 1, 0.0f);
+                Port_ZenkaiCellTransformKeepPose(chr, 0);
+                BtlChange_SetReady(chr->player);
+                chr->work[19] = 1;
             }
+            BtlActChange_SetFlags(chr);
+            BtlMove_Step(chr, 6, 6, 7, 0.0f, BTL_KMH(100.0f));
+            BtlMove_BrakeVertical(chr);
+            return 0;
+        }
+        if (chr->work[18] && chr->work[19] == 1) {
+            /* Retire the temporary swap so the queued swelling prop can load. */
+            BtlChange_SetDone(chr->player);
+            BtlChar_SetFxBit(chr, 1);
+            chr->work[19] = 2;
+            BtlActChange_SetFlags(chr);
+            return 0;
+        }
+        if (chr->work[18] && chr->work[19] == 2) {
+            if (BtlChange_IsLoadedFor(chr->player)) {
+                BtlChange_SetReady(chr->player);
+                chr->work[19] = 3;
+            }
+            BtlActChange_SetFlags(chr);
+            return 0;
+        }
+        if (chr->work[18] && chr->work[19] == 3) {
+            BtlChange_SetDone(chr->player);
+            Port_ZenkaiCellTransformPartnerVisible(chr, 0);
+            BtlChange_RequestChara(chr->player, 106, chr->form.costume, chr->work[15], 106, 106, 106);
+            chr->work[19] = 6;
+            BtlActChange_SetFlags(chr);
+            return 0;
+        }
+        if (chr->work[18] && chr->work[19] == 6) {
+            if (BtlChange_IsLoadedFor(chr->player)) {
+                BtlAnim_Request(chr, 1, 0.0f);
+                Port_ZenkaiCellTransformKeepPose(chr, 0);
+                BtlChange_SetReady(chr->player);
+                chr->work[19] = 7;
+            }
+            BtlActChange_SetFlags(chr);
+            return 0;
+        }
+        if (chr->work[18] && chr->work[19] == 7) {
+            BtlChange_SetDone(chr->player);
+            chr->work[17] = 0;
+            chr->work[19] = 10;
+            BtlActChange_SetFlags(chr);
+            return 0;
+        }
+        if (chr->work[18] && chr->work[19] == 10) {
+            /* Hold only after every loading request is retired. The native
+             * flash can finish before the Ultimate takes over the scene. */
+            Port_ZenkaiCellTransformFrontCamera(chr);
+            BtlAnim_AdvanceLoop(chr, 0);
+            if (++chr->work[17] < 30) {
+                BtlActChange_SetFlags(chr);
+                return 0;
+            }
+            Port_ZenkaiCellTransformReveal(chr);
+            Port_ZenkaiCellTransformPartnerVisible(chr, 0);
+            EftTransform_End();
+            DemoCam_ClearFixed();
+            Port_ZenkaiCellTransformPresent(BtlChar_GetObj(chr), 1);
+            chr->stepFrame[0] = Port_ZenkaiCellTransformOpeningFrames();
+            BtlAnim_Play(chr, 0x161, 0.2f);
+            Port_ZenkaiCellTransformDialogue(chr);
+            BtlChar_SetFxBit(chr, 0x40);
+            chr->work[19] = 4;
+        }
+#endif
+        switch (BtlAnim_GetId(chr)) {
+#ifdef PORT
+        case 0x161:
+        case 0x162:
+            if (chr->work[18]) {
+                s32 motion = BtlAnim_GetId(chr);
+                s32 level = motion - 0x160;
+                s32 complete = 1;
+                if (chr->work[19] == 4) {
+                    if (BtlAnim_IsNew(chr)) {
+                        if (level) BtlChar_RequestPlaceRelative(chr, 4, level, 1);
+                        if (level == 2) {
+                            BtlPartner_PlayAnim(chr, 0x19E);
+                            Port_ZenkaiCellTransformPartnerVisible(chr, 1);
+                        }
+                    }
+                    if (level == 2) BtlPartner_StepAnim(chr);
+                    complete = BtlAnim_Advance(chr, 0);
+                    chr->stepFrame[level] = BtlAnim_GetFrame(chr);
+                    BtlSuper_SetRushFlags(chr);
+                    BtlChar_SetFlag(chr, 9);
+                    BtlChar_SetFlag(chr, 0x58);
+                    BtlChar_SetFxBit(chr, 0x3B);
+                    if (level < BtlSuper_GetUnk223(chr, 4)) BtlChar_SetFxBit(chr, 0x11);
+                }
+                if (complete) {
+                    if (level < 2) {
+                        BtlAnim_Request(chr, motion + 1, 0.0f);
+                    } else {
+                        if (chr->work[19] == 4) {
+                            /* End the Ultimate before its damaged/prone aftermath.
+                             * Only the final form change spends Blast Stocks. */
+                            EftCam_Stop();
+                            Port_ZenkaiCellTransformPresent(BtlChar_GetObj(chr), 0);
+                            Port_ZenkaiCellTransformPartnerVisible(chr, 0);
+                            BtlPartner_Release(chr);
+                            /* Keep the spent Semi-Perfect body hidden while
+                             * the transformation particles cover the reload. */
+                            BtlChar_SetHeldFlag(chr, 0x30);
+                            BtlChar_SetFxBit(chr, 0);
+                            chr->form.variant = 0;
+                            BtlChange_RequestChara(chr->player, chr->form.chara, chr->form.costume, 0,
+                                chr->form.animChara, chr->form.unk1C, chr->form.voiceChara);
+                            chr->work[19] = 5;
+                        }
+                        if (BtlChange_IsLoadedFor(chr->player)) {
+                            Port_ZenkaiCellTransformEnd(BtlChar_GetObj(chr));
+                            BtlAnim_Request(chr, 0, 0.0f);
+                            BtlMember_SubBlast(chr, chr->form.cost);
+                            chr->work[19] = 8;
+                            BtlChar_SetFlag(chr, 0xF5);
+                            BtlChar_SetFlag(chr, 0x55);
+                            BtlChange_SetReady(chr->player);
+                        }
+                    }
+                }
+                break;
+            }
+            break;
+        case 0:
+            if (chr->work[18] && chr->work[19] == 8) {
+                BtlChange_SetDone(chr->player);
+                Port_ZenkaiCellTransformReveal(chr);
+                Port_ZenkaiCellTransformGlow(chr->objId);
+                /* Native Instant Transmission arrival: shrinking column,
+                 * body streaks and the teleport sound, without moving Cell. */
+                BtlChar_SetFxBit(chr, 0xD);
+                BtlCharSnd_PlayCommon(chr, 0x20);
+                chr->work[17] = 0;
+                chr->work[19] = 9;
+            }
+            if (chr->work[18] && chr->work[19] == 9) {
+                /* Keep the body hidden for the arrival column's first three
+                 * updates, then reveal it with the native body streaks. */
+                Port_ZenkaiCellTransformFrontCamera(chr);
+                Port_ZenkaiCellTransformReveal(chr);
+                if (chr->work[17] < 3) BtlChar_SetFlag(chr, 0xB);
+                BtlAnim_AdvanceLoop(chr, 0);
+                if (++chr->work[17] >= 20) {
+                    DemoCam_ClearFixed();
+                    chr->work[1] = 1;
+                    BtlEvent_Raise(chr->player, 0x5A);
+                    BtlChar_SetFxBit(chr, 2);
+                }
+            }
+            break;
+#endif
+        case 0x177:
+            if (BtlAnim_Advance(chr, 0)) BtlAnim_RequestSubToMain(chr);
             BtlActChange_PushBack(chr);
             waiting = 1;
             break;
@@ -721,8 +944,14 @@ s32 BtlAct_TransformA(BtlActHChr *chr, s32 phase) {
         BtlMove_Step(chr, 6, 6, 7, 0.0f, BTL_KMH(100.0f));
         BtlMove_BrakeVertical(chr);
         BtlActChange_SetFlags(chr);
+#ifdef PORT
+        if (!chr->work[18] || chr->work[19] != 4) {
+#endif
         BtlChar_SetFxBit(chr, 0x10);
         BtlChar_SetFxBit(chr, 0x14);
+#ifdef PORT
+        }
+#endif
         if (waiting && !ChrCam_IsCutActive(chr)) {
             ChrCam_RequestCut(chr, 0, 5);
         }
@@ -731,6 +960,17 @@ s32 BtlAct_TransformA(BtlActHChr *chr, s32 phase) {
         BtlActChange_Finish(chr);
     }
     if (phase == 3) {
+#ifdef PORT
+        if (chr->work[18]) {
+            EftCam_Stop();
+            EftTransform_End();
+            DemoCam_ClearFixed();
+            Port_ZenkaiCellTransformReveal(chr);
+            Port_ZenkaiCellTransformPartnerVisible(chr, 0);
+            BtlPartner_Release(chr);
+            Port_ZenkaiCellTransformEnd(BtlChar_GetObj(chr));
+        }
+#endif
         BtlChar_SetFlag(chr, 0x37);
         BtlEvent_Raise(chr->player, 0x4D);
         BtlChar_AddStageTimer(2.0f);

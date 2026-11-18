@@ -347,6 +347,7 @@ static void Port_BtlCharSnd_PlayTechLine(BtlFlagChr *chr, void *obj, s32 slot, s
     if (lip != NULL) BtlObj_SetSubState(obj, 14, (s32)lip); /* BOBJ_MOUTH_LIP_PTR */
     else BtlObj_SetSubState(obj, 2, voice & 0xFFFF);
 }
+
 #endif
 
 /* Plays the sounds and voice lines of the technique in use when its animation raises the matching event bits. */
@@ -356,6 +357,9 @@ void BtlCharSnd_PlayTechSounds(BtlFlagChr *chr) {
     void *obj = BtlChar_GetObj(chr);
     s32 slot = BtlAct_GetCurrentClass(chr);
 
+#ifdef PORT
+    if (Port_ZenkaiCellTransformCinematic(obj)) slot = 4;
+#endif
     if (slot < 0) {
         return;
     }
