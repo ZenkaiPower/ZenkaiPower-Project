@@ -24,21 +24,8 @@ $ready = @($deviceLines | ForEach-Object {
 })
 if ($Serial) {
     if ($ready -notcontains $Serial) { throw "Android device '$Serial' is not ready. Check adb devices and authorize USB debugging." }
-} elseif ($ready.Count -eq 1) {
+} elseif ($ready.Count -gt 0) {
     $Serial = $ready[0]
-} elseif ($ready.Count -gt 1) {
-    Write-Host 'Choose the Android device to launch:'
-    for ($deviceIndex = 0; $deviceIndex -lt $ready.Count; $deviceIndex++) {
-        Write-Host ("  {0}. {1}" -f ($deviceIndex + 1), $ready[$deviceIndex])
-    }
-    do {
-        $answer = Read-Host "Device number (1-$($ready.Count)), or Q to cancel"
-        if ($answer -match '^[qQ]$') { throw 'Android launch cancelled.' }
-        $selection = 0
-        $valid = [int]::TryParse($answer, [ref]$selection) -and $selection -ge 1 -and $selection -le $ready.Count
-        if (!$valid) { Write-Host 'Enter one of the listed device numbers.' }
-    } while (!$valid)
-    $Serial = $ready[$selection - 1]
 } else {
     throw 'No ready Android device. Connect a device with USB debugging enabled and authorize this computer, or start an arm64 emulator.'
 }
