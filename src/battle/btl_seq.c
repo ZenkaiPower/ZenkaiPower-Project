@@ -11,6 +11,22 @@ extern int Port_NetSession(void);
 #include "sys/adx.h"
 #ifdef PORT
 #include "sys/pad.h"
+#include "menu/port_menu_mouse.h"
+extern int gPortOverlayOpen;
+extern void PortInput_Swallow(void);
+extern void PortInput_SwallowKeys(void);
+static s32 BtlSeq_AttractSkip(void) {
+    s32 anyButton;
+    if (Battle_GetMode() != 7) return 0;
+    anyButton = PortInput_AnyButtonPressed();
+    if (gPortOverlayOpen) return 0;
+    if (!anyButton && !gPad[0].gamePressed && !gPad[1].gamePressed) return 0;
+    /* Match the title prompt, including unbound keys and mouse/touch clicks.
+     * Consume the press so it cannot also activate the returning title. */
+    PortInput_Swallow();
+    PortInput_SwallowKeys();
+    return 1;
+}
 static s32 BtlSeq_MouseSkip(void) {
     u32 skip = PADG_CROSS | PADG_START;
     return (gPad[0].gamePressed & skip) == skip || (gPad[1].gamePressed & skip) == skip;
@@ -1411,6 +1427,7 @@ s32 BtlSeqFight_Update(BtlSeqWaitCtx *ctx) {
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE_MENU) &&
             ((ctx->poll != NULL && ctx->poll())
 #ifdef PORT
+             || BtlSeq_AttractSkip()
              || (Battle_GetMode() == 1 && BtlScript_IsEventRunning() && BtlSeq_MouseSkip())
 #endif
             )) {
