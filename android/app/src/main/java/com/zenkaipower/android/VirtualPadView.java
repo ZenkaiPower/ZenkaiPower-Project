@@ -118,6 +118,8 @@ final class VirtualPadView extends View {
         buttons.add(new Button(art, "l2", 0, 4, "down", KeyEvent.KEYCODE_DPAD_DOWN));
         buttons.add(new Button(art, "triangle", KeyEvent.KEYCODE_BUTTON_Y, -1,
                 "circle", KeyEvent.KEYCODE_BUTTON_B));
+        buttons.add(new Button(art, "r1", KeyEvent.KEYCODE_BUTTON_R1, -1,
+                "triangle", KeyEvent.KEYCODE_BUTTON_Y));
     }
 
     private final Runnable pollBattle = new Runnable() {
@@ -181,6 +183,7 @@ final class VirtualPadView extends View {
         place(12, 3.05f * unit, h - 6.1f * unit, unit);
         place(13, 4.3f * unit, h - 6.1f * unit, unit);
         place(14, x + gap * .58f + unit * .25f, y - gap * .58f - unit * .25f, unit * .75f);
+        place(15, w - 3.05f * unit, h - 7.3f * unit, unit);
         stickX = unit * 2.5f;
         stickY = h - unit * 2.5f;
     }
