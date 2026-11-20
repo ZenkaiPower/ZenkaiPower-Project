@@ -93,6 +93,8 @@ int GsDraw_FrameSkip(void);       /* gs_draw.c */
 void GsDraw_FrameSkipSet(int on);
 void GsGpu_Vsync(int on); /* gs_gpu.c */
 void GsGl_Vsync(int on);  /* gs_gl.c */
+int GsGpu_PresentPaced(void); /* actual GPU present mode, including forced VSync */
+int GsGl_PresentPaced(void);  /* actual OpenGL swap interval */
 int Port_Setting(const char *name, int def); /* plat_settings.c */
 void Ui_Toggle(void);
 int Ui_ConsumesEscape(void); /* modal input, popup or text editing takes priority over the settings shortcut */

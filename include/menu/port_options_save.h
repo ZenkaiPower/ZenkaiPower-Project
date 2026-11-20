@@ -5,13 +5,13 @@
 #include "port_pc_bindings.h"
 /* ZENKAI Options companion; the old embedded offset is migration-only. */
 #define PORT_OPTIONS_SAVE_OFFSET 0x3F00
-#define PORT_OPTIONS_SAVE_BYTES (8+2*PORT_OPTION_SETTING_COUNT)
+#define PORT_OPTIONS_SAVE_BYTES (8+2*22) /* Keep companion offsets stable. */
 static int Port_OptionsPayloadDecode(const void *data,int *values) {
     const unsigned char *p=(const unsigned char *)data;
     int row,i;
-    if(p[0]!='Z' || p[1]!='O' || p[2]!='P' || (p[3]!='1' && p[3]!='2') ||
-       p[4]!=PORT_OPTION_SETTING_COUNT || p[5] || p[6] || p[7]) return 0;
-    for(row=0;row<PORT_OPTION_SETTING_COUNT;row++) {
+    if(p[0]!='Z' || p[1]!='O' || p[2]!='P' || (p[3]!='1' && p[3]!='2' && p[3]!='3') ||
+       p[4]!=22 || (p[3]=='3' ? p[5]>1:p[5]!=0) || p[6] || p[7]) return 0;
+    for(row=0;row<22;row++) {
         const PortVideoOption *option=Port_OptionsDescriptor(row);
         int value=p[8+row*2] | (p[9+row*2]<<8),valid=0;
         for(i=0;i<option->count;i++) if(option->values[i]==value) valid=1;
@@ -20,13 +20,14 @@ static int Port_OptionsPayloadDecode(const void *data,int *values) {
         if(p[3]=='1' && row>=16 && row<=18) value=!value;
         values[row]=value;
     }
+    values[PORT_FPS_OPTION_ROW]=p[3]=='3' ? p[5]:0;
     return 1;
 }
 static void Port_OptionsPayloadEncode(void *data,const int *values) {
     unsigned char *p=(unsigned char *)data;
     int row;
-    p[0]='Z';p[1]='O';p[2]='P';p[3]='2';p[4]=PORT_OPTION_SETTING_COUNT;p[5]=p[6]=p[7]=0;
-    for(row=0;row<PORT_OPTION_SETTING_COUNT;row++) {
+    p[0]='Z';p[1]='O';p[2]='P';p[3]='3';p[4]=22;p[5]=(unsigned char)!!values[PORT_FPS_OPTION_ROW];p[6]=p[7]=0;
+    for(row=0;row<22;row++) {
         p[8+row*2]=(unsigned char)values[row];
         p[9+row*2]=(unsigned char)(values[row]>>8);
     }

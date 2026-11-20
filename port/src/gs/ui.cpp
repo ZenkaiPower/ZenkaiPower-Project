@@ -1785,6 +1785,7 @@ extern "C" void Port_OptionsVideoChange(int row,int direction) {
 extern "C" void Port_OptionsVideoDefaults(void) {
     SDL_LockSpinlock(&sNativeVideoLock);
     for(int row=0;row<PORT_VIDEO_OPTION_COUNT;row++) sNativeVideoPending[row]=sPortVideoOptions[row].defaultValue;
+    sNativeVideoPending[PORT_FPS_OPTION_ROW]=0;
     SDL_UnlockSpinlock(&sNativeVideoLock);
 }
 extern "C" void Port_OptionsBattleEffectsDefaults(void) {
@@ -1816,6 +1817,7 @@ static void native_video_apply(void) {
             case 19: Port_SettingSave("game_version",value);break;
             case 20: Port_SettingSave("dragon_net_mode",value);break;
             case 21: Port_SettingSave("save_quick",value);break;
+            case PORT_FPS_OPTION_ROW: Port_SettingSave("show_fps",value);break;
             }
             extraChanged=true;continue;
         }
@@ -1847,7 +1849,7 @@ static void native_video_apply(void) {
         else if(row>=PORT_VISUAL_OPTION_OFFSET) {
             const int values[]={!Port_Setting("skip_logos",0),
                 !Port_Setting("skip_intro",0),Port_Setting("language_prompt_always",1),
-                Port_Setting("game_version",0),Port_Setting("dragon_net_mode",1),Port_Setting("save_quick",0)};
+                Port_Setting("game_version",0),Port_Setting("dragon_net_mode",1),Port_Setting("save_quick",0),Port_Setting("show_fps",0)};
             sNativeVideoCurrent[row]=values[row-PORT_VISUAL_OPTION_OFFSET];
         } else {
             int bit=sPortBattleEffectBits[row-PORT_VIDEO_OPTION_COUNT];
@@ -2715,6 +2717,10 @@ static bool meter_on(void) {
     }
     return sMeter != 0;
 }
+static int sBattleFps=-1;
+extern "C" int Port_BattleFps(void) {
+    return __atomic_load_n(&sBattleFps,__ATOMIC_ACQUIRE);
+}
 static float sFps, sSpeed; // frames shown per second; the game's vertical blanks per second as a share of 60
 
 static void meter_count(void) { // once per frame shown
@@ -2727,6 +2733,7 @@ static void meter_count(void) { // once per frame shown
         blanks0 = gPortLiveBlanks;
     } else if (now - t0 >= 500) {
         sFps = (float)frames * 1000.0f / (float)(now - t0);
+        __atomic_store_n(&sBattleFps,Port_Setting("show_fps",0) ? (int)(sFps+0.5f):-1,__ATOMIC_RELEASE);
         sSpeed = (float)(gPortLiveBlanks - blanks0) * 1000.0f / (float)(now - t0) / 60.0f * 100.0f;
         frames = 0;
         blanks0 = gPortLiveBlanks;

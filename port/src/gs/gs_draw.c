@@ -2746,6 +2746,7 @@ static unsigned sInterpLastBlank;
 static uint64_t sInterpTickNs = 33366700ull; /* how long the tick being shown lasts */
 static unsigned gInterpTicks;
 static uint64_t sInterpBlendShown, sInterpBlendTook; /* when the in-between picture was handed to the screen; how long replaying its list took */
+static uint64_t sInterpRealTook; /* real frames do not pay the intermediate vertex reconstruction cost */
 static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
 unsigned gInterpShown, gInterpSkipped; /* in-between pictures shown / left out since the start */
 static unsigned gInterpCuts, gInterpStatic, gInterpNotMutual;
@@ -4042,6 +4043,23 @@ static int interp_prim_cmp(const void *a, const void *b) {
     return x->sig != y->sig ? (x->sig < y->sig ? -1 : 1) : x->first < y->first ? -1 : x->first > y->first;
 }
 
+/* A shared screen position alone is not a shared edge: overlapping effects and
+   atlas sprites can meet there while belonging to different surfaces. */
+static int interp_same_corner(const Vtx *a, const Vtx *b) {
+    return a->x == b->x && a->y == b->y && a->z == b->z &&
+           a->q == b->q && a->s == b->s && a->t == b->t;
+}
+
+static int interp_same_uv(const Vtx *a, const Vtx *b, int count) {
+    int k;
+    for (k = 0; k < count; k++) {
+        if (!(fabsf(a[k].s - b[k].s) <= 0.01f) || !(fabsf(a[k].t - b[k].t) <= 0.01f)) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* The triangles of the recorded frame's own-transformed draws, sorted by how they are drawn and then by order. */
 static uint32_t interp_prims(InterpPrim *out) {
     uint32_t n, k, count = 0;
@@ -4070,7 +4088,7 @@ static uint32_t interp_prims(InterpPrim *out) {
                 int shared = 0, x, y;
                 for (x = 0; x < 3; x++) {
                     for (y = 0; y < 3; y++) {
-                        if (a[x].x == b[y].x && a[x].y == b[y].y) {
+                        if (interp_same_corner(&a[x], &b[y])) {
                             shared++;
                             break;
                         }
@@ -4751,7 +4769,8 @@ static void interp_build_verts(float t) {
             for (j = from; j < to; j++) {
                 const Vtx *pv;
                 float d = 0.0f, far = 0.0f;
-                if (sInterpPrimUsed[lo + j]) {
+                if (sInterpPrimUsed[lo + j] || sInterpPrevPrims[lo + j].tris != c->tris ||
+                    sInterpPrevPrims[lo + j].flat2d != c->flat2d || sInterpPrevPrims[lo + j].view != c->view) {
                     continue;
                 }
                 pv = &sInterpPrevVerts[sInterpPrevPrims[lo + j].first];
@@ -4780,8 +4799,7 @@ static void interp_build_verts(float t) {
                     sawFar = 1;
                     continue;
                 }
-                if (c->flat2d && (fabsf(pv[0].s - cv[0].s) > 0.01f || fabsf(pv[0].t - cv[0].t) > 0.01f || fabsf(pv[2].s - cv[2].s) > 0.01f ||
-                                  fabsf(pv[2].t - cv[2].t) > 0.01f)) {
+                if (c->flat2d && !interp_same_uv(pv, cv, nv)) {
                     sawUv = 1;
                     continue;
                 }
@@ -4924,9 +4942,17 @@ static void interp_counts_restore(void) {
 static uint64_t sInterpCostNs;
 static int sInterpCap = 8;
 
+static int interp_present_paced(void) {
+    return sBackend == &sGlBackend ? GsGl_PresentPaced() : GsGpu_PresentPaced();
+}
+
 static void interp_cost(uint64_t ns) {
     static int said;
     int was = sInterpCap;
+    int paced = interp_present_paced();
+    uint64_t tick = Port_BlankNs() * 2;
+    uint64_t downBudget = tick * (paced ? 110 : 70) / 100;
+    uint64_t upBudget = tick * (paced ? 105 : 50) / 100;
 
     {   /* Not the first pictures of a run: they create the pipelines and load what the first screens need, and
            took long enough on any machine to switch the in-between pictures off for a moment and say so (seen in
@@ -4944,12 +4970,14 @@ static void interp_cost(uint64_t ns) {
     if (getenv("ZENKAIPOWER_INTERP_NOCAP") != NULL) {
         return;
     }
-    /* down when the pictures take more than 70% of the tick (the rest is the game's own work), up again when one
-       step more would take less than half of it */
-    while (sInterpCap > 1 && sInterpCostNs * (uint64_t)sInterpCap > 33366700ull * 7 / 10) {
+    /* Unpaced presents reserve CPU headroom. A synchronized present also counts
+       time waiting for the display: 2 * 16.7 ms on a 60 Hz screen is healthy,
+       not an overloaded GPU. Allow that cadence plus a small jitter margin,
+       with separate recovery hysteresis. Genuine overload still reduces the cap. */
+    while (sInterpCap > 1 && sInterpCostNs * (uint64_t)sInterpCap > downBudget) {
         sInterpCap /= 2;
     }
-    if (sInterpCap == was && sInterpCap < 8 && sInterpCostNs * (uint64_t)sInterpCap * 2 < 33366700ull / 2) {
+    if (sInterpCap == was && sInterpCap < 8 && sInterpCostNs * (uint64_t)sInterpCap * 2 < upBudget) {
         sInterpCap *= 2;
     }
     if (sInterpCap < was && sInterpCap < interp_steps() && !said) {
@@ -4981,6 +5009,7 @@ static void interp_show(int step) {
         return;
     }
     if (step < sInterpSteps) {
+        uint64_t buildStart = gpu_now();
         Vu0Uniform *real = gsVuUni;
         Vtx *realVerts = gsVerts;
         float t = getenv("ZENKAIPOWER_INTERP_T") != NULL ? (float)atof(getenv("ZENKAIPOWER_INTERP_T")) : (float)step / (float)sInterpSteps;
@@ -4998,9 +5027,10 @@ static void interp_show(int step) {
         }
         gsVuUni = sInterpBlend;
         if (getenv("ZENKAIPOWER_INTERP_REALONLY") == NULL) { /* (testing: only the ticks' real pictures are shown, numbered as without in-between pictures) */
-            uint64_t t0 = gpu_now();
             sBackend->frameEnd();
-            interp_cost(gpu_now() - t0);
+            /* Vertex matching and camera/wall reconstruction consume the same
+               frame budget as submission, especially while moving around a map. */
+            interp_cost(gpu_now() - buildStart);
         } else {
             gsVertCount = gsVuVertCount = gsVuIdxCount = gsVuUniCount = gsDrawCount = 0; /* (as the back end leaves them) */
         }
@@ -5010,6 +5040,7 @@ static void interp_show(int step) {
         interp_present_log('B');
         gInterpShown++;
     } else {
+        uint64_t realStart = gpu_now();
         interp_remember(); /* (only now: the in-between pictures were built from the previous tick's copy) */
         interp_wall_real();
         {
@@ -5018,6 +5049,8 @@ static void interp_show(int step) {
             interp_cost(gpu_now() - t0);
         }
         interp_wall_restore();
+        sInterpRealTook = gpu_now() - realStart;
+        if (sInterpRealTook > 4000000ull) sInterpRealTook = 4000000ull;
         interp_present_log('R');
         scale_apply();
         menu_labels_apply();
@@ -5052,7 +5085,8 @@ static int interp_show_next(void) {
 /* When the tick's next picture is due. */
 static uint64_t interp_due(void) {
     uint64_t due = sInterpBlendShown + (uint64_t)(sInterpNext - 1) * (sInterpTickNs / (uint64_t)sInterpSteps);
-    return due > sInterpBlendTook ? due - sInterpBlendTook : 0; /* (replaying the list takes that long again) */
+    uint64_t cost = sInterpNext == sInterpSteps ? sInterpRealTook : sInterpBlendTook;
+    return due > cost ? due - cost : 0;
 }
 
 /* With the render thread (ZENKAIPOWER_GS_THREAD) the tick's pictures after the first are its: it shows each when it is due,
@@ -5108,7 +5142,8 @@ void GsGpu_InterpPump(int ahead_ms, int all) {
                    so that the blank (the game's clock: input, sound) is never made late */
                 extern int Port_VBlankUsLeft(void);
                 uint64_t left = (uint64_t)Port_VBlankUsLeft() * 1000ull, wait = now < due ? due - now : 0;
-                if (wait + sInterpBlendTook + 700000ull > left) {
+                uint64_t cost = sInterpNext == sInterpSteps ? sInterpRealTook : sInterpBlendTook;
+                if (wait + cost + 700000ull > left) {
                     return;
                 }
             } else if (now < due && due - now > (uint64_t)ahead_ms * 1000000ull) {
@@ -5230,6 +5265,7 @@ void GsGpu_FrameEnd(void) {
             sInterpLastBlank = gPortVBlanks;
             blanks = blanks < 1 ? 1 : blanks > 2 ? 2 : blanks;
             sInterpSteps = (interp_steps() < sInterpCap ? interp_steps() : sInterpCap) * (int)blanks / 2;
+            if (sInterpSteps < 1) sInterpSteps = 1;
             sInterpTickNs = (uint64_t)blanks * Port_BlankNs();
         }
         if (gsInterp > 0) {
@@ -5297,7 +5333,9 @@ void GsGpu_FrameEnd(void) {
             }
             t1 = gpu_now();
             sBackend->frameEnd();
-            interp_cost(gpu_now() - t1);
+            sInterpRealTook = gpu_now() - t1;
+            interp_cost(sInterpRealTook);
+            if (sInterpRealTook > 4000000ull) sInterpRealTook = 4000000ull;
             interp_present_log('S');
             if (!repeat) {
                 scale_apply();

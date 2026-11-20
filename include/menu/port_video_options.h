@@ -39,27 +39,29 @@ static const char *const sPortVideoFrameNameIds[]={"options/value/30","options/v
 #define PORT_NETWORK_OPTION_OFFSET 20
 /* Persistent ZOP row, independent of General Settings display order. */
 #define PORT_AUTOSAVE_OPTION_OFFSET 21
-#define PORT_OPTION_SETTING_COUNT 22
+#define PORT_FPS_OPTION_ROW 22
+#define PORT_OPTION_SETTING_COUNT 23
 /* Save-owned choice: descriptor/display row only, never part of ZOP options. */
-#define PORT_CLASSIC_OPTION_ROW 22
+#define PORT_CLASSIC_OPTION_ROW 23
 static const char *const sPortOptionCategories[]={"Video Settings","Battle Effects","Visual Settings","General Settings"};
 static const char *const sPortOptionCategoryIds[]={"options/category/video","options/category/battle-effects","options/category/visual","options/category/general"};
 /* These offsets are also the persisted ZOP* row indices. Keep row 19
    (Game Edition) unchanged when moving it to General Settings. */
 #ifdef __ANDROID__
-static const int sPortOptionCounts[]={7,8,3,4};
-#else
 static const int sPortOptionCounts[]={8,8,3,4};
+#else
+static const int sPortOptionCounts[]={9,8,3,4};
 #endif
 static const int sPortOptionOffsets[]={0,8,16,19};
 /* Display rows can omit settings without changing their backing indices. */
 static int Port_OptionsCategoryRow(int category,int row) {
+    if(category==0 && row==sPortOptionCounts[0]-1) return PORT_FPS_OPTION_ROW;
 #ifdef __ANDROID__
     if(category==0 && row>=6) return row+1; /* Graphics API is desktop-only. */
 #endif
     if(category==3 && row>=0 && row<sPortOptionCounts[3]) {
-        static const int generalRows[]={2,0,1,3};
-        return sPortOptionOffsets[3]+generalRows[row];
+        static const int generalRows[]={21,19,20,PORT_CLASSIC_OPTION_ROW};
+        return generalRows[row];
     }
     return sPortOptionOffsets[category]+row;
 }
@@ -82,7 +84,7 @@ static const PortVideoOption sPortVideoOptions[] = {
     {"VSync",sPortVideoToggle,sPortVideoToggleNames,2,0,"Synchronize frames with the display to reduce tearing.","options/setting/vsync","options/help/vsync",sPortVideoToggleNameIds},
     {"Frame Skipping",sPortVideoToggle,sPortVideoToggleNames,2,0,"Skip rendering frames when needed to maintain game speed.","options/setting/frame-skipping","options/help/frame-skipping",sPortVideoToggleNameIds},
     {"Graphics API",sPortVideoToggle,sPortVideoApiNames,2,0,"Choose Vulkan or OpenGL. Takes effect after restarting the game.","options/setting/graphics-api","options/help/graphics-api",sPortVideoApiNameIds},
-    {"Frame Rate (FPS)",sPortVideoFrames,sPortVideoFrameNames,4,0,"Use frame interpolation for smoother motion.","options/setting/frame-rate","options/help/frame-rate",sPortVideoFrameNameIds}
+    {"Frame Interpolation",sPortVideoFrames,sPortVideoFrameNames,4,0,"Interpolate frames for smoother motion. Select 30 to disable interpolation.","options/setting/frame-rate","options/help/frame-rate",sPortVideoFrameNameIds}
 };
 static const int sPortBattleEffectBits[]={1,2,4,8,16,32,0,64};
 static const PortVideoOption sPortBattleEffects[] = {
@@ -111,7 +113,12 @@ static const PortVideoOption sPortGeneralOptions[]={
     {"Autosave",sPortVideoToggle,sPortVideoToggleNames,2,0,"Automatically save game progress.","options/setting/autosave","options/help/autosave",sPortVideoToggleNameIds},
     {"Classic Mode",sPortVideoToggle,sPortVideoToggleNames,2,0,"Change the game to classical progress and mechanics.","options/setting/classic-mode","options/help/classic-mode",sPortVideoToggleNameIds}
 };
+static const PortVideoOption sPortFpsOption={
+    "Show FPS",sPortVideoToggle,sPortVideoToggleNames,2,0,"Show frames per second (FPS) during battles.","options/setting/show-fps","options/help/show-fps",sPortVideoToggleNameIds
+};
 static const PortVideoOption *Port_OptionsDescriptor(int row) {
+    if(row==PORT_FPS_OPTION_ROW) return &sPortFpsOption;
+    if(row==PORT_CLASSIC_OPTION_ROW) return &sPortGeneralOptions[3];
     if(row<8) return &sPortVideoOptions[row];
     if(row<16) return &sPortBattleEffects[row-8];
     if(row<19) return &sPortVisualOptions[row-16];

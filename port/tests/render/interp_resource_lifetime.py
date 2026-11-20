@@ -37,7 +37,7 @@ static unsigned sInterpPrevCount, sInterpPrevPrimCount, sInterpPrimCount, sInter
 static unsigned gInterpTicks, gInterpShown, gInterpSkipped, gInterpPaired, gInterpUnpaired, gInterpCamera;
 static unsigned gInterpTris, gInterpTrisBlended, gInterpWhy[5], gInterpTrisCamera, gInterpStatic, gInterpThrough, gInterpCuts;
 static int sInterpNext, sInterpRepeat, sInterpSteps, sInterpCap = 8;
-static uint64_t sInterpTickNs, sInterpBlendShown, sInterpBlendTook, gGpuEndNs;
+static uint64_t sInterpTickNs, sInterpBlendShown, sInterpBlendTook, sInterpRealTook, gGpuEndNs;
 static Vu0Uniform *sInterpPrev, *sInterpBlend, *gsVuUni;
 static uint32_t *sInterpPrevSig, *sInterpSig;
 static Vtx *sInterpPrevVerts, *sInterpBlendVerts, *gsVerts;
@@ -46,27 +46,30 @@ static void *sInterpPrimUsed;
 unsigned gPortVBlanks, gGsFrame;
 static int scalePending, scaleCalls, labelCalls, presents, canBlend;
 static int resourcesLive = 1;
+static unsigned tickBlanks = 2;
+static uint64_t fakeNow, lastCost;
 static void render(void) {
     assert(resourcesLive); /* A retained draw may never reference released targets. */
     presents++;
+    fakeNow += 1000000;
     gsVertCount = gsVuVertCount = gsVuIdxCount = gsVuUniCount = gsDrawCount = 0;
 }
 static struct { void (*frameEnd)(void); } backend = {render}, *sBackend = &backend;
 static void scale_apply(void) { if (scalePending) { scalePending = 0; scaleCalls++; resourcesLive = 0; gsTargetCount = 0; } }
 static void menu_labels_apply(void) { labelCalls++; }
-static uint64_t gpu_now(void) { static uint64_t now; return ++now; }
+static uint64_t gpu_now(void) { return ++fakeNow; }
 static uint64_t Port_BlankNs(void) { return 16683350; }
 static int Port_Setting(const char *s, int d) { (void)s; return d; }
 static int interp_steps(void) { return gsInterp ? 4 : 1; }
 static void interp_signatures(uint32_t *s) { (void)s; }
 static unsigned interp_prims(InterpPrim *p) { (void)p; return 0; }
 static int interp_build(float t, int first) { (void)t; (void)first; return canBlend; }
-static void interp_build_verts(float t) { (void)t; }
+static void interp_build_verts(float t) { (void)t; fakeNow += 10000000; }
 static void interp_wall(float t) { (void)t; }
 static void interp_wall_real(void) {}
 static void interp_wall_restore(void) {}
 static void interp_remember(void) {}
-static void interp_cost(uint64_t t) { (void)t; }
+static void interp_cost(uint64_t t) { lastCost=t; }
 static void interp_present_log(char c) { (void)c; }
 static void skip_decide(void) {}
 static void GsGpu_InterpPump(uint64_t ahead, int all) { (void)ahead; (void)all; abort(); }
@@ -77,7 +80,7 @@ static void frame(int blend, int interpolation) {
     resourcesLive = 1; gsTargetCount = 1;
     gsDrawCount = gsVertCount = 1;
     scalePending = 1; scaleCalls = labelCalls = presents = 0;
-    sInterpNext = 0; gPortVBlanks += 2;
+    sInterpNext = 0; gPortVBlanks += tickBlanks;
     GsGpu_FrameEnd();
 }
 int main(void) {
@@ -90,11 +93,16 @@ int main(void) {
     /* Ordinary interpolation has the same resource lifetime. */
     frame(1, 2);
     assert(presents == 1 && !sInterpRepeat && scaleCalls == 0);
+    assert(lastCost >= 11000000); /* synthesis + render, not just the 1 ms backend */
     while (sInterpNext) interp_show_next();
     assert(presents == 4 && scaleCalls == 1 && labelCalls == 1);
     /* With smoothing disabled, changes apply immediately after the picture. */
     frame(0, 0);
     assert(presents == 1 && !sInterpNext && scaleCalls == 1 && labelCalls == 1);
+    /* A 60 Hz scene at the minimum adaptive cap still has one real picture. */
+    tickBlanks=1;sInterpCap=1;
+    frame(0,1);
+    assert(sInterpSteps==1 && presents==1 && !sInterpNext);
     puts("Interpolation resource lifetime checks passed");
 }
 '''

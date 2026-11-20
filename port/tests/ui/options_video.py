@@ -275,8 +275,8 @@ int main(void) {
     }
     sOptionVideoRow=1;sOptionVideoFirst=0;
 
-    for(int i=1;i<PORT_VIDEO_OPTION_COUNT;i++) key(PADG_DOWN,0);
-    assert(sOptionVideoRow==PORT_VIDEO_OPTION_COUNT);Option_PortPrepareFooter();
+    for(int i=1;i<sPortOptionCounts[0];i++) key(PADG_DOWN,0);
+    assert(sOptionVideoRow==sPortOptionCounts[0]);Option_PortPrepareFooter();
     assert(nativeFooter && !strcmp(footerLabel,"fl_on_start"));
     key(0,PADG_CROSS);Option_PortPrepareFooter();
     assert(!strcmp(footerLabel,"fl_ok"));
@@ -490,6 +490,12 @@ int main(void) {
     int before=video.scale;
     Port_OptionsVideoChange(0,1);assert(video.scale==before); /* queued, not applied on game thread */
     int queued=Port_OptionsVideoGet(0);native_video_apply();assert(video.scale==sPortVideoScales[queued]);
+    assert(Port_OptionsCategoryRow(0,sPortOptionCounts[0]-1)==PORT_FPS_OPTION_ROW);
+    assert(Port_OptionsCategoryRow(3,3)==PORT_CLASSIC_OPTION_ROW);
+    Port_OptionsVideoChange(PORT_FPS_OPTION_ROW,1);native_video_apply();
+    assert(Port_OptionsVideoGet(PORT_FPS_OPTION_ROW)==1);
+    Port_OptionsVideoDefaults();native_video_apply();
+    assert(Port_OptionsVideoGet(PORT_FPS_OPTION_ROW)==0);
     int count=applied;Port_OptionsVideoChange(PORT_OPTION_SETTING_COUNT,1);assert(applied==count);
     return 0;
 }

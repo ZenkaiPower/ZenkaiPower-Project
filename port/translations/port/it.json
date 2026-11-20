@@ -368,8 +368,8 @@
       "text": "API grafica"
     },
     "options/setting/frame-rate": {
-      "original": "Frame Rate (FPS)",
-      "text": "Frequenza fotogrammi (FPS)"
+      "original": "Frame Interpolation",
+      "text": "Interpolazione fotogrammi"
     },
     "options/setting/character-outlines": {
       "original": "Character Outlines",
@@ -456,8 +456,8 @@
       "text": "Scegli Vulkan o OpenGL. La modifica ha effetto al riavvio."
     },
     "options/help/frame-rate": {
-      "original": "Use frame interpolation for smoother motion.",
-      "text": "Usa l’interpolazione dei fotogrammi per movimenti più fluidi."
+      "original": "Interpolate frames for smoother motion. Select 30 to disable interpolation.",
+      "text": "Interpola i fotogrammi per movimenti più fluidi. Seleziona 30 per disattivare l'interpolazione."
     },
     "options/help/character-outlines": {
       "original": "Show the dark outlines around fighters.",

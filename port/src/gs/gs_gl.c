@@ -663,6 +663,11 @@ void GsGl_Vsync(int on) { /* the settings window's "V-sync" */
     }
 }
 
+int GsGl_PresentPaced(void) {
+    int interval = 0;
+    return sCtx != NULL && SDL_GL_GetSwapInterval(&interval) && interval != 0;
+}
+
 /* ---- init --------------------------------------------------------------------------------------- */
 static int gl_init(void) {
     static const uint32_t white = 0xFFFFFFFFu;

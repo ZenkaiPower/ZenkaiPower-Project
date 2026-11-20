@@ -26,6 +26,7 @@ extern void HudNode_SetPos(HudENode *node, s32 x, s32 y);                    /* 
 extern void *memset(void *dst, s32 c, u32 n);
 #ifdef PORT
 extern int Port_NetStats(int *out);
+extern int Port_BattleFps(void);
 extern int Port_NetJitterMs(void);
 #endif
 
@@ -49,6 +50,7 @@ extern int Port_NetJitterMs(void);
 
 HudTimer *gHudTimer = NULL;
 static s32 sHudTimerConnectionPercent = -1;
+static s32 sHudTimerShowsFps = 0;
 static void HudTimer_UpdateConnection(void);
 static void HudTimer_LayoutConnectionFrame(void);
 
@@ -220,11 +222,18 @@ void HudTimer_Draw(HudENode *node) {
         HudSprite_Draw(node->sprList[i], gHudTimer->res, 0);
     }
     if (sHudTimerConnectionPercent >= 0) {
-        u16 text[6];
+        u16 text[8];
         s32 first = Font_GetCmdCount();
         s32 value = sHudTimerConnectionPercent;
 
-        if (value >= 100) {
+        if (sHudTimerShowsFps) {
+            int n=0;
+            if(value>999) value=999;
+            if(value>=100) text[n++]=(u16)('0'+value/100);
+            if(value>=10) text[n++]=(u16)('0'+value/10%10);
+            text[n++]=(u16)('0'+value%10);
+            text[n++]='F';text[n++]='P';text[n++]='S';text[n]=0;
+        } else if (value >= 100) {
             text[0] = '1';
             text[1] = '0';
             text[2] = '0';
@@ -270,9 +279,11 @@ static void HudTimer_UpdateConnection(void) {
     int stats[10];
     int score, ping, jitter, waits, waitedMs, rollbacks;
 
+    sHudTimerShowsFps = 0;
     if (!Port_NetStats(stats)) {
-        HudSprite_Show(&gHudTimer->spr[HUDT_ONLINE_FRAME], 0);
-        sHudTimerConnectionPercent = -1;
+        sHudTimerConnectionPercent = Port_BattleFps();
+        sHudTimerShowsFps = 1;
+        HudSprite_Show(&gHudTimer->spr[HUDT_ONLINE_FRAME], sHudTimerConnectionPercent >= 0);
         return;
     }
     ping = stats[0];

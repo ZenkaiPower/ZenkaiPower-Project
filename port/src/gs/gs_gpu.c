@@ -481,6 +481,9 @@ static int pipe_get(uint32_t key) {
 /* How a finished picture reaches the display. on = 0: without waiting for it (MAILBOX: no tearing, no wait; else
    IMMEDIATE); on = 1: at its refresh (VSYNC, the settings window's "V-sync"). */
 static int sVsyncPending = -1; /* asked for from the settings window: -1 nothing, else 0 / 1 */
+static int sPresentPaced = 1;
+
+int GsGpu_PresentPaced(void) { return sPresentPaced; }
 
 static void vsync_apply(int on);
 
@@ -502,7 +505,8 @@ static void vsync_apply(int on) {
     } else if (!on && SDL_WindowSupportsGPUPresentMode(sDev, sWindow, SDL_GPU_PRESENTMODE_IMMEDIATE)) {
         mode = SDL_GPU_PRESENTMODE_IMMEDIATE;
     }
-    SDL_SetGPUSwapchainParameters(sDev, sWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode);
+    if (SDL_SetGPUSwapchainParameters(sDev, sWindow, SDL_GPU_SWAPCHAINCOMPOSITION_SDR, mode))
+        sPresentPaced = mode == SDL_GPU_PRESENTMODE_VSYNC;
     fprintf(stderr, "zenkaipower: present mode %s\n", mode == SDL_GPU_PRESENTMODE_MAILBOX ? "mailbox" : mode == SDL_GPU_PRESENTMODE_IMMEDIATE ? "immediate" : "vsync");
 }
 

@@ -15,6 +15,13 @@ int main(void) {
     bindings[3]=13;bindings[PORT_PC_STORAGE_ACTIONS+1]=1;
     assert(mkdtemp(dir) && !chdir(dir));unsetenv("ZENKAIPOWER_SAVES");
     for(int i=0;i<PORT_OPTION_SETTING_COUNT;i++) values[i]=Port_OptionsDescriptor(i)->defaultValue;
+    values[PORT_FPS_OPTION_ROW]=1;
+    { unsigned char legacy[PORT_OPTIONS_SAVE_BYTES];
+      Port_OptionsPayloadEncode(legacy,values);
+      assert(Port_OptionsPayloadDecode(legacy,decoded) && decoded[PORT_FPS_OPTION_ROW]==1);
+      legacy[3]='2';legacy[5]=0;
+      assert(Port_OptionsPayloadDecode(legacy,decoded) && decoded[PORT_FPS_OPTION_ROW]==0);
+    }
     values[0]=3;values[1]=3556;save[0x16A8]=7;save[0x1608]=0x86;
     Port_OptionsFileEncode(payload,save,values);Port_OptionsFileEncodeBindings(payload,bindings);
     Port_OptionsFileEncodeGamepad(payload,gamepad);

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "labels_version": 4,
   "translation_version": 8,
-  "labels_count": 424,
+  "labels_count": 426,
   "locale": "en",
   "name": "English",
   "order": 1,
@@ -367,9 +367,17 @@
       "original": "Graphics API",
       "text": "Graphics API"
     },
+    "options/setting/show-fps": {
+      "original": "Show FPS",
+      "text": "Show FPS"
+    },
+    "options/help/show-fps": {
+      "original": "Show frames per second (FPS) during battles.",
+      "text": "Show frames per second (FPS) during battles."
+    },
     "options/setting/frame-rate": {
-      "original": "Frame Rate (FPS)",
-      "text": "Frame Rate (FPS)"
+      "original": "Frame Interpolation",
+      "text": "Frame Interpolation"
     },
     "options/setting/character-outlines": {
       "original": "Character Outlines",
@@ -456,8 +464,8 @@
       "text": "Choose Vulkan or OpenGL. Takes effect after restarting the game."
     },
     "options/help/frame-rate": {
-      "original": "Use frame interpolation for smoother motion.",
-      "text": "Use frame interpolation for smoother motion."
+      "original": "Interpolate frames for smoother motion. Select 30 to disable interpolation.",
+      "text": "Interpolate frames for smoother motion. Select 30 to disable interpolation."
     },
     "options/help/character-outlines": {
       "original": "Show the dark outlines around fighters.",

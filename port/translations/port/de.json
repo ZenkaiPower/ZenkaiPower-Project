@@ -368,8 +368,8 @@
       "text": "Grafikschnittstelle"
     },
     "options/setting/frame-rate": {
-      "original": "Frame Rate (FPS)",
-      "text": "Bildrate (FPS)"
+      "original": "Frame Interpolation",
+      "text": "Frame-Interpolation"
     },
     "options/setting/character-outlines": {
       "original": "Character Outlines",
@@ -456,8 +456,8 @@
       "text": "Wähle Vulkan oder OpenGL. Wird nach einem Neustart übernommen."
     },
     "options/help/frame-rate": {
-      "original": "Use frame interpolation for smoother motion.",
-      "text": "Verwendet Zwischenbilder für flüssigere Bewegungen."
+      "original": "Interpolate frames for smoother motion. Select 30 to disable interpolation.",
+      "text": "Interpoliert Frames für flüssigere Bewegungen. Wähle 30, um die Interpolation zu deaktivieren."
     },
     "options/help/character-outlines": {
       "original": "Show the dark outlines around fighters.",
