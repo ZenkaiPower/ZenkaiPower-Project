@@ -89,19 +89,20 @@ Headless persistence and capture checks:
 
 ## ZENKAI CPU difficulty
 
-ZENKAI Duel keeps the original five CPU levels **0, 6, 13, 21, 29** in
-single/team battles and the pause-menu CPU selection. Other modes add **10** to
-active CPU base levels, capped at effective level **29**. Story, Ultimate Battle
-and tournament opponents receive that offset after their own level selection.
-Negative training-dummy settings remain unchanged.
+With Sparking! Changes active, ordinary CPU bases 0–9, 10–14, 15–19, 20–24,
+and 25–28 receive increases of **+7, +6, +5, +4, and +3**, respectively, capped
+at effective level **29**. Level 29 remains unchanged. Duel, Training, and
+Ultimate Training retain their original five levels **0, 6, 13, 21, 29**.
+Negative dummy and scripted behavior values remain unchanged.
 
-Dragon History's Easy / Normal / Hard settings add **-5 / 0 / 5** to the
-episode's scripted base before the +10 conversion, capped at effective level 29. Easy can reach level 5 for a scripted base of 0.
-Original mode retains its 0 / 6 / 9 story offsets.
+Dragon History tapers the scripted base first, then applies **-5/0/+5** for
+Easy/Normal/Hard, clamped to 0-29. Original mode and Classic Mode
+retain original levels and story offsets of **0/+6/+9**. Network play does not
+apply the increase.
 
-Levels are capped at 29 with no added 30..49 tuning bands. Original mode and
-online play retain their existing difficulty. The full mapping and implementation
-details are in [the AI documentation](../systems/ai.md).
+See [CPU base difficulty changes by game mode](difficulty-base-changes.md)
+for examples and measured distributions, and [the AI reference](../systems/ai.md)
+for implementation details.
 
 ## Saving Ultimate Battle rewards
 

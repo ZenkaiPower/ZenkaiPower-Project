@@ -129,7 +129,7 @@ void BtlAiMgr_ResetSide(s32 side) {
        Training's pause-menu choice belongs to the side, not the character. */
     s32 training = Port_ZenkaiEnabled() && !Port_NetSession() && !Port_NetActive() &&
         (Battle_GetMode() == 5 || Battle_GetMode() == 6);
-    s32 level = training ? BtlAiLevel_ToBase(BtlAiMgr_GetLevel(side)) : 0;
+    s32 level = training ? BtlAiMgr_GetLevel(side) : 0;
 #endif
     AiThink_ResetSide(side, 0);
 #ifdef PORT
@@ -211,7 +211,9 @@ s32 BtlAiMgr_GetLevel(s32 side) {
 void BtlAiMgr_SetLevel(s32 side, s32 cpuLevel) {
     BtlAiWork *s = &gBtlAi->work[side];
 
-    s->level = BtlAiLevel_FromBase(cpuLevel);
+    /* Training keeps the original CPU levels, including dummy settings. */
+    s->level = (Battle_GetMode() == 5 || Battle_GetMode() == 6)
+        ? cpuLevel : BtlAiLevel_FromBase(cpuLevel);
     BtlAiMgr_BuildRates(s);
     AiThink_BuildTotals(s);
     memset(s->plan.scratch, 0, 0x188);

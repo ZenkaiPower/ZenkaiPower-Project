@@ -2,49 +2,32 @@
 
 ## ZENKAI CPU levels (PC port)
 
-With an active ZENKAI game, ordinary nonnegative CPU base levels are raised by **10**,
-capped at effective level **29**, when
-`BtlAiMgr_SetLevel` initializes or changes the live controller. Original mode
-and online play keep the original levels. All negative training settings
-(`-1`, scripted dummy modes below `-1`, and `-999`) are preserved.
+With Sparking! Changes active, ordinary CPU bases use a tapered increase:
+**+7** for 0–9, **+6** for 10–14, **+5** for 15–19, **+4** for 20–24,
+and **+3** for 25–28. Effective levels are capped at **29**; level 29 stays 29.
+Classic Mode, Original mode, disabled raised-difficulty builds, and network
+sessions retain original levels. Negative dummy settings remain unchanged.
 
-| Duel setting | Original | ZENKAI |
-|---|---:|---:|
-| Very Easy | 0 | 0 |
-| Easy | 6 | 6 |
-| Normal | 13 | 13 |
-| Hard | 21 | 21 |
-| Very Hard | 29 | 29 |
+Duel, Training, and Ultimate Training retain the original five effective levels
+**0, 6, 13, 21, 29**. Training retains its selected level across controller
+reloads without rebasing it. Duel uses tagged exact levels to bypass tapering.
 
-ZENKAI Duel keeps the original five levels **0, 6, 13, 21, 29** for both single
-and team battles. Its pause-menu CPU selection uses the same five levels.
-Other modes apply the +10 conversion, capped at 29.
+Dragon History applies `clamp(taper(scripted base) + difficulty offset, 0, 29)`,
+with offsets **-5/0/+5** for Easy/Normal/Hard. Applying difficulty after the taper
+preserves five-level spacing before clamping. Original offsets remain
+**0/+6/+9**. Setup and mid-battle commands tag the completed result to prevent
+applying tapering twice; negative dummy levels are preserved.
 
-Dragon History adds **-5 / 0 / 5** for Easy / Normal / Hard to its scripted
-base in ZENKAI; original mode retains 0 / 6 / 9. Both initial setup and scripted
-level changes during battle use these offsets. The ZENKAI controller then uses
-`clamp(scripted base + difficulty offset + 10, 0, 29)`. Mission 100,
-Survival, Sim Dragon, Disc Fusion, tournaments, CPU exhibitions, and active
-training opponents use the same conversion. Story changes during battle and
-pause-menu difficulty changes also pass through this setter.
+Mode tables and scripts retain base levels. Only live controller initialization
+converts ordinary bases. The pause menu uses a canonical inverse for labels;
+tapering can give neighboring bases the same effective level. Existing AI
+rates, reaction checks, charge choices, delays, and five tuning bands remain
+unchanged. No levels above 29 or new tactical planners are introduced.
 
-The mode tables, saves and scripts retain **base** levels. Story and Duel battle-member
-records use a tagged base for effective levels below 10, keeping them distinct
-from negative training-dummy settings.
-Consequently, character switches and resets do not add another 10. The setter
-accepts base levels; its getter returns the effective level. The pause menu
-converts that effective level back before selecting a difficulty label.
-
-Only levels **0..29** are used. AI rates, reaction chances, charge selection
-and delays retain their original five bands; there are no added 30..49 bands.
-Opponent learning and tactical planning have not been added. Match strength and
-balance still require in-game testing.
-
-Implementation: `include/battle/btl_ai_level.h`, `btl_ai_mgr.c`, `btl_ai_seq.c`,
-`btl_ai_cond.c`, `btl_ai_act.c`, and the pause-menu caller in `hud_0.c`.
-Run `python3 port/tests/battle/zenkai_ai.py` for controller rebasing, original /
-online isolation, dummy preservation, scaling, delay, reaction and charge
-checks against the actual C functions under AddressSanitizer / UBSan.
+See [the mode report](../port/difficulty-base-changes.md) and
+[distribution audit](../port/cpu-level-distribution.md) for the effects by mode.
+Run `python3 port/tests/battle/zenkai_ai.py` for controller, story, Duel,
+Training, isolation, boundary, and existing behavior checks under ASan/UBSan.
 
 ### Measuring combat strength without the UI
 

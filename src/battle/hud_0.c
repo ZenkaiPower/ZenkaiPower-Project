@@ -370,7 +370,7 @@ s32 PauseMenu_CpuLevelFunc(BtlMenuEvent *ev) {
         BtlMenu_SetPicked(menu, 6, 0);
         BtlMenu_SetPicked(menu, 7, 0);
         level = BtlAiMgr_GetLevel(1);
-        level = CpuLevel_ToSetting(Battle_GetMode() == 0 ?
+        level = CpuLevel_ToSetting((Battle_GetMode() == 0 || Battle_GetMode() == 5 || Battle_GetMode() == 6) ?
             BtlAiLevel_DuelSettingBase(level) : BtlAiLevel_ToBase(level));
         if (level == -1) {
             gPauseMenuCpuLevelCursor[0] = 1;

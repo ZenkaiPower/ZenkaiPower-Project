@@ -40,7 +40,7 @@ int main(void) {
     gProgress->subMenuItem=1;assert(!Port_StoryIsFirstEpisode());
     assert(Port_StoryIsSaiyanEpisode()==PORT_ZENKAI_STORY_RESTRICTIONS);
     gProgress->subMenu=1;assert(!Port_StoryIsSaiyanEpisode());
-    assert(BtlAiLevel_FromBase(6)==(PORT_ZENKAI_RAISED_DIFFICULTY?16:6));
+    assert(BtlAiLevel_FromBase(6)==(PORT_ZENKAI_RAISED_DIFFICULTY?13:6));
     assert(BtlAiLevel_StoryOffset(0)==(PORT_ZENKAI_RAISED_DIFFICULTY?-5:0));
     assert(BtlAiLevel_StoryOffset(2)==(PORT_ZENKAI_RAISED_DIFFICULTY?5:9));
     assert(PortTour_Available(&save,2)==!PORT_ZENKAI_TOURNAMENT);

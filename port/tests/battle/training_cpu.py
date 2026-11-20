@@ -15,11 +15,12 @@ typedef int s32;
 #include "battle/btl_ai_level.h"
 static int zenkai, online, mode, levels[2], resetCount, restored;
 int Port_ZenkaiEnabled(void) { return zenkai; }
+int Port_ZenkaiPackEnabled(void) { return zenkai; }
 int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return online; }
 int Battle_GetMode(void) { return mode; }
 int BtlAiMgr_GetLevel(int side) { return levels[side]; }
-void BtlAiMgr_SetLevel(int side, int base) { levels[side] = BtlAiLevel_FromBase(base); restored++; }
+void BtlAiMgr_SetLevel(int side, int base) { levels[side] = (mode==5 || mode==6) ? base : BtlAiLevel_FromBase(base); restored++; }
 void AiThink_ResetSide(int side, int owned) { levels[side] = -1; resetCount++; }
 ''' + text[start:end] + r'''
 int main(void) {

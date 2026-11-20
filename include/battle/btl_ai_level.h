@@ -10,10 +10,8 @@ extern int Port_NetActive(void);
 #endif
 
 #define BTLAI_ORIGINAL_MAX 29
-#define BTLAI_ZENKAI_OFFSET 10
 #define BTLAI_ZENKAI_MAX 29
-/* Tagged story bases represent effective levels below 10 without colliding
- * with the negative training-dummy settings. */
+/* Tagged levels preserve exact story and Duel effective levels. */
 #define BTLAI_STORY_LOW_BASE 0x100
 
 static inline int BtlAiLevel_ZenkaiEnabled(void) {
@@ -27,17 +25,20 @@ static inline int BtlAiLevel_ZenkaiEnabled(void) {
 static inline int BtlAiLevel_FromBase(int level) {
 #ifdef PORT
     if (level >= 0 && BtlAiLevel_ZenkaiEnabled()) {
-        if (level >= BTLAI_STORY_LOW_BASE && level < BTLAI_STORY_LOW_BASE + BTLAI_ZENKAI_OFFSET)
+        if (level >= BTLAI_STORY_LOW_BASE && level <= BTLAI_STORY_LOW_BASE + BTLAI_ZENKAI_MAX)
             return level - BTLAI_STORY_LOW_BASE;
-        if (level > BTLAI_ZENKAI_MAX - BTLAI_ZENKAI_OFFSET)
-            level = BTLAI_ZENKAI_MAX - BTLAI_ZENKAI_OFFSET;
-        return level + BTLAI_ZENKAI_OFFSET;
+        if (level < 10) level += 7;
+        else if (level < 15) level += 6;
+        else if (level < 20) level += 5;
+        else if (level < 25) level += 4;
+        else if (level < 29) level += 3;
+        return level > BTLAI_ZENKAI_MAX ? BTLAI_ZENKAI_MAX : level;
     }
 #endif
     return level;
 }
 
-/* Dragon History's script-level adjustment, before the controller's +10. */
+/* Story difficulty is applied after tapering the scripted base. */
 static inline int BtlAiLevel_StoryOffset(int difficulty) {
     if (BtlAiLevel_ZenkaiEnabled()) {
         switch (difficulty) {
@@ -54,31 +55,38 @@ static inline int BtlAiLevel_StoryOffset(int difficulty) {
     return 0;
 }
 
-/* Easy may fall below effective level 10. Encode that case separately from
- * negative dummy settings; the controller still applies the rebase once. */
+/* Taper first, then apply difficulty so band crossings do not alter its spacing. */
 static inline int BtlAiLevel_StoryBase(int level, int difficulty) {
     int adjusted = level + BtlAiLevel_StoryOffset(difficulty);
-    if (BtlAiLevel_ZenkaiEnabled() && adjusted < 0) {
-        int effective = adjusted + BTLAI_ZENKAI_OFFSET;
+    if (BtlAiLevel_ZenkaiEnabled()) {
+        int effective;
+        if (level < 0) return level;
+        effective = BtlAiLevel_FromBase(level) + BtlAiLevel_StoryOffset(difficulty);
         if (effective < 0) effective = 0;
+        if (effective > BTLAI_ZENKAI_MAX) effective = BTLAI_ZENKAI_MAX;
         return BTLAI_STORY_LOW_BASE + effective;
     }
     return adjusted;
 }
 
+/* Select the first base reaching this effective level for the pause-menu label.
+ * Tapering has overlapping outputs, so this inverse is intentionally canonical. */
 static inline int BtlAiLevel_ToBase(int level) {
 #ifdef PORT
-    if (level >= 0 && level < BTLAI_ZENKAI_OFFSET && BtlAiLevel_ZenkaiEnabled())
-        return BTLAI_STORY_LOW_BASE + level;
-    if (level >= BTLAI_ZENKAI_OFFSET && BtlAiLevel_ZenkaiEnabled())
-        return level - BTLAI_ZENKAI_OFFSET;
+    if (level >= 0 && BtlAiLevel_ZenkaiEnabled()) {
+        int base;
+        for (base = 0; base <= BTLAI_ORIGINAL_MAX; base++)
+            if (BtlAiLevel_FromBase(base) >= level) return base;
+        return BTLAI_ORIGINAL_MAX;
+    }
 #endif
     return level;
 }
 
-/* Preserve the five original Duel levels while other modes use the +10 rebase. */
+/* Duel bypasses tapering and preserves every original menu level exactly. */
 static inline int BtlAiLevel_DuelBase(int original) {
-    return BtlAiLevel_ZenkaiEnabled() ? BtlAiLevel_ToBase(original) : original;
+    return original >= 0 && BtlAiLevel_ZenkaiEnabled()
+        ? BTLAI_STORY_LOW_BASE + original : original;
 }
 
 /* Duel's effective levels are the original menu values. */

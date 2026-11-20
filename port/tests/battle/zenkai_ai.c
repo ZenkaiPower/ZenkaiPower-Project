@@ -4,7 +4,8 @@
 #include <assert.h>
 #include <stdio.h>
 
-static int active, session, online;
+static int active, session, online, battleMode;
+int Battle_GetMode(void) { return battleMode; }
 static u32 roll;
 int Port_ZenkaiEnabled(void) { return active; }
 int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
@@ -102,16 +103,15 @@ int main(void) {
             int offset = BtlAiLevel_StoryOffset(level);
             assert(offset == (mode == 1 ? zenkai[level] : original[level]));
             if (mode == 1) {
-                int adjusted = 13 + offset;
-                assert(BtlAiLevel_FromBase(adjusted) == (adjusted > 19 ? 29 : adjusted + 10));
-                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(29, level)) == 29);
-                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(0, level)) == 10 + offset);
-                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(5, 0)) == 10);
+                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(13, level)) == 19 + offset);
+                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(29, level)) == (offset < 0 ? 24 : 29));
+                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(0, level)) == 7 + offset);
+                assert(BtlAiLevel_FromBase(BtlAiLevel_StoryBase(5, 0)) == 7);
                 for (old = 0; old < 5; old++) {
                     int base = BtlAiLevel_StoryBase(old, 0);
                     BtlAiMgr_SetLevel(1, base);
-                    assert(BtlAiMgr_GetLevel(1) == old + 5);
-                    assert(BtlAiLevel_FromBase(BtlAiLevel_ToBase(old + 5)) == old + 5);
+                    assert(BtlAiMgr_GetLevel(1) == old + 2);
+                    assert(BtlAiLevel_FromBase(BTLAI_STORY_LOW_BASE + old + 2) == old + 2);
                 }
             }
         }
@@ -119,10 +119,11 @@ int main(void) {
         assert(BtlAiLevel_StoryOffset(3) == 0);
         for (side = 0; side < 2; side++) {
             for (level = -999; level <= 29; level++) {
-                int expected = level < 0 || mode != 1 ? level : (level > 19 ? 29 : level + 10);
+                int boost = level < 10 ? 7 : level < 15 ? 6 : level < 20 ? 5 : level < 25 ? 4 : level < 29 ? 3 : 0;
+                int expected = level < 0 || mode != 1 ? level : (level + boost > 29 ? 29 : level + boost);
                 BtlAiMgr_SetLevel(side, level);
                 assert(BtlAiMgr_GetLevel(side) == expected);
-                if (level <= 19) assert(BtlAiLevel_ToBase(expected) == level);
+                if (mode == 1 && level >= 0) assert(BtlAiLevel_FromBase(BtlAiLevel_ToBase(expected)) == expected);
                 /* A new member/reset reads the unchanged base, never +40. */
                 BtlAiMgr_SetLevel(side, level);
                 assert(BtlAiMgr_GetLevel(side) == expected);
@@ -146,6 +147,30 @@ int main(void) {
         }
         active=1;session=online=0;
     }
+    /* Training uses original levels even with the raised-difficulty pack active. */
+    for (battleMode=5;battleMode<=6;battleMode++) {
+        for (level=-999;level<=29;level++) {
+            BtlAiMgr_SetLevel(1,level);assert(BtlAiMgr_GetLevel(1)==level);
+            BtlAiMgr_SetLevel(1,level);assert(BtlAiMgr_GetLevel(1)==level);
+        }
+    }
+    battleMode=0;
+    /* Every story base/difficulty uses taper once, then a stable +/-5 offset. */
+    for (level=0;level<=29;level++) {
+        int boost=level<10 ? 7 : level<15 ? 6 : level<20 ? 5 : level<25 ? 4 : level<29 ? 3 : 0;
+        int normal=level+boost>29 ? 29 : level+boost;
+        for (mode=0;mode<3;mode++) {
+            int expected=normal+(mode-1)*5;
+            if(expected<0) expected=0;
+            if(expected>29) expected=29;
+            int encoded=BtlAiLevel_StoryBase(level,mode);
+            BtlAiMgr_SetLevel(1,encoded);assert(BtlAiMgr_GetLevel(1)==expected);
+            BtlAiMgr_SetLevel(1,encoded);assert(BtlAiMgr_GetLevel(1)==expected);
+        }
+    }
+    assert(BtlAiLevel_StoryBase(-1,2)==-1);
+    for (level=1;level<=29;level++)
+        assert(BtlAiLevel_FromBase(level) >= BtlAiLevel_FromBase(level-1));
     assert(BtlAiLevel_FromBase(100) == 29);
     for (lo = 0; lo <= 100; lo += 5) {
         for (hi = 0; hi <= 100; hi += 5) {
@@ -179,7 +204,7 @@ int main(void) {
             if (level >= 29) assert(state.work[0].seq.timer == 10);
         }
     }
-    puts("Controller: +10 with cap 29, original Duel levels, offsets, sentinels, scaling and delays verified");
+    puts("Controller: tapered +7/+6/+5/+4/+3 with cap 29, original Duel levels, offsets, sentinels, scaling and delays verified");
     return 0;
 }
 #endif
