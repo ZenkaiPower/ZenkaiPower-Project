@@ -12,8 +12,9 @@ source=r'''
 #include <stddef.h>
 #include "battle/hud_0.h"
 #define PORT 1
-static int zenkai=1;
+static int zenkai=1,classic;
 int Port_ZenkaiEnabled(void) {return zenkai;}
+int Port_ZenkaiPackEnabled(void) {return zenkai && !classic;}
 BtlMenu gPauseMenuMode5,gPauseMenuMode6,D_002C4FD0;
 s32 PauseMenu_CpuLevelFunc(BtlMenuEvent *ev) { return 0; }
 void Port_TrainingTextCopy(int index,char *out,int capacity) {
@@ -54,6 +55,9 @@ int main(void) {
  assert(!Port_TrainingMenuText(PORT_TRAINING_REGEN_TEXT+7));
  gPortTrainingSwitchRegeneration=0;PauseMenu_PortTrainingInit();assert(gPortTrainingSwitchRegeneration==1);
  assert(gPauseMenuMode5.count==2 && gPauseMenuMode6.count==2);
+ classic=1;PauseMenu_PortTrainingInit();assert(!sPortTrainingMenusReady);
+ for(int kind=0;kind<4;kind++) assert(*settings[kind]==1);
+ classic=0;PauseMenu_PortTrainingInit();assert(sPortTrainingMenusReady);
  zenkai=0;PauseMenu_PortTrainingInit();assert(!sPortTrainingMenusReady);
 }
 

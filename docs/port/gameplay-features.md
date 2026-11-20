@@ -299,7 +299,8 @@ Training. Tutorial lessons keep their existing battle setups.
 The CPU difficulty selected in the pause menu is retained when a fighter
 transforms or switches to a reserve teammate.
 
-Zenkai's native Training pause menus (battle modes 5 and 6) include
+With **Sparking! Changes** active (Zenkai Mode with Classic Mode off),
+the native Training pause menus (battle modes 5 and 6) include
 **Training Settings** directly after COM Settings, with **Health Regeneration**,
 **Ki Regeneration**, **Blast Stock Regeneration**, and **Switch Gauge Regeneration**.
 Each opens native **On** / **Off** choices.
@@ -314,7 +315,8 @@ bonus refill. In ZENKAI mode, turning Health Regeneration off also removes
 Training's 1-HP damage floor, allowing fighters to be KO'd; with it on, the floor
 remains.
 Healing skills, character regeneration, and equipped regeneration abilities
-retain their regular rules. Original mode retains its original menus/refills.
+retain their regular rules. Classic Mode and Original mode retain their original
+menus, automatic refills, and Training damage floor.
 
 Checks: `python3 port/tests/battle/training_regeneration.py` and
 `python3 port/tests/battle/hp_drain.py`.

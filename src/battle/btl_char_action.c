@@ -902,7 +902,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
             }
             if ((Battle_GetMode() == 5 || Battle_GetMode() == 6)
 #ifdef PORT
-                && (!Port_ZenkaiEnabled() || gPortTrainingKiRegeneration)
+                && (!Port_ZenkaiPackEnabled() || gPortTrainingKiRegeneration)
 #endif
             ) {
                 BtlMember_AddKi(chr, 1000);
@@ -928,7 +928,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
         BtlMember_AddBlast(chr, BtlParam_GetBlastGainRate(chr));
         if ((Battle_GetMode() == 5 || Battle_GetMode() == 6)
 #ifdef PORT
-            && (!Port_ZenkaiEnabled() || gPortTrainingBlastRegeneration)
+            && (!Port_ZenkaiPackEnabled() || gPortTrainingBlastRegeneration)
 #endif
         ) {
             BtlMember_AddBlast(chr, 0xD05);
@@ -950,7 +950,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
         chr->unk99C += (s32)(100000.0f / (BtlParam_GetGauge99CTime(chr) * 30.0f));
         if ((Battle_GetMode() == 5 || Battle_GetMode() == 6)
 #ifdef PORT
-            && (!Port_ZenkaiEnabled() || gPortTrainingSwitchRegeneration)
+            && (!Port_ZenkaiPackEnabled() || gPortTrainingSwitchRegeneration)
 #endif
         ) {
             chr->unk99C += 0x457;
@@ -962,7 +962,7 @@ void BtlAct_UpdateGauges(BtlActChr *chr) {
     if (Battle_GetMode() == 5 || Battle_GetMode() == 6) {
         if (!BtlChar_TestFlag(chr, 0x95)
 #ifdef PORT
-            && (!Port_ZenkaiEnabled() || gPortTrainingHealthRegeneration)
+            && (!Port_ZenkaiPackEnabled() || gPortTrainingHealthRegeneration)
 #endif
         ) {
             BtlMember_AddHealth(chr, 200);

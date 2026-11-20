@@ -440,7 +440,7 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
     }
     if ((Battle_GetMode() == 5 || Battle_GetMode() == 6)
 #ifdef PORT
-        && (!Port_ZenkaiEnabled() || gPortTrainingHealthRegeneration)
+        && (!Port_ZenkaiPackEnabled() || gPortTrainingHealthRegeneration)
 #endif
     ) {
         health = g->health;

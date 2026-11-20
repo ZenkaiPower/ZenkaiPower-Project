@@ -3,7 +3,7 @@
 #define PORT_TRAINING_TITLE_PART 8
 #define PORT_TRAINING_REGEN_TEXT 0x7000
 #ifdef PORT
-extern int Port_ZenkaiEnabled(void);
+extern int Port_ZenkaiPackEnabled(void);
 extern int gPortTrainingHealthRegeneration;
 extern int gPortTrainingKiRegeneration;
 extern int gPortTrainingBlastRegeneration;

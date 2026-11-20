@@ -61,11 +61,11 @@ int BtlSkill_GetFlags(BtlActChr *c,int slot) {return 0x180;}
 int BtlSkill_GetBlastCost(BtlActChr *c,int slot) {return BtlMember_HasAbility(c,0x15) ? 200000:300000;}
 int BtlChar_TestMemberUnk70(BtlActChr *c) {return 0;}
 int BtlMember_HasBlast(BtlActChr *c,int amount) {return c->members[c->active].vitals.blast>=amount;}
-static int zenkai=1,stopped,damageCalls,ends,mode;
+static int classic,zenkai=1,stopped,damageCalls,ends,mode;
 int gPortTrainingHealthRegeneration=1,gPortTrainingKiRegeneration=1,gPortTrainingBlastRegeneration=1,gPortTrainingSwitchRegeneration=1;
 static u32 motionFlags;
 int Port_ZenkaiEnabled(void) {return zenkai;}
-int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled(); }
+int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && !classic; }
 BtlActMember *BtlMember_GetActive(BtlActChr *c) {return &c->members[c->active];}
 BtlActMember *BtlMember_Get(BtlActChr *c,int i) {return &c->members[i];}
 BtlActVitals *BtlMember_GetActiveGauge(BtlActChr *c) {return &BtlMember_GetActive(c)->vitals;}
@@ -240,6 +240,15 @@ int main(void) {
  setup(&c);zenkai=0;c.flags[0x98]=1;tier(&c,PORT_ABILITY_HP_DRAIN_150);c.secTimer=29;
  BtlAct_UpdateGauges(&c);assert(c.ki==99900 && c.members[0].vitals.hp==30000);
  for(mode=5;mode<=6;mode++) {
+  /* Classic ignores stale Off choices and keeps native Training refills. */
+  setup(&c);zenkai=1;classic=1;c.members[0].vitals.hp=20000;
+  gPortTrainingHealthRegeneration=0;BtlAct_UpdateGauges(&c);
+  assert(c.members[0].vitals.hp==20200);
+  setup(&c);zenkai=1;motionFlags=0x10000;gPortTrainingKiRegeneration=0;
+  BtlAct_UpdateGauges(&c);assert(c.ki==101000);
+  setup(&c);zenkai=1;motionFlags=0x20000;gPortTrainingBlastRegeneration=0;
+  BtlAct_UpdateGauges(&c);assert(c.members[0].vitals.blast==3333);
+  classic=0;
   setup(&c);zenkai=1;c.memberCount=2;
   c.members[1].present=1;c.members[1].vitals.hp=19900;c.members[1].vitals.hpMax=30000;
   gPortTrainingHealthRegeneration=1;BtlAct_UpdateGauges(&c);

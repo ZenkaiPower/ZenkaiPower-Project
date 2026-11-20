@@ -145,7 +145,7 @@ static void PauseMenu_PortTrainingInit(void) {
     s32 side,i,insert,kind;
     gPortTrainingHealthRegeneration=gPortTrainingKiRegeneration=gPortTrainingBlastRegeneration=gPortTrainingSwitchRegeneration=1;sPortTrainingMenusReady=0;
     if(!PORT_TRAINING_PAUSE_MENU_OPTIONS) return;
-    if(!Port_ZenkaiEnabled()) return;
+    if(!Port_ZenkaiPackEnabled()) return;
     for(kind=0;kind<4;kind++) {
         BtlMenu *menu=&sPortTrainingRegenMenu[kind];
         *menu=*native[0];menu->items=sPortTrainingRegenItems[kind];
@@ -251,7 +251,7 @@ BtlMenu *PauseMenu_GetMenu(s32 which) {
         break;
     }
 #ifdef PORT
-    if(which==0 && Port_ZenkaiEnabled() && sPortTrainingMenusReady) {
+    if(which==0 && Port_ZenkaiPackEnabled() && sPortTrainingMenusReady) {
         if(menu==&gPauseMenuMode5) return &sPortTrainingMenu[0];
         if(menu==&gPauseMenuMode6) return &sPortTrainingMenu[1];
     }

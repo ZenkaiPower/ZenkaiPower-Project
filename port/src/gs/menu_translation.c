@@ -1178,6 +1178,10 @@ int MenuTranslation_List(const char *outDir, MenuTranslationOption *out, int cap
     if (snprintf(extraDir, sizeof(extraDir), "%s/translations/port", outDir) < (int)sizeof(extraDir))
         tr_list_extra(extraDir, out, capacity, &count, 0);
     if (tr_bundled_dir(bundled, sizeof(bundled))) {
+        /* Prepared game data skips copying new catalogs. Discover label-only
+         * locales in this build's bundle as well as UI and port locales. */
+        if (snprintf(extraDir, sizeof(extraDir), "%s/labels", bundled) < (int)sizeof(extraDir))
+            tr_list_extra(extraDir, out, capacity, &count, 0);
         if (snprintf(extraDir, sizeof(extraDir), "%s/ui", bundled) < (int)sizeof(extraDir))
             tr_list_extra(extraDir, out, capacity, &count, 1);
         if (snprintf(extraDir, sizeof(extraDir), "%s/port", bundled) < (int)sizeof(extraDir))

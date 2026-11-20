@@ -1,5 +1,13 @@
 # Classic Mode: Zenkai pack
 
+**Sparking! Changes** is the internal term for **Zenkai Mode with Classic Mode
+off**. It refers to the enabled Zenkai gameplay pack; individual build flags and
+online restrictions still determine which features apply. This terminology does
+not change menu labels or code identifiers.
+
+Training Settings also requires Sparking! Changes: Classic Mode hides its
+pause-menu entry and retains the original automatic regeneration and damage floor.
+
 `zenkai_pack` is the ten-feature gameplay pack controlled by **Classic Mode**
 under **Options → More Options → General Settings**. New offline Zenkai saves
 start with the pack on and Classic Mode off. Build flags can independently disable individual features.
