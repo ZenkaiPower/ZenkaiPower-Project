@@ -5,6 +5,12 @@
   fetch('https://api.github.com/repos/ZenkaiPower/ZenkaiPower-Project/releases/latest')
     .then(function (response) { if (!response.ok) throw new Error('Release unavailable'); return response.json(); })
     .then(function (release) {
+      var date = document.getElementById('release-date');
+      if (date && typeof release.published_at === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(release.published_at)) {
+        var year = release.published_at.slice(0, 4);
+        date.textContent = '· ' + (year > '2026' ? '2026–' + year : '2026');
+        date.hidden = false;
+      }
       if (!release.tag_name || !Array.isArray(release.assets)) return;
       Object.keys(endings).forEach(function (platform) {
         var asset = release.assets.find(function (item) { return endings[platform].test(item.name); });

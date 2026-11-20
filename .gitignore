@@ -119,3 +119,6 @@ archive/
 /projects/
 # Private release signing key
 /.signing/
+
+# Temporary
+temp/

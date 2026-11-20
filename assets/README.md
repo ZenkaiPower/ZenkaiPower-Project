@@ -1,6 +1,6 @@
 # Shared application assets
 
-`zp.png` is the application icon used by Windows and Android builds.
+`zp-avatar.png` is the application icon used by Windows and Android builds.
 
 Optional installer artwork is kept locally in the ignored `assets/setup/`
 directory. Installers read artwork from `setup/` inside the installed game folder.

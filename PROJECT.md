@@ -1,4 +1,4 @@
-﻿## ZENKAI Power!
+## ZENKAI Power!
 
 This is the repository for the ZENKAI Power! project, including the source code, assets, and tools for building and releasing.
 
@@ -160,3 +160,15 @@ docker run --rm -it --platform linux/amd64 --entrypoint python3 `
   --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
   server/tools/clear_d1.py
 ```
+
+### Preview the website 
+
+```Powershell
+docker ps -q --filter "ancestor=zenkaipower" --filter "publish=4000" | ForEach-Object { docker stop $_ }; docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker run --rm --name zenkaipower-pages-preview --platform linux/amd64 -p 4000:4000 -v "${PWD}:/work" --entrypoint python3 zenkaipower -u web/preview.py
+```
+
+Stop preview:
+
+````powershell
+docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker ps -q --filter "ancestor=zenkaipower" --filter "publish=4000" | ForEach-Object { docker stop $_ }
+````  

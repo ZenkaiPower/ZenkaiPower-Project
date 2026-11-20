@@ -125,7 +125,7 @@ libraries that do not link the folder adapter (`-ApkOnly` cannot migrate them).
 ## Install from disc images
 
 1. Install and open the APK. Android recognizes it as a game; the icon comes
-   from `assets/zp.png`.
+   from `assets/zp-avatar.png`.
 2. Choose a local folder such as `Internal storage/ZenkaiPower` in the Android
    folder picker and allow access to that folder. This applies to Android 10+;
    no storage settings screen or device-wide file permission is needed.

@@ -11,7 +11,7 @@ import windows_resource
 
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
-    source = root / 'assets/zp.png'
+    source = root / 'assets/zp-avatar.png'
     source.parent.mkdir(parents=True)
     Image.new('RGBA', (240, 200), (255, 0, 0, 255)).save(source)
     metadata = root / 'game-info.json'

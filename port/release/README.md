@@ -102,7 +102,7 @@ Outputs are `release/bot/ZenkaiPower-bot`
 and `release/bot/ZenkaiPower-bot.exe`; the Windows SDL DLL is copied beside it.
 
 The Windows game and setup generate their executable icons directly from
-`assets/zp.png` during the build. Changing the PNG automatically
+`assets/zp-avatar.png` during the build. Changing the PNG automatically
 regenerates the ICO and resource and relinks both executables. Generated ICO/RC
 files stay under `port/build/`. This requires Pillow (`python3-pil`, or
 `python3 -m pip install Pillow`) and MinGW `windres`; the release container includes both.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert zp.png and compile the shared Windows icon resource (MinGW/MSYS2)."""
+"""Convert zp-avatar.png and compile the shared Windows icon resource (MinGW/MSYS2)."""
 import argparse
 import hashlib
 import json
@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def build_icon(output, compiler):
     output = Path(output)
-    source = ROOT / 'assets/zp.png'
+    source = ROOT / 'assets/zp-avatar.png'
     metadata = ROOT / 'game-info.json'
     info = json.loads(metadata.read_text(encoding='utf-8'))
     title = info.get('title') or 'ZenkaiPower'
@@ -38,7 +38,7 @@ def build_icon(output, compiler):
         image = image.convert('RGBA')
         bounds = image.getchannel('A').getbbox()
         if bounds is None:
-            raise ValueError('zp.png is fully transparent')
+            raise ValueError('zp-avatar.png is fully transparent')
         image = image.crop(bounds)
         scale = 240 / max(image.size)
         image = image.resize((max(1, round(image.width * scale)),
@@ -49,7 +49,7 @@ def build_icon(output, compiler):
         canvas.save(icon, format='ICO', sizes=[(16, 16), (24, 24), (32, 32), (48, 48),
                                              (64, 64), (128, 128), (256, 256)], bitmap_format='bmp')
     icon_path = icon.resolve().as_posix().replace('"', '\\"')
-    resource.write_text(f'''// Generated from zp.png and game-info.json.
+    resource.write_text(f'''// Generated from zp-avatar.png and game-info.json.
 #pragma code_page(65001)
 1 ICON "{icon_path}"
 1 VERSIONINFO

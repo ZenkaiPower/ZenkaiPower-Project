@@ -7,14 +7,14 @@ on:
       - 'web/**'
       - 'README.md'
       - 'figs/**'
-      - 'assets/zp.png'
+      - 'assets/zp-avatar.png'
       - '.github/workflows/pages.yml'
   pull_request:
     paths:
       - 'web/**'
       - 'README.md'
       - 'figs/**'
-      - 'assets/zp.png'
+      - 'assets/zp-avatar.png'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 

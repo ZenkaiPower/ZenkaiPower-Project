@@ -14,6 +14,7 @@ ENV LANG=C.UTF-8 TZ=UTC PYTHONUNBUFFERED=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates openssl curl xz-utils libc6-i386 lib32stdc++6 \
         python3 python3-pip python3-venv python3-nacl ninja-build p7zip-full \
+        jekyll ruby-kramdown-parser-gfm \
     && rm -rf /var/lib/apt/lists/*
 # Install into the disposable image's system Python so install.py's venv
 # (--system-site-packages) also sees splat without downloading it at runtime.
@@ -92,6 +93,7 @@ FROM ubuntu:22.04 AS all
 ENV DEBIAN_FRONTEND=noninteractive TZ=UTC LANG=C.UTF-8
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates openssl curl gnupg build-essential binutils python3 cmake ninja-build pkg-config git p7zip-full \
+        jekyll ruby-kramdown-parser-gfm \
         libwayland-dev libxkbcommon-dev wayland-protocols libdecor-0-dev libx11-dev libxext-dev libxrandr-dev \
         libxcursor-dev libxi-dev libxfixes-dev libxss-dev libxtst-dev libpulse-dev libpipewire-0.3-dev libasound2-dev \
         libdrm-dev libgbm-dev libegl1-mesa-dev libgl1-mesa-dev libgles2-mesa-dev libvulkan-dev libudev-dev libdbus-1-dev \
