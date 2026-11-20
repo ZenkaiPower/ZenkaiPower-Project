@@ -61,12 +61,22 @@ static inline void Port_SaveMigrate(const char *old, const char *target) {
     remove(temp);
 }
 
+static inline const char *Port_SaveDirectory(void) {
+    const char *custom = getenv("ZENKAIPOWER_SAVE_DIR");
+    return custom && custom[0] ? custom : "savegame";
+}
+
 static inline void Port_SavePrepare(void) {
-    SAVE_MKDIR("savegame");
+    SAVE_MKDIR(Port_SaveDirectory());
 }
 
 static inline const char *Port_SaveUserFile(const char *name, const char *target) {
+    static char custom[2048];
     Port_SavePrepare();
+    if (strcmp(Port_SaveDirectory(), "savegame") && !strncmp(target,"savegame/",9)) {
+        snprintf(custom,sizeof(custom),"%s/%s",Port_SaveDirectory(),target+9);
+        target=custom;
+    }
     Port_SaveMigrate(name, target);
     return target;
 }
@@ -87,7 +97,7 @@ static inline void Port_SaveCardPath(char *out, size_t size, const char *name) {
             name += strlen(prefix);
             if (*name == '/') name++;
         }
-        snprintf(out, size, "savegame%s%s", *name ? "/" : "",
+        snprintf(out, size, "%s%s%s", Port_SaveDirectory(), *name ? "/" : "",
                  strcmp(name, prefix) == 0 ? (Port_ZenkaiSelected() ? "zenkaipower.sav" : "game.sav") : name);
     }
 }

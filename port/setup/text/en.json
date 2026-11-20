@@ -312,5 +312,13 @@
   "welcome.description": "This wizard will guide you through the installation of %s on your computer.",
   "welcome.discs": "You will need your own copy of the North American PlayStation 2 disc image.",
   "welcome.title": "Welcome to the\nZENKAI Power! Setup Wizard",
-  "window.title": "%s - Setup"
+  "window.title": "%s - Setup",
+  "locations.title": "Storage locations",
+  "locations.data": "Game data location",
+  "locations.saves": "Save game location",
+  "locations.local": "Local",
+  "locations.custom": "Custom",
+  "locations.choose_folder": "Choose a folder for each Custom location.",
+  "locations.no_move": "Changing a location does not move existing game data or saves.",
+  "locations.apply": "Apply locations"
 }

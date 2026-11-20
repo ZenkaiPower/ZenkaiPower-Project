@@ -1,5 +1,8 @@
 # Building releases
 
+Desktop setup supports separate Local/Custom game-data and save-game folders.
+See [desktop storage locations](../../docs/port/desktop-storage-locations.md).
+
 ## Optional installer artwork
 
 Place optional JPEG/PNG images in `setup/` inside the game folder, for example

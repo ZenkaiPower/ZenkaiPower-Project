@@ -1,3 +1,4 @@
+#include "locations.h"
 // The setup's own installer, for a release folder (ZenkaiPower, ZenkaiPower.dat and ZenkaiPower-setup together, no build tools):
 // reads the user's disc image directly, checks it, unpacks the game data and prepares text resources. No Python, no 7z.
 // It reports through the same event lines as install.py (@step, @note, @ok, @skip, @fail, @stopped, @done), so the
@@ -314,7 +315,7 @@ void step_disc(Iso &iso, const std::string &path, bool report = true) {
 }
 
 void step_data(Iso &iso, const std::string &root) {
-    std::string data = root + "gamedata/", marker = data + ".installed";
+    std::string data = Setup_DataRoot(root), marker = data + ".installed";
     SDL_PathInfo info;
     step("Game data");
     // Selecting the USA disc explicitly requests fresh extraction, including repairs.
@@ -379,7 +380,7 @@ void step_prepare_text(const std::string &root) {
     if (!Android_PrepareText(root)) throw Stop{"Text resource preparation failed. See logs/zenkaipower_log.txt."};
     say("@ok Translations generated and included in game-text.pak");
 #else
-    std::string exe = root + kGame, saves = root + "gamedata/.selftest";
+    std::string exe = root + kGame, saves = Setup_DataRoot(root) + ".selftest";
     const char *args[2] = {exe.c_str(), NULL};
     step("Text resources");
     say((std::string("@note ") + SetupText("progress.generating_and_packaging_translations_from_disc")));
@@ -392,6 +393,7 @@ void step_prepare_text(const std::string &root) {
     for (const char *name : {"ZENKAIPOWER_REPLAY", "ZENKAIPOWER_PAD_PLAY", "ZENKAIPOWER_PAD_REC", "ZENKAIPOWER_DATA"}) {
         SDL_UnsetEnvironmentVariable(env, name);
     }
+    SDL_SetEnvironmentVariable(env, "ZENKAIPOWER_DATA", Setup_DataRoot(root).c_str(), true);
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, (void *)args);
     SDL_SetPointerProperty(props, SDL_PROP_PROCESS_CREATE_ENVIRONMENT_POINTER, env);
@@ -435,7 +437,7 @@ void step_prepare_text(const std::string &root) {
 
 // Publish completion only after every requested extraction and resource preparation succeeds.
 void mark_installed(const std::string &root) {
-    const std::string marker = root + "gamedata/.installed";
+    const std::string marker = Setup_DataRoot(root) + ".installed";
     SDL_IOStream *file = SDL_IOFromFile(marker.c_str(), "wb");
     if (!file) throw Stop{SetupText("error.could_not_write_the_installed_marker_check_folder_permissions_and_available_")};
     if (!SDL_CloseIO(file)) {
@@ -498,7 +500,7 @@ void pack_subset(const std::string &dir, const std::vector<Uint32> &ids) {
 
 void step_eu(const std::string &root, const std::string &path) {
     Iso iso;
-    std::string dir = root + "gamedata/pzs3eu1/";
+    std::string dir = Setup_DataRoot(root) + "pzs3eu1/";
     step("European languages");
     iso.open(path);
     const IsoFile *sles = iso.find("SLES_549.45"), *afs = iso.find("DATA/PZS3EU1.AFS"), *selector = iso.find("DATA/PZS3EU0.AFS");
@@ -544,14 +546,14 @@ void step_eu(const std::string &root, const std::string &path) {
         (Uint64)selectorEntry[0] + selectorEntry[1] > selector->size) {
         throw Stop{SetupText("error.the_language_selector_archive_on_the_european_disc_image_data_pzs3eu0_afs_is")};
     }
-    std::string selectorDir = root + "gamedata/pzs3eu0/";
+    std::string selectorDir = Setup_DataRoot(root) + "pzs3eu0/";
     SDL_CreateDirectory(selectorDir.c_str());
     copy_out(iso, selector->offset + selectorEntry[0], selectorEntry[1], selectorDir + "00001.part", buf);
     if (!SDL_RenamePath((selectorDir + "00001.part").c_str(), (selectorDir + "00001.bin").c_str())) {
         throw Stop{SetupText("error.could_not_write") + selectorDir + "00001.bin."};
     }
-    std::string movieDir = root + "gamedata/disc/DATA/";
-    SDL_CreateDirectory((root + "gamedata/disc/").c_str());
+    std::string movieDir = Setup_DataRoot(root) + "disc/DATA/";
+    SDL_CreateDirectory((Setup_DataRoot(root) + "disc/").c_str());
     SDL_CreateDirectory(movieDir.c_str());
     Uint8 magic[2];
     if (openingAudio->size < 2 || openingAudio->size > (16u << 20)) {
@@ -567,7 +569,7 @@ void step_eu(const std::string &root, const std::string &path) {
         throw Stop{SetupText("error.could_not_write") + dest + "."};
     }
     pack_subset(dir, want);
-    pack_subset(root + "gamedata/pzs3eu0/", {1});
+    pack_subset(Setup_DataRoot(root) + "pzs3eu0/", {1});
     say((std::string("@ok ") + SetupText("progress.european_languages_and_opening_soundtrack_the_game_makes_the_languages_at_it")));
 }
 
@@ -604,7 +606,7 @@ void work(std::string root, std::string path, std::string eu, std::string wii, s
 // publishes its replacement atomically. It also preserves edited catalogs.
 #ifndef ZENKAIPOWER_ANDROID_INSTALLER
         if (!path.empty() || !eu.empty() || !wii.empty() || !jp.empty()) {
-            std::string textPackage = root + "gamedata/game-text.pak";
+            std::string textPackage = Setup_DataRoot(root) + "game-text.pak";
             SDL_PathInfo textInfo;
             if (SDL_GetPathInfo(textPackage.c_str(), &textInfo) && !SDL_RemovePath(textPackage.c_str()))
                 throw Stop{SetupText("error.could_not_write") + textPackage};
@@ -628,7 +630,7 @@ void work(std::string root, std::string path, std::string eu, std::string wii, s
 #endif
         if (!path.empty() || !eu.empty() || !wii.empty() || !jp.empty() || Native_NeedsShellAssets(root)) step_prepare_text(root);
         check_cancel();
-        Port_RemoveEmptyChildren(root + "gamedata");
+        Port_RemoveEmptyChildren(Setup_DataRoot(root));
 #ifdef _WIN32
         {
             auto shortcut=[&](bool japanese) {
@@ -759,8 +761,8 @@ NativeTitleLogo Native_ReadTitleLogo(const std::string &path,bool japanese) {
 }
 
 bool Native_NeedsShellAssets(const std::string &root) {
-    if (!Port_PackExists((root+"gamedata/game-text/title-zenkaipower.png").c_str()) ||
-        (Native_DiscInstalled(root,3) && !Port_PackExists((root+"gamedata/game-text/title-sm.png").c_str()))) return true;
+    if (!Port_PackExists((Setup_DataRoot(root) + "game-text/title-zenkaipower.png").c_str()) ||
+        (Native_DiscInstalled(root,3) && !Port_PackExists((Setup_DataRoot(root) + "game-text/title-sm.png").c_str()))) return true;
 #ifdef _WIN32
     SDL_PathInfo info;
     auto missing=[&](const char *name) {
@@ -797,7 +799,7 @@ void Native_Join() {
 
 bool Native_Installed(const std::string &root) {
     SDL_PathInfo info;
-    return SDL_GetPathInfo((root + "gamedata/.installed").c_str(), &info);
+    return SDL_GetPathInfo((Setup_DataRoot(root) + ".installed").c_str(), &info);
 }
 
 // Read an optional subset archive table once, instead of reopening it for every
@@ -830,10 +832,10 @@ static bool installed_subset(const std::string &directory, const std::vector<Uin
     return true;
 }
 bool Native_EuInstalled(const std::string &root) {
-    if (!installed_subset(root+"gamedata/pzs3eu0",{1}) ||
-        !installed_subset(root+"gamedata/pzs3eu1",eu_entries())) return false;
+    if (!installed_subset(Setup_DataRoot(root) + "pzs3eu0",{1}) ||
+        !installed_subset(Setup_DataRoot(root) + "pzs3eu1",eu_entries())) return false;
     struct stat info;
-    return Port_PackStat((root+"gamedata/disc/DATA/ZS3EUOP.ADX").c_str(),&info)==0;
+    return Port_PackStat((Setup_DataRoot(root) + "disc/DATA/ZS3EUOP.ADX").c_str(),&info)==0;
 }
 
 // Installed state comes from extracted data, independently of a newly selected image.
@@ -842,10 +844,10 @@ bool Native_DiscInstalled(const std::string &root, int disc) {
     if (disc == 0) return Native_Installed(root);
     if (disc == 1) return Native_EuInstalled(root);
     if (disc != 2 && disc != 3) return false;
-    const char *archive = disc == 2 ? "gamedata/dragon-net-battle.pak" : "gamedata/sparking-meteor.pak";
+    const char *archive = disc == 2 ? "dragon-net-battle.pak" : "sparking-meteor.pak";
     const char *entry = disc == 2 ? "home-dialog.bin" : "title/sparking-meteor.bin";
     int64_t offset, length;
-    FILE *file = Port_NamedPackage((root + archive).c_str(), entry, &offset, &length, -1, NULL, 0);
+    FILE *file = Port_NamedPackage((Setup_DataRoot(root) + archive).c_str(), entry, &offset, &length, -1, NULL, 0);
     if (!file) return false;
     fclose(file);
     return length > 0;
@@ -855,7 +857,7 @@ bool Native_DiscInstalled(const std::string &root, int disc) {
 bool Native_VerifyInstalledUs(const std::string &root) {
     try {
         auto read=[&](const char *name) {
-            std::string path=root+"gamedata/disc/"+name;
+            std::string path=Setup_DataRoot(root) + "disc/"+name;
             int64_t base=0,size=0;
             FILE *raw=fopen(path.c_str(),"rb");
             if (raw) {

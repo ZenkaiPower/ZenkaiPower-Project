@@ -253,6 +253,13 @@ def main():
         python_jp(image,reference)
         native_run('jp',native,image,check=True)
         assert named_package(native/'gamedata/sparking-meteor.pak')==named_package(reference/'sparking-meteor.pak')
+        custom_install=root/'custom install';custom_install.mkdir()
+        custom_data=root/'custom extracted data';custom_data.mkdir()
+        configured=('Z:'+str(custom_data.resolve()).replace('/','\\')) if args.runner else str(custom_data)
+        (custom_install/'locations.ini').write_text('data='+configured+'\nsaves=\n')
+        native_run('jp',custom_install,image,check=True)
+        assert named_package(custom_data/'sparking-meteor.pak')==named_package(reference/'sparking-meteor.pak')
+        assert not (custom_install/'gamedata').exists()
         previous=(native/'gamedata/sparking-meteor.pak').read_bytes()
         # A late read failure must not replace a previously installed package.
         bad=root/'truncated.iso'; bad.write_bytes(image.read_bytes()[:-2048])
@@ -267,6 +274,8 @@ def main():
         (catalogs/'es.json').write_text(json.dumps(old))
         python_wii(menu,reference/'dragon-net-battle',None,None,archives/'wzs3eu2.afs',True)
         native_run('wii',native,menu,check=True)
+        native_run('wii',custom_install,menu,check=True)
+        assert named_package(custom_data/'dragon-net-battle.pak')==named_package(native/'gamedata/dragon-net-battle.pak')
         output=named_package(native/'gamedata/dragon-net-battle.pak')
         for p in (reference/'dragon-net-battle').rglob('*'):
             if not p.is_file(): continue

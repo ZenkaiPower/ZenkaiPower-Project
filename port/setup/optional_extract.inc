@@ -206,7 +206,7 @@ void extract_japanese(const std::string &root,const std::string &path) {
         iso.read(file->offset+file->size-1,head.data(),1);
         assets.emplace("disc/"+relative,NamedAsset(iso,*file));
     }
-    publish_assets(root+"gamedata/sparking-meteor.pak",assets);
+    publish_assets(Setup_DataRoot(root) + "sparking-meteor.pak",assets);
 }
 std::vector<View> wii_table(View data) {
     Uint32 count=data.word(0,4,true);
@@ -511,7 +511,7 @@ std::string fragment(const std::map<std::string,std::string> &rows) {
 }
 using CatalogUpdates=std::map<std::string,std::string>;
 void update_catalog(const std::string &root,const std::string &locale,const std::map<std::string,std::string> &rows,CatalogUpdates &updates) {
-    std::string path=root+"gamedata/game-text/translations/ui/"+locale+".json";
+    std::string path=Setup_DataRoot(root) + "game-text/translations/ui/"+locale+".json";
     FILE *fp=Port_PackFopen(path.c_str(),"rb"); if (!fp) return;
     std::unique_ptr<FILE,ClosePackageFile> file(fp); require(!fseek(fp,0,SEEK_END),SetupText("error.cannot_read_ui_catalog")); long size=ftell(fp);
     require(size>=0 && size<=16<<20 && !fseek(fp,0,SEEK_SET),SetupText("error.invalid_ui_catalog_size"));
@@ -591,7 +591,7 @@ void publish_catalogs(const CatalogUpdates &catalogs) {
     }
 }
 void extract_wii(const std::string &root,const std::string &source) {
-    std::string dataRoot=root+"gamedata";
+    std::string dataRoot=Setup_DataRoot(root);
     // The two Wii archives need several GB of scratch space, independently of the output package.
     TemporaryDirectory temporary(std::filesystem::temp_directory_path().u8string());
     std::string path=std::filesystem::absolute(std::filesystem::u8path(source)).u8string(),menuPath,voicePath;
@@ -657,7 +657,7 @@ void extract_wii(const std::string &root,const std::string &source) {
     }
     // Refresh existing non-PAL UI catalogs with English Wii IDs, retaining edits.
     std::set<std::string> installed;
-    std::string directory=root+"gamedata/game-text/translations/ui";
+    std::string directory=Setup_DataRoot(root) + "game-text/translations/ui";
     for (int i=0;i<1000;i++) { char name[1200]; if (!Port_TextPackageList(directory.c_str(),i,name,sizeof(name))) break; std::string n=name; if (n.size()>5 && n.substr(n.size()-5)==".json") installed.insert(n.substr(0,n.size()-5)); }
     std::error_code ec; std::filesystem::directory_iterator it(std::filesystem::u8path(directory),ec),end;
     if (!ec) for (;it!=end;it.increment(ec)) {

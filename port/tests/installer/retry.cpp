@@ -26,6 +26,23 @@ int main() {
     assert(!sEuOnly && !sDiscChecked[1] && sVerifyError[1].empty());
     assert(sVerifyPath[1].empty() && sVerifiedPath[1].empty());
     assert(!sLauncher.empty());
+    SDL_strlcpy(sDataFolder,(dir/"custom data").u8string().c_str(),sizeof(sDataFolder));
+    SDL_strlcpy(sSaveFolder,(dir/"custom saves").u8string().c_str(),sizeof(sSaveFolder));
+    sCustomData=sCustomSaves=sLocationsDirty=true;
+    assert(commit_locations());
+    assert(!sDiscInstalled[0]); // Existing local data must not count in the new location.
+    assert(!sLocationsDirty);
+    marker=fopen((Setup_DataRoot(sRoot)+".installed").c_str(),"wb");
+    assert(marker);fclose(marker);
+    return_to_disc_selection();
+    assert(sPage==PAGE_DONE && sDiscInstalled[0]);
+    sCustomData=sCustomSaves=false;
+    load_locations();
+    assert(sCustomData && sCustomSaves);
+    assert(std::string(sDataFolder)==(dir/"custom data").u8string());
+    sCustomData=sCustomSaves=false;sLocationsDirty=true;
+    assert(commit_locations());
+    assert(Setup_DataRoot(sRoot)==sRoot+"gamedata/");
     std::filesystem::remove_all(dir);
     puts("PASS: first-install and optional-only retry routes, selection preservation and fresh verification");
 }

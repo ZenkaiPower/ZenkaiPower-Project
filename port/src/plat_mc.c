@@ -79,7 +79,7 @@ static int request(int cmd, int result) {
 
 /* The host path of a card path; creates the card's folder on first use. Returns 0 for slot 2 (no card). */
 static int host_path(int port, const char *name, char *out, size_t size) {
-    const char *root = getenv("ZENKAIPOWER_SAVES") != NULL ? getenv("ZENKAIPOWER_SAVES") : "savegame";
+    const char *root = getenv("ZENKAIPOWER_SAVES") != NULL ? getenv("ZENKAIPOWER_SAVES") : Port_SaveDirectory();
     char dir[512];
 
     if (port != 0) {
@@ -167,7 +167,7 @@ int func_002A1F80(int port, int slot, char *name) {
     if (slot != 0 || !host_path(port, name, path, sizeof(path))) {
         return request(11, -10);
     }
-    if (!getenv("ZENKAIPOWER_SAVES") && !strcmp(path, "savegame")) return request(11, 0);
+    if (!getenv("ZENKAIPOWER_SAVES") && !strcmp(path, Port_SaveDirectory())) return request(11, 0);
     return request(11, mkdir(path, 0755) == 0 ? 0 : -4);
 }
 
@@ -247,8 +247,10 @@ int func_002A27A8(int port, int slot, char *name, int mode, int maxent, void *ta
     if (slot != 0 || !host_path(port, strcmp(name, "*") == 0 ? "" : name, path, sizeof(path))) {
         return request(13, -10);
     }
-    if (!getenv("ZENKAIPOWER_SAVES") && !strcmp(path, "savegame")) {
-        n = stat(Port_ZenkaiSelected() ? "savegame/zenkaipower.sav" : "savegame/game.sav", &st) == 0 ? 1 : 0;
+    if (!getenv("ZENKAIPOWER_SAVES") && !strcmp(path, Port_SaveDirectory())) {
+        char save[2048];
+        snprintf(save,sizeof(save),"%s/%s",Port_SaveDirectory(),Port_ZenkaiSelected() ? "zenkaipower.sav" : "game.sav");
+        n = stat(save, &st) == 0 ? 1 : 0;
     } else if (strcmp(name, "*") == 0) {
         DIR *d = opendir(path);
         struct dirent *e;
@@ -311,7 +313,7 @@ static void options_path(char *path,size_t size) {
     /* Port_SaveCardPath uses Port_ZenkaiSelected(), which can still be false
        when the boot language chooser runs.  The ZENKAI companion has one
        stable location, independent of the memory-card initialization order. */
-    snprintf(path,size,"savegame/zenkaipower.sav.options");
+    snprintf(path,size,"%s/zenkaipower.sav.options",Port_SaveDirectory());
 }
 /* 0 means missing (legacy migration allowed); -1 means unreadable/corrupt. */
 static int options_file_read_unlocked(void *payload) {

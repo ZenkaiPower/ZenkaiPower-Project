@@ -1,3 +1,4 @@
+#include "locations.h"
 // The setup window of the PC port: pick your disc image, watch the steps, press Play.
 //
 // A native SDL3 + Dear ImGui program. Source checkouts run install.py to build the port;
@@ -112,6 +113,10 @@ static const struct { const char *title, *operation, *help; } kHelp[] = {
 };
 static bool sRelease;
 static bool sDesktopShortcut=true;
+static bool sCustomData=false, sCustomSaves=false, sLocationsDirty=false;
+static char sDataFolder[1024], sSaveFolder[1024];
+static std::string sLocationError;
+static bool commit_locations();
 static Page sTasksBack=PAGE_PICK;
 
 static const char *step_help(const std::string &title) {
@@ -162,7 +167,7 @@ static void load_title_logos() {
         if(!preview.pixels.empty()) {
             logo=SDL_CreateSurfaceFrom(preview.width,preview.height,SDL_PIXELFORMAT_RGBA32,preview.pixels.data(),preview.width*4);
         } else {
-        std::string path=sRoot+"gamedata/game-text/"+(i ? "title-sm.png" : "title-zenkaipower.png");
+        std::string path=Setup_DataRoot(sRoot)+"game-text/"+(i ? "title-sm.png" : "title-zenkaipower.png");
         FILE *file=Port_PackFopen(path.c_str(),"rb");
         if(!file) continue;
         std::vector<unsigned char> bytes;
@@ -336,6 +341,7 @@ static void reset_rows() {
 }
 
 static void start_install() {
+    if (!commit_locations()) { sPage=PAGE_PICK; return; }
     static std::string iso, euIso, wiiIso, jpIso;
     const char *args[16];
     SDL_PropertiesID props = SDL_CreateProperties();
@@ -556,6 +562,62 @@ static void SDLCALL dialog_done(void *userdata, const char *const *files, int fi
         sDialogFor = (int)(intptr_t)userdata; // (NULL: the USA image's field)
         sDialogReady = true;
     }
+}
+
+static void load_locations() {
+    if (sRoot.empty()) return;
+    Port_LocationRead(sRoot.c_str(),"data",sDataFolder,sizeof(sDataFolder));
+    Port_LocationRead(sRoot.c_str(),"saves",sSaveFolder,sizeof(sSaveFolder));
+    sCustomData=sDataFolder[0]!=0; sCustomSaves=sSaveFolder[0]!=0;
+}
+
+static bool commit_locations() {
+    if (!sRelease || !sLocationsDirty) return true;
+    if ((sCustomData && !sDataFolder[0]) || (sCustomSaves && !sSaveFolder[0])) {
+        sLocationError=SetupText("locations.choose_folder"); return false;
+    }
+    if (!Setup_SaveLocations(sRoot,sCustomData ? sDataFolder : "",sCustomSaves ? sSaveFolder : "",sLocationError)) return false;
+    sLocationsDirty=false;
+    refresh_installed_discs();
+    return true;
+}
+
+static void storage_locations() {
+#ifndef ZENKAIPOWER_ANDROID_INSTALLER
+    if (!sRelease) return;
+    ImGui::SeparatorText(SetupText("locations.title"));
+    for (int row=0;row<2;row++) {
+        ImGui::PushID(row+100);
+        bool &custom=row==0 ? sCustomData : sCustomSaves;
+        char *folder=row==0 ? sDataFolder : sSaveFolder;
+        ImGui::TextUnformatted(SetupText(row==0 ? "locations.data" : "locations.saves"));
+        ImGui::SetNextItemWidth(140);
+        const char *label=SetupText(custom ? "locations.custom" : "locations.local");
+        if (ImGui::BeginCombo("##location-mode",label)) {
+            if (ImGui::Selectable(SetupText("locations.local"),!custom)) { custom=false;sLocationsDirty=true; }
+            if (ImGui::Selectable(SetupText("locations.custom"),custom)) { custom=true;sLocationsDirty=true; }
+            ImGui::EndCombo();
+        }
+        ImGui::SameLine();
+        std::string shown=custom ? folder : sRoot+(row==0 ? "gamedata" : "savegame");
+        ImGui::SetNextItemWidth(std::max(80.0f,ImGui::GetContentRegionAvail().x-(custom ? 102.0f : 0.0f)));
+        ImGui::InputText("##location-path",const_cast<char *>(shown.c_str()),shown.size()+1,ImGuiInputTextFlags_ReadOnly);
+        if (custom) {
+            ImGui::SameLine();
+            if (ImGui::Button(SetupText("buttons.browse"),ImVec2(88,0)))
+                SDL_ShowOpenFolderDialog(dialog_done,(void *)(intptr_t)(row+4),sWindow,folder[0] ? folder : sRoot.c_str(),false);
+        }
+        ImGui::PopID();
+    }
+    ImGui::TextWrapped("%s",SetupText("locations.no_move"));
+    if (!sLocationError.empty()) ImGui::TextColored(kRed,"%s",sLocationError.c_str());
+    ImGui::BeginDisabled(!sLocationsDirty);
+    if (ImGui::Button(SetupText("locations.apply")) && commit_locations()) {
+        sPage=Native_Installed(sRoot) ? PAGE_DONE : PAGE_PICK;
+    }
+    ImGui::EndDisabled();
+    ImGui::Spacing();
+#endif
 }
 
 // Use the same packaged metadata as the game's settings footer.
@@ -978,6 +1040,7 @@ static void page_pick() {
         ImGui::TextWrapped("%s",SetupText("source.description"));
     }
     ImGui::BeginChild("discs", ImVec2(0, -60));
+    storage_locations();
     disc_checklist(true);
     if (sRoot.empty()) ImGui::TextColored(kRed,"%s",SetupText("failure.game_files_missing"));
     ImGui::EndChild();
@@ -1062,6 +1125,7 @@ static void page_run() {
 static void page_done() {
     heading(sGameTitle.c_str(), SetupText("installed.subtitle"));
     ImGui::BeginChild("installed-details", ImVec2(0, -90));
+    storage_locations();
     disc_checklist(true);
     ImGui::EndChild();
     ImGui::PushStyleColor(ImGuiCol_Text,kDim);
@@ -1085,6 +1149,8 @@ static void page_done() {
             confirm_install();
             return;
         }
+        if (!commit_locations()) return;
+        if (!Native_Installed(sRoot)) { sPage=PAGE_PICK; return; }
         if (Setup_LaunchGame(sRoot,sLauncher)) {
             sQuit=true;
         } else {
@@ -1482,6 +1548,7 @@ int main(int argc, char **argv) {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     style();
     sRoot = find_root();
+    load_locations();
     io.FontDefault = load_dejavu("DejaVuSansCondensed.ttf");
     sHeaderFont = load_dejavu("DejaVuSansCondensed-Bold.ttf");
     load_cover();
@@ -1549,8 +1616,13 @@ int main(int argc, char **argv) {
         {
             std::lock_guard<std::mutex> lock(sDialogLock);
             if (sDialogReady) {
-                SDL_strlcpy(disc_path(sDialogFor), sDialogResult.c_str(), 1024);
-                sDiscChecked[sDialogFor] = false;
+                if (sDialogFor==4 || sDialogFor==5) {
+                    SDL_strlcpy(sDialogFor==4 ? sDataFolder : sSaveFolder,sDialogResult.c_str(),1024);
+                    sLocationsDirty=true;
+                } else {
+                    SDL_strlcpy(disc_path(sDialogFor), sDialogResult.c_str(), 1024);
+                    sDiscChecked[sDialogFor] = false;
+                }
                 sDialogReady = false;
             }
         }

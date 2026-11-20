@@ -1,3 +1,4 @@
+#include "port_locations.h"
 #include "port_pack.h"
 extern int Port_EnsureTextPackage(const char *program);
 /*
@@ -451,6 +452,37 @@ static void Port_LoadGameData(void) {
         return;
     }
     exe[n] = '\0';
+#ifndef __ANDROID__
+    {
+        char directory[1024], custom[2048];
+        char *slash, *backslash;
+        snprintf(directory,sizeof(directory),"%s",exe);
+        slash=strrchr(directory,'/'); backslash=strrchr(directory,'\\');
+        if (backslash && (!slash || backslash>slash)) slash=backslash;
+        if (slash) {
+            slash[1]=0;
+            if (Port_LocationRead(directory,"data",custom,sizeof(custom))) {
+                /* Installed location choices are anchored beside the executable. */
+                if (gPortDataStripped==1 && chdir(directory)!=0) data_fail("could not open game folder",directory);
+                if (custom[0] && !getenv("ZENKAIPOWER_DATA")) {
+#ifdef _WIN32
+                    _putenv_s("ZENKAIPOWER_DATA",custom);
+#else
+                    setenv("ZENKAIPOWER_DATA",custom,0);
+#endif
+                }
+            }
+            if (Port_LocationRead(directory,"saves",custom,sizeof(custom)) && custom[0] && !getenv("ZENKAIPOWER_SAVE_DIR")) {
+#ifdef _WIN32
+                _putenv_s("ZENKAIPOWER_SAVE_DIR",custom);
+#else
+                setenv("ZENKAIPOWER_SAVE_DIR",custom,0);
+#endif
+            }
+            root=getenv("ZENKAIPOWER_DATA") ? getenv("ZENKAIPOWER_DATA") : "gamedata";
+        }
+    }
+#endif
     if (gPortDataStripped == 1 && getenv("ZENKAIPOWER_DATA") == NULL) {
         /* A release program started from another folder (a double click, a shortcut): its data, saves and
            settings are next to it. If there is no gamedata here but there is next to the program, work there. */
