@@ -93,7 +93,7 @@ final class VirtualPadView extends View {
     private int stickId = -1;
     private int rightDragId = -1;
     private float rightDragX, rightDragY;
-    private boolean rightDragSent;
+    private boolean rightDragSent, rightCameraDrag;
     private float stickX, stickY, stickDX, stickDY, radius, unit;
 
     VirtualPadView(Context context, TouchMouseSurface surface, File gameRoot) {
@@ -270,6 +270,12 @@ final class VirtualPadView extends View {
     }
 
     private void rightDrag(float x, float y) {
+        if (rightCameraDrag) {
+            if (getWidth()>0 && getHeight()>0)
+                GameActivity.nativeCameraDrag(2,(x-rightDragX)/getWidth(),(y-rightDragY)/getHeight());
+            rightDragX=x;rightDragY=y;
+            return;
+        }
         if (rightDragSent) return;
         float dx = x - rightDragX, dy = y - rightDragY;
         if (dx * dx + dy * dy < unit * unit * .0625f) return;
@@ -281,6 +287,7 @@ final class VirtualPadView extends View {
     }
 
     void release() {
+        GameActivity.nativeCameraDrag(0,0,0);
         vibration.update(0);
         pointers.clear();
         for (Button button : buttons) {
@@ -292,7 +299,7 @@ final class VirtualPadView extends View {
         }
         if (stickId >= 0) { TouchPadBridge.axis(0, 0); TouchPadBridge.axis(1, 0); }
         if (rightDragId >= 0) { TouchPadBridge.axis(2, 0); TouchPadBridge.axis(3, 0); }
-        rightDragId = -1; rightDragSent = false;
+        rightDragId = -1; rightDragSent = false; rightCameraDrag = false;
         stickId = -1;
         timerId = -1;
         stickDX = stickDY = 0;
@@ -346,6 +353,7 @@ final class VirtualPadView extends View {
             } else if (x >= getWidth() * .5f && rightDragId < 0) {
                 rightDragId = id;
                 rightDragSent = false;
+                rightCameraDrag = GameActivity.nativeCameraMode()==2;
                 rightDragX = x;
                 rightDragY = y;
                 rightDrag(x, y);
@@ -365,7 +373,7 @@ final class VirtualPadView extends View {
             }
             if (id == rightDragId) {
                 TouchPadBridge.axis(2, 0); TouchPadBridge.axis(3, 0);
-                rightDragId = -1; rightDragSent = false;
+                rightDragId = -1; rightDragSent = false; rightCameraDrag = false;
             }
             pointers.delete(id);
         }

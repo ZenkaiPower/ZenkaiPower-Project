@@ -22,6 +22,8 @@ public class GameActivity extends SDLActivity {
     static native boolean nativeTouchControlsActive();
     static native int nativeTouchVibration();
     static native boolean nativeBattleActive();
+    static native int nativeCameraMode();
+    static native void nativeCameraDrag(int mode,float dx,float dy);
     static native void nativePauseBattle();
     private VirtualPadView touchPad;
     private File storageRoot;

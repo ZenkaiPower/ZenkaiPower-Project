@@ -52,8 +52,22 @@ static FILE *sLog;
 static int (*sTouchControlsActive)(void);
 static int (*sTouchVibration)(void);
 static int (*sBattleActive)(void);
+static int (*sCameraMode)(void);
+static void (*sCameraDrag)(int,float,float);
 static void (*sPauseRequest)(void);
 
+JNIEXPORT jint JNICALL
+Java_com_zenkaipower_android_GameActivity_nativeCameraMode(JNIEnv *env,jclass type) {
+    (void)env;(void)type;
+    int (*query)(void)=__atomic_load_n(&sCameraMode,__ATOMIC_ACQUIRE);
+    return query ? query():0;
+}
+JNIEXPORT void JNICALL
+Java_com_zenkaipower_android_GameActivity_nativeCameraDrag(JNIEnv *env,jclass type,jint mode,jfloat dx,jfloat dy) {
+    (void)env;(void)type;
+    void (*drag)(int,float,float)=__atomic_load_n(&sCameraDrag,__ATOMIC_ACQUIRE);
+    if(drag) drag(mode,dx,dy);
+}
 JNIEXPORT jboolean JNICALL
 Java_com_zenkaipower_android_GameActivity_nativeBattleActive(JNIEnv *env, jclass type) {
     (void)env; (void)type;
@@ -487,6 +501,8 @@ int SDL_main(int argc, char **argv) {
         (int (*)(void))dlsym(handle,"Port_AndroidBattleActive"),__ATOMIC_RELEASE);
     __atomic_store_n(&sPauseRequest,
         (void (*)(void))dlsym(handle,"Port_AndroidPauseRequest"),__ATOMIC_RELEASE);
+    __atomic_store_n(&sCameraMode,(int (*)(void))dlsym(handle,"Port_AndroidCameraMode"),__ATOMIC_RELEASE);
+    __atomic_store_n(&sCameraDrag,(void (*)(int,float,float))dlsym(handle,"Port_AndroidCameraDrag"),__ATOMIC_RELEASE);
     entry = (int (*)(int, char **))dlsym(handle, "__wrap_main");
     if (!entry) { say("Missing engine entry: %s", dlerror()); return 1; }
     say("Starting ZenkaiPower");
@@ -494,6 +510,8 @@ int SDL_main(int argc, char **argv) {
     __atomic_store_n(&sTouchControlsActive, NULL, __ATOMIC_RELEASE);
     __atomic_store_n(&sTouchVibration,NULL,__ATOMIC_RELEASE);
     __atomic_store_n(&sBattleActive,NULL,__ATOMIC_RELEASE);
+    __atomic_store_n(&sCameraMode,NULL,__ATOMIC_RELEASE);
+    __atomic_store_n(&sCameraDrag,NULL,__ATOMIC_RELEASE);
     __atomic_store_n(&sPauseRequest,NULL,__ATOMIC_RELEASE);
     say("Game ended (%d)", result);
     return result;

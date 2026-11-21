@@ -2,6 +2,7 @@
 #include "battle/btl_char_cam_int.h"
 #ifdef PORT
 #include "sys/port_zenkai.h"
+#include "battle/battle.h"
 /* The normal camera adds half-height offsets to a feet-based target. A body/face midpoint
  * target already has its full world height, so only offset the viewer's origin. */
 static void Port_ChrCamGiantFocus(ChrCamChr *chr, Vec4 *pos, Vec4 *delta, f32 ownHeight) {
@@ -281,6 +282,24 @@ void ChrCam_CalcLockOn(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     eye->y += ChrCam_GetBob(chr);
 }
 
+#if defined(PORT) && defined(__ANDROID__)
+extern s32 BattleSide_IsCpu(s32 side);
+extern s32 BtlCharApi_IsModelNew(s32 objId);
+static void Port_ChrCamTouchYaw(ChrCamChr *chr) {
+    extern void Port_AndroidTakeCameraDrag(int mode,f32 *dx,f32 *dy);
+    f32 dx,dy;
+    if (!PORT_ZENKAI_FREE_CAMERA || !Port_ZenkaiPackEnabled() ||
+        BattleSide_IsCpu(chr->side) || BtlChar_TestFlag(chr,5) ||
+        !BtlChar_TestFlag(chr,3) || BtlCharApi_IsModelNew(chr->objId)) return;
+    if ((Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) || ChrCam_IsCutActive(chr) ||
+        BtlChar_TestFlag(chr,0x11E) || BtlChar_TestFlag(chr,0x11F) ||
+        BtlChar_TestFlag(chr,0xDC) || BtlChar_TestFlag(chr,0xB8) ||
+        BtlChar_TestFlag(chr,0xCC)) return;
+    Port_AndroidTakeCameraDrag(2,&dx,&dy);
+    chr->cam.yaw = BtlUtil_WrapAngle(chr->cam.yaw + dx*4.0f);
+}
+#endif
+
 /* Free (no lock-on) camera: behind the fighter at cam->yaw, at the preset distance. */
 void ChrCam_CalcFree(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     ChrCam *cam = &chr->cam;
@@ -321,6 +340,7 @@ void ChrCam_CalcFree(ChrCamChr *chr, Vec4 *eye, Vec4 *rot, Vec4 *target) {
     rot->z = 0.0f;
     rot->w = 0.0f;
     eye->y += ChrCam_GetBob(chr);
+
 }
 
 /* Pushes the eye back onto a vertical plane behind model node 0x30 so the camera never passes it. */
@@ -418,6 +438,13 @@ void ChrCam_UpdateFreeYaw(ChrCamChr *chr) {
             cam->yaw += PI / 60.0f;
         }
     } else if (BtlChar_TestFlag(chr, 0xCA)) {
+#if defined(PORT) && defined(__ANDROID__)
+        {
+            extern int Port_AndroidCameraMode(void);
+            /* Preserve the orientation chosen by a free-camera drag. */
+            if (Port_AndroidCameraMode()==2) return;
+        }
+#endif
         d = BtlUtil_WrapAngle(BtlChar_GetPos(chr)->yaw - cam->yaw);
         cam->yaw = BtlUtil_WrapAngle(BtlUtil_ApproachF(cam->yaw, cam->yaw + d,
                                                BtlUtil_MinF(Mathf_Sin(__builtin_fabsf(d)) * 0.05f, 0.0333333333f)));
@@ -463,6 +490,9 @@ void ChrCam_TurnToOpponent(ChrCamChr *chr, Vec4 *rot) {
 /* Camera controls, run in the fighter's control phase: SELECT steps the distance preset, then the yaw update. */
 void ChrCam_UpdateInput(ChrCamChr *chr) {
     Vec4 *dst = &chr->cam.unk40;
+#if defined(PORT) && defined(__ANDROID__)
+    Port_ChrCamTouchYaw(chr);
+#endif
 
     if (BtlInput_IsPressed(chr, 0x800000)) {
         chr->cam.distMode++;

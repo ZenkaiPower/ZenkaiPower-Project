@@ -123,6 +123,9 @@ int gPortMenuMode;
 static int sMenuScene3D;
 void Port_MenuScene3D(int on) {
     on = on != 0;
+#ifdef __ANDROID__
+    { extern void Port_AndroidViewerCamera(int active); if (!on) Port_AndroidViewerCamera(0); }
+#endif
     if (on != sMenuScene3D) {
         sMenuScene3D = on;
         gPortMenuMode = !on;

@@ -16,8 +16,10 @@ final class TouchMouseSurface extends SDLSurface {
     private float startX, startY, secondX, secondY, mouseX, mouseY;
     private long started;
     private boolean moved, multiple, cancelled;
+    private int cameraDragMode;
+    private float dragX,dragY;
 
-    void cancelTouch() { primaryId = -1; }
+    void cancelTouch() { primaryId = -1; GameActivity.nativeCameraDrag(0,0,0); }
 
     TouchMouseSurface(Context context) {
         super(context);
@@ -69,6 +71,9 @@ final class TouchMouseSurface extends SDLSurface {
             secondaryId = -1;
             startX = event.getX();
             startY = event.getY();
+            dragX=startX;dragY=startY;
+            cameraDragMode=GameActivity.nativeCameraMode();
+            if (cameraDragMode==2 && startX<getWidth()*.5f) cameraDragMode=0;
             started = event.getEventTime();
             moved = multiple = cancelled = false;
             move(startX, startY);
@@ -76,10 +81,12 @@ final class TouchMouseSurface extends SDLSurface {
         }
         if (primaryId == -1) return true;
         if (action == MotionEvent.ACTION_CANCEL) {
+            GameActivity.nativeCameraDrag(0,0,0);
             primaryId = -1;
             return true;
         }
         if (action == MotionEvent.ACTION_POINTER_DOWN) {
+            GameActivity.nativeCameraDrag(0,0,0);
             if (multiple || event.getPointerCount() != 2) cancelled = true;
             multiple = true;
             int index = event.getActionIndex();
@@ -91,7 +98,13 @@ final class TouchMouseSurface extends SDLSurface {
         if (primary >= 0) {
             float x = event.getX(primary), y = event.getY(primary);
             moved |= distanceSquared(x, y, startX, startY) > slopSquared;
-            if (!multiple) move(x, y);
+            if (!multiple) {
+                if (cameraDragMode!=0 && moved && !cancelled && getWidth()>0 && getHeight()>0) {
+                    GameActivity.nativeCameraDrag(cameraDragMode,(x-dragX)/getWidth(),(y-dragY)/getHeight());
+                    dragX=x;dragY=y;
+                }
+                move(x, y);
+            }
         }
         int secondary = event.findPointerIndex(secondaryId);
         if (secondary >= 0)

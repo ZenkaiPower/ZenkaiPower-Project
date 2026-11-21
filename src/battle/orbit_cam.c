@@ -70,6 +70,18 @@ void OrbitCam_Update(s32 usePad) {
             z = p->gameRight[1];
         }
     }
+#if defined(PORT) && defined(__ANDROID__)
+    {
+        extern void Port_AndroidViewerCamera(int active);
+        Port_AndroidViewerCamera(usePad!=0);
+    }
+    if (usePad) {
+        extern void Port_AndroidTakeCameraDrag(int mode,f32 *dx,f32 *dy);
+        f32 dx,dy;
+        Port_AndroidTakeCameraDrag(1,&dx,&dy);
+        x += dx*40.0f;y += dy*30.0f;
+    }
+#endif
     gOrbitCam->angles.y += x * 0.1f;
     if (gOrbitCam->angles.y < -3.14159265f) {
         gOrbitCam->angles.y += 6.2831853f;

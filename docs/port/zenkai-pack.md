@@ -25,11 +25,12 @@ of the saved pack state.
 | `ginyu_body_change` | Four-body Body Change roster: Goku (Mid) outfit 1, Kid Gohan outfit 1, Krillin outfit 2, Vegeta (Scouter) outfit 3; excludes Nail, Jeice and the current body; retains Ginyu?s blasts/support skills, camera tables, move names and pause-menu View Skill list without the four stat penalties | `PORT_ZENKAI_GINYU_BODY_CHANGE` | No |
 | `future_gohan_grab` | Base Future Gohan uses his Super Saiyan form's normal grab, including paired victim motion and recovery | `PORT_ZENKAI_FUTURE_GOHAN_GRAB` | Yes |
 | `extra_outfits` | Future Gohan one-armed outfits 3 and 4, both forms and damage states | `PORT_ZENKAI_EXTRA_OUTFITS` | No |
+| `free_camera` | Horizontal Android camera dragging while unlocked | `PORT_ZENKAI_FREE_CAMERA` | Yes |
 | `manual_lock` | Hold L1 to unlock manually; release and hold L1 again to resume searching | `PORT_ZENKAI_MANUAL_LOCK` | Yes |
 | `tiered_kaioken` | Kaioken tiers, bonuses, upgrade costs and HP drain | `PORT_ZENKAI_KAIOKEN` | Yes |
 
 `battle_mechanic_change` is a named subset containing `giant_scaling`,
-`goku_ssj2`, `tiered_kaioken`, `future_gohan_grab`, and `manual_lock`. It has no separate menu toggle. The registry
+`goku_ssj2`, `tiered_kaioken`, `future_gohan_grab`, `manual_lock`, and `free_camera`. It has no separate menu toggle. The registry
 exposes membership through `Port_ZenkaiFeatureInGroup`; feature availability uses
 `Port_ZenkaiFeatureEnabled`. Unknown IDs/groups return false.
 

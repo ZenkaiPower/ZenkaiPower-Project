@@ -44,6 +44,26 @@ int Port_GameMouseMode(void) {
         return PORT_MOUSE_GAME_DIALOG;
     return PORT_MOUSE_GAME_FIGHT;
 }
+#ifdef __ANDROID__
+#include "battle/btl_char_flag.h"
+#include "sys/port_zenkai.h"
+int Port_GameTouchCameraMode(void) {
+    extern BtlFlagChr *BtlChar_Get(s32 side);
+    extern s32 BattleSide_IsCpu(s32 side);
+    extern s32 ChrCam_IsCutActive(void *fighter);
+    extern s32 BtlChar_IsFrozen(void *fighter);
+    BtlFlagChr *chr;
+    if (Port_GameMouseMode() != PORT_MOUSE_GAME_FIGHT || !BtlSeq_IsFighting() ||
+        !PORT_ZENKAI_FREE_CAMERA || !Port_ZenkaiPackEnabled() || BattleSide_IsCpu(0)) return 0;
+    chr = BtlChar_Get(0);
+    if (!chr || ChrCam_IsCutActive(chr) || BtlChar_IsFrozen(chr) ||
+        BtlChar_TestFlag(chr,5) || BtlChar_TestFlag(chr,0x11E) ||
+        BtlChar_TestFlag(chr,0x11F) || BtlChar_TestFlag(chr,0xDC) ||
+        BtlChar_TestFlag(chr,0xB8) || BtlChar_TestFlag(chr,0xCC)) return 0;
+    return 2; /* unlocked battle camera */
+}
+#endif
+
 #endif
 
 extern void *memset(void *dst, s32 value, u32 size);

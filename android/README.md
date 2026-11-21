@@ -275,6 +275,10 @@ Triangle, Circle, Cross and Square animate using their original pressed textures
 L1 sits above L2 on the left, with L3 at the bottom left; R1 sits above R2 on the
 right, with R3 at the bottom right. Start and Select sit along the bottom center.
 Multiple fingers can move and hold different buttons together.
+In Character Reference's Model View, drag across the screen to orbit the camera.
+During Sparking! Changes battles, drag an empty area on the right half of the
+screen to turn the camera horizontally while unlocked. Buttons and the left
+movement stick remain usable with other fingers.
 Controls release when the app loses focus or is paused.
 Android's **Options > Controller > Virtual Gamepad** provides an On/Off selector
 (default On), saved through the game's normal Options save flow. Mouse/Keyboard

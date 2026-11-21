@@ -1741,6 +1741,43 @@ void Port_VirtualGamepadApply(int on) {
 }
 
 #ifdef __ANDROID__
+/* Only normalized deltas cross the UI/game-thread boundary. */
+static pthread_mutex_t sCameraDragLock = PTHREAD_MUTEX_INITIALIZER;
+static int sCameraViewer, sCameraBattle, sCameraMode, sCameraBlocked;
+static float sCameraDragX, sCameraDragY;
+static void camera_mode_locked(void) {
+    int mode = sCameraBlocked ? 0 : sCameraViewer ? 1 : sCameraBattle;
+    if (mode != sCameraMode) { sCameraDragX=sCameraDragY=0; sCameraMode=mode; }
+}
+void Port_AndroidViewerCamera(int active) {
+    pthread_mutex_lock(&sCameraDragLock);
+    sCameraViewer=active!=0;camera_mode_locked();
+    pthread_mutex_unlock(&sCameraDragLock);
+}
+int Port_AndroidCameraMode(void) {
+    int mode;
+    pthread_mutex_lock(&sCameraDragLock);mode=sCameraMode;
+    pthread_mutex_unlock(&sCameraDragLock);return mode;
+}
+void Port_AndroidCameraDrag(int mode,float dx,float dy) {
+    if (mode==2) dy=0; /* Battle dragging is horizontal only. */
+    if (!(dx>=-1 && dx<=1 && dy>=-1 && dy<=1)) return;
+    pthread_mutex_lock(&sCameraDragLock);
+    if (!mode) sCameraDragX=sCameraDragY=0;
+    if (mode && mode==sCameraMode) {
+        sCameraDragX+=dx;sCameraDragY+=dy;
+        if(sCameraDragX>1) sCameraDragX=1;if(sCameraDragX< -1) sCameraDragX= -1;
+        if(sCameraDragY>1) sCameraDragY=1;if(sCameraDragY< -1) sCameraDragY= -1;
+    }
+    pthread_mutex_unlock(&sCameraDragLock);
+}
+void Port_AndroidTakeCameraDrag(int mode,float *dx,float *dy) {
+    pthread_mutex_lock(&sCameraDragLock);
+    *dx=mode==sCameraMode ? sCameraDragX:0;
+    *dy=mode==sCameraMode ? sCameraDragY:0;
+    if(mode==sCameraMode) sCameraDragX=sCameraDragY=0;
+    pthread_mutex_unlock(&sCameraDragLock);
+}
 static int sAndroidTouchActive;
 static int sAndroidPauseRequest;
 int Port_AndroidBattleActive(void) {
@@ -1778,6 +1815,15 @@ int Port_PadRead(int socket, unsigned char *data) {
 #ifdef __ANDROID__
         __atomic_store_n(&sAndroidTouchActive, mode == PORT_MOUSE_GAME_FIGHT &&
             !gPortOverlayOpen && !gPortInputCapture && !gPortChatTyping, __ATOMIC_RELEASE);
+        {
+            extern int Port_GameTouchCameraMode(void);
+            pthread_mutex_lock(&sCameraDragLock);
+            sCameraBlocked=gPortOverlayOpen || gPortInputCapture || gPortChatTyping;
+            sCameraBattle=mode==PORT_MOUSE_GAME_FIGHT && !gPortOverlayOpen &&
+                !gPortInputCapture && !gPortChatTyping ? Port_GameTouchCameraMode():0;
+            camera_mode_locked();
+            pthread_mutex_unlock(&sCameraDragLock);
+        }
 #endif
     }
     if (sSwallow) { /* the buttons that opened or closed the settings window are not the game's (START would pause) */
