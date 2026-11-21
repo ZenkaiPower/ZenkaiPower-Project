@@ -109,7 +109,7 @@ typedef struct BtlClashPath {
 /* Two more bit sets (fighter +0x1538). That they form one structure is what makes BtlChar_SetOnceBit match. */
 typedef struct BtlFlagBits {
     /* 0x0 [0x1538] */ u64 frame;  /* per-frame bits, cleared each frame by the manager */
-    /* 0x8 [0x1540] */ u8 once[8]; /* never cleared here; bit 0 = "first clash event raised"; length unknown */
+    /* 0x8 [0x1540] */ u8 once[8]; /* bit 0: first clash; PORT reserves byte 7 bits 0..1 for manual lock state */
 } BtlFlagBits;
 
 /* What BtlChar_GetPos returns: the fighter's pose block (fighter +0x10). */

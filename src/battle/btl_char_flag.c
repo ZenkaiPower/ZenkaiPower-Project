@@ -1,6 +1,9 @@
 #include "common.h"
 #include "battle/btl_char_flag.h"
 #include "battle/battle_setup.h"
+#ifdef PORT
+#include "sys/port_zenkai.h"
+#endif
 
 /*
  * Fighter flags: 0x1DA8B8..0x1DB048. The layout and the stage mechanism are described in the header.
@@ -149,9 +152,51 @@ s32 BtlChar_IsFlagDropped(BtlFlagChr *chr, u32 n) {
     return (prev & ~cur & m) != 0;
 }
 
+#ifdef PORT
+extern s32 BtlInput_IsHeld(void *chr, u32 mask);
+extern s32 BtlInput_GetHeldFrames(void *chr, s32 bit);
+extern s32 BattleSide_IsCpu(s32 side);
+extern s32 BtlCharApi_IsModelNew(s32 objId);
+/* Last once-byte is reserved for this port's manual lock state. It is part
+ * of fighter memory, so reset and battle snapshots retain the right state. */
+#define PORT_LOCK_MANUAL 1
+#define PORT_LOCK_LATCH 2
+s32 Port_BtlManualUnlocked(void *fighter) {
+    BtlFlagChr *chr = fighter;
+    return PORT_ZENKAI_MANUAL_LOCK && Port_ZenkaiPackEnabled() &&
+        (chr->bits.once[7] & PORT_LOCK_MANUAL) != 0;
+}
+static s32 Port_BtlUpdateManualLock(BtlFlagChr *chr) {
+    s32 held = BtlInput_IsHeld(chr, 0x4000); /* mapped L1 / Lock On */
+    u8 *state = &chr->bits.once[7];
+    if (!PORT_ZENKAI_MANUAL_LOCK || !Port_ZenkaiPackEnabled() ||
+        BattleSide_IsCpu(chr->player) || !BtlChar_TestFlag(chr, 3) ||
+        BtlCharApi_IsModelNew(chr->objId)) {
+        *state = (*state & ~(PORT_LOCK_MANUAL | PORT_LOCK_LATCH)) |
+            (held ? PORT_LOCK_LATCH : 0);
+        return 0;
+    }
+    if (!held) *state &= ~PORT_LOCK_LATCH;
+    if (held && !(*state & PORT_LOCK_LATCH) &&
+        BtlInput_GetHeldFrames(chr, 14) >= 15) {
+        *state |= PORT_LOCK_LATCH;
+        if (*state & PORT_LOCK_MANUAL) *state &= ~PORT_LOCK_MANUAL;
+        else if (BtlChar_TestFlag(chr, 5)) *state |= PORT_LOCK_MANUAL;
+    }
+    return (*state & PORT_LOCK_MANUAL) != 0;
+}
+#endif
+
 /* Lock-on: drops flag 5 on flags 0x93 / 0xB2, and raises 0x13 and 5 when the opponent is within range. */
 void BtlChar_UpdateLockOn(BtlFlagChr *chr) {
     f32 range;
+#ifdef PORT
+    if (Port_BtlUpdateManualLock(chr)) {
+        BtlChar_ClearFlag(chr, 5);
+        BtlChar_ClearFlag(chr, 0x13);
+        return;
+    }
+#endif
 
     if (BtlChar_TestFlag(chr, 0x93)) {
         BtlChar_ClearFlag(chr, 5);

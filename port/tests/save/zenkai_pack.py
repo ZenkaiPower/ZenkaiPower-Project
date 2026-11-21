@@ -9,7 +9,7 @@ start=source.index('s32 UbScore_Transfer(')
 end=source.index('\n}',start)+2
 transfer=source[start:end].replace('UbScore_Transfer(', 'TestPackTransfer(')
 flags=['PORT_ZENKAI_GIANTS','PORT_ZENKAI_STORY_UNLOCKS','PORT_ZENKAI_TOURNAMENT',
-       'PORT_ZENKAI_RAISED_DIFFICULTY','PORT_ZENKAI_STORY_RESTRICTIONS','PORT_ZENKAI_SSJ2_MOVESET','PORT_ZENKAI_KAIOKEN','PORT_ZENKAI_GINYU_BODY_CHANGE','PORT_ZENKAI_EXTRA_OUTFITS','PORT_ZENKAI_FUTURE_GOHAN_GRAB','PORT_ZENKAI_GREAT_APE_MOON','PORT_ZENKAI_CELL_TRANSFORMATION']
+       'PORT_ZENKAI_RAISED_DIFFICULTY','PORT_ZENKAI_STORY_RESTRICTIONS','PORT_ZENKAI_SSJ2_MOVESET','PORT_ZENKAI_KAIOKEN','PORT_ZENKAI_GINYU_BODY_CHANGE','PORT_ZENKAI_EXTRA_OUTFITS','PORT_ZENKAI_FUTURE_GOHAN_GRAB','PORT_ZENKAI_GREAT_APE_MOON','PORT_ZENKAI_CELL_TRANSFORMATION','PORT_ZENKAI_MANUAL_LOCK']
 with tempfile.TemporaryDirectory() as directory:
     tmp=Path(directory)
     (tmp/'transfer.c').write_text('#include "common.h"\n#include "sys/save.h"\n#include "sys/port_zenkai.h"\n'
@@ -21,4 +21,4 @@ with tempfile.TemporaryDirectory() as directory:
             defines+['port/tests/save/zenkai_pack.c','src/sys/port_zenkai_pack.c','src/sys/save.c',str(tmp/'transfer.c'),
                      '-o',str(tmp/'pack')],cwd=ROOT,check=True)
         subprocess.run([str(tmp/'pack')],check=True)
-print('Pack checks passed: twelve IDs, subset, fourteen flag configurations, Zeni locks, saved state and original roster.')
+print(f'Pack checks passed: {len(flags)} IDs, subset, {len(configurations)} flag configurations, Zeni locks, saved state and original roster.')

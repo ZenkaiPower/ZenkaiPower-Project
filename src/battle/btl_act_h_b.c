@@ -2614,6 +2614,12 @@ s32 BtlDecide_Main(BtlActIChr *chr, s32 mask) {
         }
     }
     if (mask & 0x200000) {
+#ifdef PORT
+        {
+            extern s32 Port_BtlManualUnlocked(void *fighter);
+            if (Port_BtlManualUnlocked(chr)) return 0;
+        }
+#endif
         if (BtlChar_TestFlag(chr, 5)) {
             return 0;
         }

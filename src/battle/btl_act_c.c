@@ -587,6 +587,15 @@ s32 BtlAct_IsOppInSearchWindow(Chr *chr) {
  */
 s32 BtlAct_SearchHandler(Chr *chr, s32 phase) {
     s32 grow;
+#ifdef PORT
+    {
+        extern s32 Port_BtlManualUnlocked(void *fighter);
+        if ((phase == 1 || phase == 2) && Port_BtlManualUnlocked(chr)) {
+            BtlAct_Request(chr, 0xB);
+            return 0;
+        }
+    }
+#endif
 
     if (phase == 0) {
         if (BtlParam_IsType2to4(chr)) {
