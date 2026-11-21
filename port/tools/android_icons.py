@@ -9,6 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def generate_icons(source, output):
     from PIL import Image
 
+    # Ubuntu 22.04's Pillow exposes LANCZOS directly on Image.
+    resampling = getattr(Image, 'Resampling', Image)
     output = Path(output)
     with Image.open(source) as original:
         image = original.convert('RGBA')
@@ -20,7 +22,7 @@ def generate_icons(source, output):
     def write_icon(relative, size, artwork_size):
         ratio = artwork_size / max(image.size)
         artwork = image.resize((max(1, round(image.width * ratio)),
-                                max(1, round(image.height * ratio))), Image.Resampling.LANCZOS)
+                                max(1, round(image.height * ratio))), resampling.LANCZOS)
         canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
         canvas.alpha_composite(artwork, ((size-artwork.width)//2, (size-artwork.height)//2))
         target = output / relative

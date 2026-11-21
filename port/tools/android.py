@@ -305,11 +305,15 @@ def abi_check():
 
 def rtdir():
     """clang's runtime folder for this target, filled from the NDK's files (the upstream LLVM has none for Android)."""
-    out = pathlib.Path(run([CLANG] + TARGET + ["-print-resource-dir"]).stdout.strip()) / f"lib/aarch64-unknown-linux-android{API}"
-    if not (out / "libclang_rt.builtins.a").exists():
-        out.mkdir(parents=True, exist_ok=True)
-        shutil.copy(CLANG_RT / "libclang_rt.builtins-aarch64-android.a", out / "libclang_rt.builtins.a")
-        shutil.copy(CLANG_RT / "libunwind.a", out / "libunwind.a")
+    result = run([CLANG] + TARGET + ["-print-resource-dir"])
+    if result.returncode or not result.stdout.strip():
+        raise RuntimeError("Could not locate Clang's Android runtime directory: " + result.stderr.strip())
+    out = pathlib.Path(result.stdout.strip()) / f"lib/aarch64-unknown-linux-android{API}"
+    out.mkdir(parents=True, exist_ok=True)
+    for source, target in (("libclang_rt.builtins-aarch64-android.a", "libclang_rt.builtins.a"),
+                           ("libunwind.a", "libunwind.a")):
+        if not (out / target).exists():
+            shutil.copy(CLANG_RT / source, out / target)
     return out
 
 
@@ -320,9 +324,12 @@ def storage_flags():
 
 def storage():
     OUT.mkdir(parents=True, exist_ok=True)
+    # This is the first target link in link(), loader() and installer(). Prepare
+    # LLVM's Android runtimes before it, not only in the later game link_cmd().
+    runtime = rtdir()
     command = [CLANG] + TARGET + ['-shared', '-fPIC', '-O2', '-Wall', '-Wextra',
         '-I' + str(SDL3 / 'include'), str(ROOT / 'android/app/src/main/cpp/storage.c'),
-        '-L' + str(SDL3 / 'lib'), '-lSDL3', '-llog', '-Wl,--no-undefined',
+        '-L' + str(SDL3 / 'lib'), '-L' + str(runtime), '-lSDL3', '-llog', '-Wl,--no-undefined',
         '-Wl,-soname,libstorage.so', '-Wl,-z,max-page-size=16384', '-o', str(OUT / 'libstorage.so')]
     result = run(command)
     if result.returncode: print(result.stderr)

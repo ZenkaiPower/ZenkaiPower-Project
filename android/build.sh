@@ -24,4 +24,4 @@ docker run --rm --platform linux/amd64 --entrypoint /bin/sh \
     --mount type=volume,source=zenkaipower-android-user,target=/root/.android \
     -e HOME=/root -e ZENKAIPOWER_JOBS -e ZENKAIPOWER_ONLY -e ZENKAIPOWER_BUILD_KEY \
     -e ZENKAIPOWER_SKELETON=1 -e "ZENKAIPOWER_RELEASE=$release" -e ZENKAIPOWER_ANDROID_APK=1 \
-    "$@" zenkaipower /host/android/container-build.sh
+    "$@" zenkaipower -c "tr -d '\\r' < /host/android/container-build.sh > /tmp/zenkaipower-container-build.sh && exec /bin/sh /tmp/zenkaipower-container-build.sh"

@@ -34,7 +34,10 @@ try {
             '--mount', "type=bind,source=$keyFile,target=/signing/release.jks,readonly",
             '-e', 'ZENKAI_SIGNING_PROPERTIES=/signing/release.properties', '-e', 'ZENKAI_KEYSTORE=/signing/release.jks')
     }
-    $dockerArgs += @('zenkaipower', '/host/android/container-build.sh')
+    # Bootstrap from a normalized temporary copy: editors can leave CRLF in the
+    # Windows checkout even though .gitattributes requests LF for shell scripts.
+    $androidBootstrap = 'tr -d ''\r'' < /host/android/container-build.sh > /tmp/zenkaipower-container-build.sh && exec /bin/sh /tmp/zenkaipower-container-build.sh'
+    $dockerArgs += @('zenkaipower', '-c', $androidBootstrap)
     try {
         # Windows PowerShell otherwise turns harmless native stderr into an exception.
         $ErrorActionPreference = 'Continue'

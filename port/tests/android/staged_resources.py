@@ -43,12 +43,35 @@ with tempfile.TemporaryDirectory(prefix='android-staged-resources-') as temporar
         write(host, f'port/translations/{kind}/en.json', 'original')
         write(host, f'port/translations/{kind}/pt.json', 'removed next build')
     write(host, 'port/third_party/fonts/old.ttf', 'font renamed next build')
+    helpers = ('android/fixture.sh', 'port/tools/fixture.sh',
+               'port/setup/fixture.sh', 'port/release/fixture.sh')
+    for name in helpers:
+        write(host, name, '')
+        (host / name).write_bytes(b'#!/bin/sh\r\nset -eu\r\n')
+
+    # Run the exact PowerShell launcher's shell bootstrap against a CRLF input.
+    powershell = (ROOT / 'android/build.ps1').read_text()
+    line = next(line for line in powershell.splitlines() if line.strip().startswith('$androidBootstrap = '))
+    bootstrap = line.split(' = ', 1)[1][1:-1].replace("''", "'")
+    bootstrap = bootstrap.replace('/host/android/container-build.sh', '"$TEST_BOOTSTRAP_SOURCE"')
+    bootstrap = bootstrap.replace('/tmp/zenkaipower-container-build.sh', '"$TEST_BOOTSTRAP_TARGET"')
+    bootstrap_source, bootstrap_target = root / 'input script.sh', root / 'normalized script.sh'
+    bootstrap_source.write_bytes(b"#!/bin/sh\r\nset -eu\r\nprintf 'started\\n'\r\n")
+    result = subprocess.check_output([shell, '-eu', '-c', bootstrap], text=True,
+        env={**os.environ, 'TEST_BOOTSTRAP_SOURCE': bootstrap_source.as_posix(),
+             'TEST_BOOTSTRAP_TARGET': bootstrap_target.as_posix()})
+    assert result.strip() == 'started'
+    assert b'\r' not in bootstrap_target.read_bytes()
+    assert b'\r\n' in bootstrap_source.read_bytes()
 
     def run():
         subprocess.run([shell, '-eu', '-c', stage], cwd=work,
                        env={**os.environ, 'STAGING_TEST_HOST': host.as_posix()}, check=True)
 
     run()
+    for name in helpers:
+        assert (work / name).read_bytes() == b'#!/bin/sh\nset -eu\n'
+        assert b'\r\n' in (host / name).read_bytes()
     for kind in ('labels', 'ui', 'port'):
         assert (work / f'port/translations/{kind}/pt.json').is_file()
         (host / f'port/translations/{kind}/pt.json').unlink()
@@ -65,4 +88,4 @@ with tempfile.TemporaryDirectory(prefix='android-staged-resources-') as temporar
     assert (work / 'port/third_party/fonts/new.ttf').read_text() == 'font renamed next build'
     for name in preserved: assert (work / name).read_text() == 'preserved', name
 
-print('Android staging checks passed: catalog additions/edits/deletions/renames, font renames, and cache/artifact preservation.')
+print('Android staging checks passed: resource updates/deletions, cache preservation, CRLF bootstrap and helper normalization.')

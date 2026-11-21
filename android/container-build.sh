@@ -18,6 +18,11 @@ tar -C /host --exclude=port/build --exclude=port/build_release \
     --exclude=android/app/src/androidTest/assets --exclude=android/app/src/androidTest/jniLibs \
     -cf - src include config assets port android LICENSE game-info.json dragon-net-battle.txt \
     | tar -xf -
+# Normalize staged helpers too; the host checkout is never rewritten.
+for script in android/*.sh port/tools/*.sh port/setup/*.sh port/release/*.sh; do
+    [ -f "$script" ] || continue
+    sed -i 's/\r$//' "$script"
+done
 if [ "${ZENKAIPOWER_ANDROID_ENGINE:-1}" = 1 ]; then
     sh port/tools/android_toolchain.sh
     python3 port/tools/android.py "$@"
