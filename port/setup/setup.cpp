@@ -600,13 +600,13 @@ static void storage_locations() {
         }
         ImGui::SameLine();
         std::string shown=custom ? folder : sRoot+(row==0 ? "gamedata" : "savegame");
-        ImGui::SetNextItemWidth(std::max(80.0f,ImGui::GetContentRegionAvail().x-(custom ? 102.0f : 0.0f)));
+        ImGui::SetNextItemWidth(std::max(80.0f,ImGui::GetContentRegionAvail().x-102.0f));
+        ImGui::BeginDisabled(!custom);
         ImGui::InputText("##location-path",const_cast<char *>(shown.c_str()),shown.size()+1,ImGuiInputTextFlags_ReadOnly);
-        if (custom) {
-            ImGui::SameLine();
-            if (ImGui::Button(SetupText("buttons.browse"),ImVec2(88,0)))
-                SDL_ShowOpenFolderDialog(dialog_done,(void *)(intptr_t)(row+4),sWindow,folder[0] ? folder : sRoot.c_str(),false);
-        }
+        ImGui::SameLine();
+        if (ImGui::Button(SetupText("buttons.browse"),ImVec2(88,0)))
+            SDL_ShowOpenFolderDialog(dialog_done,(void *)(intptr_t)(row+4),sWindow,folder[0] ? folder : sRoot.c_str(),false);
+        ImGui::EndDisabled();
         ImGui::PopID();
     }
     ImGui::TextWrapped("%s",SetupText("locations.no_move"));
@@ -1040,8 +1040,8 @@ static void page_pick() {
         ImGui::TextWrapped("%s",SetupText("source.description"));
     }
     ImGui::BeginChild("discs", ImVec2(0, -60));
-    storage_locations();
     disc_checklist(true);
+    storage_locations();
     if (sRoot.empty()) ImGui::TextColored(kRed,"%s",SetupText("failure.game_files_missing"));
     ImGui::EndChild();
     bool ok = sDiscChecked[0] && sVerifyPath[0] == sIso && !sRoot.empty();
@@ -1125,12 +1125,9 @@ static void page_run() {
 static void page_done() {
     heading(sGameTitle.c_str(), SetupText("installed.subtitle"));
     ImGui::BeginChild("installed-details", ImVec2(0, -90));
-    storage_locations();
     disc_checklist(true);
+    storage_locations();
     ImGui::EndChild();
-    ImGui::PushStyleColor(ImGuiCol_Text,kDim);
-    ImGui::TextWrapped("%s",SetupText("installed.settings_hint"));
-    ImGui::PopStyleColor();
     bool selected = false, verified = true;
     for (int i = 0; i < 4; i++) {
         if (disc_path(i)[0]) {

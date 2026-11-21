@@ -24,9 +24,20 @@ docker rmi -f zenkaipower:latest
 
 Set `version` in [game-info.json](game-info.json) without a `v` prefix. 
 
+Use three version numbers: `major.minor.patch` (for example, `1.2.3`).
+
+- **Patch releases:** bug fixes, performance improvements, translation updates, and small refinements to existing features.
+- **Minor releases:** new features or substantial changes to existing behavior. Increment the middle number and reset the last number to zero.
+- **Major releases (first number):** major milestones or changes that break compatibility.
+
 Confirm `source` points to this project's GitHub repository.
 
 ### Build 
+
+Clean any build cache in project before a release build.
+```powershell
+docker builder prune -af; docker volume ls -q --filter "name=^zenkaipower-release-" | ForEach-Object { docker volume rm $_ }
+```
 
 Build game for all platforms.
 ```powershell
@@ -167,8 +178,7 @@ docker run --rm -it --platform linux/amd64 --entrypoint python3 `
 docker ps -q --filter "ancestor=zenkaipower" --filter "publish=4000" | ForEach-Object { docker stop $_ }; docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker run --rm --name zenkaipower-pages-preview --platform linux/amd64 -p 4000:4000 -v "${PWD}:/work" --entrypoint python3 zenkaipower -u web/preview.py
 ```
 
-Stop preview:
-
+Stop preview.
 ````powershell
 docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker ps -q --filter "ancestor=zenkaipower" --filter "publish=4000" | ForEach-Object { docker stop $_ }
 ````  
