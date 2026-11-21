@@ -44,11 +44,15 @@ engine and APK build runs in Docker; no host Java or Android SDK is required.
 .\android\build.ps1
 ```
 
-The first build downloads upstream LLVM 21.1.0, the reference project's NDK
+The Docker image includes upstream LLVM 21.1.0, the reference project's NDK
 sysroot and SDL3 build, Rust 1.94.0, the pinned nod disc reader and its locked
-dependencies, plus Gradle dependencies. Downloads and engine objects
-use the Docker volume `zenkaipower-android-toolchain` (the NDK has filenames that
-differ only by case). The staged source and cached objects live in the Docker
+dependencies, plus the Gradle distribution and Android plugin dependencies.
+These are prepared during image creation and included when publishing the image.
+The toolchain lives at `/opt/zenkaipower-android-toolchain` inside the image;
+Gradle reads bundled dependencies through `GRADLE_RO_DEP_CACHE` and seeds its
+wrapper distribution into the writable `zenkaipower-gradle` volume as needed.
+Rebuild the image after changing dependency versions. The staged source and
+cached objects live in the Docker
 volume `zenkaipower-android-work`; the engine and maps are copied back to
 `port/build/android/`. `-EngineOnly` and `-ApkOnly` select individual stages.
 

@@ -22,7 +22,9 @@ fi
 rustup target add --toolchain 1.94.0 aarch64-linux-android
 cat > "$TC/android-cc" <<EOF
 #!/bin/sh
-exec "$TC/llvm/bin/clang" --target=aarch64-linux-android29 --sysroot="$TC/ndk/sysroot" "\$@"
+# Rust explicitly links -lunwind. Upstream LLVM does not search the separately
+# packaged NDK runtime directory unless it is supplied here.
+exec "$TC/llvm/bin/clang" --target=aarch64-linux-android29 --sysroot="$TC/ndk/sysroot" -L"$TC/ndk/clang_rt" "\$@"
 EOF
 chmod +x "$TC/android-cc"
 export CC_aarch64_linux_android="$TC/android-cc"

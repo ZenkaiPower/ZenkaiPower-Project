@@ -167,7 +167,40 @@ ENV PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-too
 RUN yes | sdkmanager --licenses >/dev/null \
     && sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" \
     && chmod -R a+rX "$ANDROID_HOME"
-ENV ZENKAIPOWER_TOOLCHAIN=/opt/android-toolchain
+ENV ZENKAIPOWER_TOOLCHAIN=/opt/zenkaipower-android-toolchain
+ARG ANDROID_LLVM_VERSION=21.1.0
+COPY port/tools/android_toolchain.sh /opt/zenkaipower-image-tools/android_toolchain.sh
+RUN sed -i 's/\r$//' /opt/zenkaipower-image-tools/android_toolchain.sh \
+    && ZENKAIPOWER_LLVM_VERSION="$ANDROID_LLVM_VERSION" sh /opt/zenkaipower-image-tools/android_toolchain.sh
+COPY port/tools/android_nod.sh port/tools/android_nod_patch.py /opt/zenkaipower-image-tools/
+RUN sed -i 's/\r$//' /opt/zenkaipower-image-tools/android_nod.sh \
+    && CARGO_BUILD_JOBS=1 sh /opt/zenkaipower-image-tools/android_nod.sh
+
+# Preload the wrapper, AGP and its build-time dependencies. Copy only the
+# configuration/resources needed for resolution; no game data or signing keys.
+ENV ZENKAIPOWER_GRADLE_SEED=/opt/zenkaipower-gradle
+COPY android/gradlew android/build.gradle android/settings.gradle android/gradle.properties /tmp/zenkaipower-image-project/android/
+COPY android/gradle /tmp/zenkaipower-image-project/android/gradle
+COPY android/app/build.gradle /tmp/zenkaipower-image-project/android/app/build.gradle
+COPY android/app/src/main/AndroidManifest.xml /tmp/zenkaipower-image-project/android/app/src/main/AndroidManifest.xml
+COPY android/app/src/main/res /tmp/zenkaipower-image-project/android/app/src/main/res
+COPY game-info.json /tmp/zenkaipower-image-project/game-info.json
+COPY android/cache-dependencies.gradle /tmp/zenkaipower-image-project/android/cache-dependencies.gradle
+RUN python3 -c 'from pathlib import Path; p=Path("/tmp/zenkaipower-image-project/android/gradlew"); p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))' \
+    && GRADLE_USER_HOME="$ZENKAIPOWER_GRADLE_SEED" sh /tmp/zenkaipower-image-project/android/gradlew \
+        -p /tmp/zenkaipower-image-project/android --no-daemon --console=plain --max-workers=1 \
+        '-Dorg.gradle.jvmargs=-Xmx1024m -Dfile.encoding=UTF-8' \
+        -I /tmp/zenkaipower-image-project/android/cache-dependencies.gradle \
+        cacheAndroidDependencies :app:mergeDebugResources :app:mergeReleaseResources \
+        -x :app:checkEngine -x :app:generateProjectIcon -x :app:checkReleaseSigning \
+    && cd /tmp/zenkaipower-image-project/android \
+    && sha256sum build.gradle settings.gradle gradle.properties app/build.gradle \
+        gradle/wrapper/gradle-wrapper.properties gradle/wrapper/gradle-wrapper.jar cache-dependencies.gradle \
+        | sha256sum | cut -d ' ' -f 1 > "$ZENKAIPOWER_GRADLE_SEED/.zenkaipower-image-seed" \
+    && find "$ZENKAIPOWER_GRADLE_SEED" -type f \( -name '*.lock' -o -name '*.lck' \) -delete \
+    && rm -rf /tmp/zenkaipower-image-project "$ZENKAIPOWER_GRADLE_SEED/daemon"
+# Consult bundled dependency metadata alongside any existing writable cache.
+ENV GRADLE_RO_DEP_CACHE=/opt/zenkaipower-gradle/caches
 WORKDIR /work
 
 ENTRYPOINT ["zenkaipower-entrypoint"]

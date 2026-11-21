@@ -1,0 +1,19 @@
+// Used only while building the Docker image; no game/native build is needed.
+gradle.projectsEvaluated {
+    gradle.rootProject.tasks.register('cacheAndroidDependencies') {
+        doLast {
+            gradle.rootProject.allprojects.each { project ->
+                def plugins = project.buildscript.configurations.findByName('classpath')
+                if (plugins != null && plugins.canBeResolved) plugins.resolve()
+                // Resolve only actual APK consumer classpaths. AGP also exposes
+                // internal/test configurations whose incomplete attributes make
+                // resolving every canBeResolved configuration ambiguous.
+                ['debugCompileClasspath', 'debugRuntimeClasspath',
+                 'releaseCompileClasspath', 'releaseRuntimeClasspath'].each { name ->
+                    def configuration = project.configurations.findByName(name)
+                    if (configuration != null && configuration.canBeResolved) configuration.resolve()
+                }
+            }
+        }
+    }
+}

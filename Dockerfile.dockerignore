@@ -1,3 +1,26 @@
-# The image uses only the Dockerfile; never send game assets to the builder.
+# Include only the build configuration and resources needed by the image.
 **
 !Dockerfile
+!game-info.json
+!port/
+!port/tools/
+!port/tools/android_toolchain.sh
+!port/tools/android_nod.sh
+!port/tools/android_nod_patch.py
+!android/
+!android/gradlew
+!android/build.gradle
+!android/settings.gradle
+!android/gradle.properties
+!android/cache-dependencies.gradle
+!android/gradle/
+!android/gradle/wrapper/
+!android/gradle/wrapper/gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.properties
+!android/app/
+!android/app/build.gradle
+!android/app/src/
+!android/app/src/main/
+!android/app/src/main/AndroidManifest.xml
+!android/app/src/main/res/
+!android/app/src/main/res/**

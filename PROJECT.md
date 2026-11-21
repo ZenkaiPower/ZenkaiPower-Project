@@ -8,17 +8,7 @@ The following instructions are for buiding and releasing a new version.
 
 Requires `Docker`.
 
-Build the Docker image for the project.
-
-```powershell
-docker build --no-cache --platform linux/amd64 -t zenkaipower .
-```
-
-For removing the image, run:
-
-```powershell
-docker rmi -f zenkaipower:latest
-```
+See [DOCKER.md](DOCKER.md) for image build and publishing instructions.
 
 ### Prepare
 
@@ -34,13 +24,17 @@ Confirm `source` points to this project's GitHub repository.
 
 ### Build 
 
-Clean any build cache in project before a release build.
+Clear game build cache.
 ```powershell
-docker builder prune -af; docker volume ls -q --filter "name=^zenkaipower-release-" | ForEach-Object { docker volume rm $_ }
+& { docker volume ls -q --filter 'name=^zenkaipower-release-[0-9a-f]{12}$' | ForEach-Object { docker volume rm $_ }; docker run --rm --mount type=volume,source=zenkaipower-android-work,target=/work --entrypoint /bin/sh zenkaipower/zenkaipower:latest -c 'rm -rf -- /work/port/build/android /work/android/app/build/intermediates /work/android/app/build/generated /work/android/app/build/tmp /work/android/.gradle' }
 ```
 
-Build game for all platforms.
+Build game for all platforms. The build scripts currently require the local
+`zenkaipower` alias; point it at the published image and disable local image rebuilding.
 ```powershell
+docker tag zenkaipower/zenkaipower:latest zenkaipower:latest
+if ($LASTEXITCODE -ne 0) { throw 'Docker image tagging failed.' }
+$env:ZENKAIPOWER_SKIP_IMAGE_BUILD = '1'
 $version = (Get-Content -Raw game-info.json | ConvertFrom-Json).version
 $env:GITHUB_REPOSITORY = 'ZenkaiPower/ZenkaiPower-Project'
 $env:ZENKAIPOWER_RELEASE_TAG = "v$version"
@@ -55,7 +49,7 @@ Add [online signature](server/data/game_data_signature.json) to the builds.
 & {
 $version = (Get-Content -Raw game-info.json | ConvertFrom-Json).version
 $policyOutput = & docker run --rm --platform linux/amd64 --entrypoint python3 `
-  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower/zenkaipower:latest `
   port/tools/make_online_signature.py --stdout `
   --build build/ZenkaiPower-Linux/ZenkaiPower `
   --build build/ZenkaiPower-Windows/ZenkaiPower.exe `
@@ -78,7 +72,7 @@ if ($policy.scheme -ne 'zenkaipower-binaries-v2' -or
 Deploy changes to the matchmaking server.
 ```powershell
 docker run --rm -it --platform linux/amd64 --entrypoint python3 `
-  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower/zenkaipower:latest `
   server/tools/deploy_portable.py
 ```
 
@@ -131,14 +125,14 @@ Release description follows the format:
 Compile the bot for all platforms.
 
 ```Powershell
-docker run --rm --platform linux/amd64 --entrypoint /bin/sh -e ZENKAIPOWER_BOT_CREDENTIAL --mount "type=bind,source=${PWD},target=/src" -w /src zenkaipower port/bot/build.sh all
+docker run --rm --platform linux/amd64 --entrypoint /bin/sh -e ZENKAIPOWER_BOT_CREDENTIAL --mount "type=bind,source=${PWD},target=/src" -w /src zenkaipower/zenkaipower:latest port/bot/build.sh all
 ```
 
 Generate a new bot credential. This will generate [bot.local.json](server/bot.local.json) with the new credential.
 
 ```powershell
 docker run --rm --entrypoint python3 -e ZENKAIPOWER_BOT_CREDENTIAL `
-  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower/zenkaipower:latest `
   server/tools/bot_config.py --username SparkingBot
 ```
 
@@ -146,7 +140,7 @@ Deploy the bot to the server.
 
 ```powershell
 docker run --rm -it --platform linux/amd64 --entrypoint python3 `
-  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower/zenkaipower:latest `
   server/tools/deploy_portable.py
 ```
 
@@ -168,17 +162,17 @@ Server credentials are stored in `server/cloudflare.local.json`. This file is no
 
 ```Powershell
 docker run --rm -it --platform linux/amd64 --entrypoint python3 `
-  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower `
+  --mount "type=bind,source=${PWD},target=/work" -w /work zenkaipower/zenkaipower:latest `
   server/tools/clear_d1.py
 ```
 
 ### Preview the website 
 
 ```Powershell
-docker ps -q --filter "ancestor=zenkaipower" --filter "publish=4000" | ForEach-Object { docker stop $_ }; docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker run --rm --name zenkaipower-pages-preview --platform linux/amd64 -p 4000:4000 -v "${PWD}:/work" --entrypoint python3 zenkaipower -u web/preview.py
+docker ps -q --filter "ancestor=zenkaipower/zenkaipower:latest" --filter "publish=4000" | ForEach-Object { docker stop $_ }; docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker run --rm --name zenkaipower-pages-preview --platform linux/amd64 -p 4000:4000 -v "${PWD}:/work" --entrypoint python3 zenkaipower/zenkaipower:latest -u web/preview.py
 ```
 
 Stop preview.
 ````powershell
-docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker ps -q --filter "ancestor=zenkaipower" --filter "publish=4000" | ForEach-Object { docker stop $_ }
-````  
+docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker ps -q --filter "ancestor=zenkaipower/zenkaipower:latest" --filter "publish=4000" | ForEach-Object { docker stop $_ }
+````

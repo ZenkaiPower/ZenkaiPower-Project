@@ -20,7 +20,6 @@ fi
 docker run --rm --platform linux/amd64 --entrypoint /bin/sh \
     --mount "type=bind,source=$PWD,target=/host" -w /work \
     --mount type=volume,source=zenkaipower-android-work,target=/work \
-    --mount type=volume,source=zenkaipower-android-toolchain,target=/opt/android-toolchain \
     --mount type=volume,source=zenkaipower-gradle,target=/root/.gradle \
     --mount type=volume,source=zenkaipower-android-user,target=/root/.android \
     -e HOME=/root -e ZENKAIPOWER_JOBS -e ZENKAIPOWER_ONLY -e ZENKAIPOWER_BUILD_KEY \

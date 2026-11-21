@@ -50,6 +50,7 @@ cp port/build/android/libzenkaipower.so* /host/port/build/android/
 cp port/build/android/unused-sdk.txt /host/port/build/android/
 
 if [ "${ZENKAIPOWER_ANDROID_APK:-0}" = 1 ]; then
+    sh android/seed-gradle-cache.sh
     python3 port/tools/android_resources.py
     # Host SDK paths (especially Windows paths) do not apply inside the container.
     printf 'sdk.dir=%s\n' "$ANDROID_HOME" > android/local.properties
