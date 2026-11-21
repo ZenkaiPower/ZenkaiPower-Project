@@ -37,7 +37,7 @@ static unsigned sInterpPrevCount, sInterpPrevPrimCount, sInterpPrimCount, sInter
 static unsigned gInterpTicks, gInterpShown, gInterpSkipped, gInterpPaired, gInterpUnpaired, gInterpCamera;
 static unsigned gInterpTris, gInterpTrisBlended, gInterpWhy[5], gInterpTrisCamera, gInterpStatic, gInterpThrough, gInterpCuts;
 static int sInterpNext, sInterpRepeat, sInterpSteps, sInterpCap = 8;
-static uint64_t sInterpTickNs, sInterpBlendShown, sInterpBlendTook, sInterpRealTook, gGpuEndNs;
+static uint64_t sInterpTickNs, sInterpBlendShown, sInterpBlendTook, sInterpRealTook, sInterpPrepareTook, gGpuEndNs;
 static Vu0Uniform *sInterpPrev, *sInterpBlend, *gsVuUni;
 static uint32_t *sInterpPrevSig, *sInterpSig;
 static Vtx *sInterpPrevVerts, *sInterpBlendVerts, *gsVerts;
@@ -47,7 +47,7 @@ unsigned gPortVBlanks, gGsFrame;
 static int scalePending, scaleCalls, labelCalls, presents, canBlend;
 static int resourcesLive = 1;
 static unsigned tickBlanks = 2;
-static uint64_t fakeNow, lastCost;
+static uint64_t fakeNow, lastCost, prepareCost = 5000000;
 static void render(void) {
     assert(resourcesLive); /* A retained draw may never reference released targets. */
     presents++;
@@ -63,7 +63,7 @@ static int Port_Setting(const char *s, int d) { (void)s; return d; }
 static int interp_steps(void) { return gsInterp ? 4 : 1; }
 static void interp_signatures(uint32_t *s) { (void)s; }
 static unsigned interp_prims(InterpPrim *p) { (void)p; return 0; }
-static int interp_build(float t, int first) { (void)t; (void)first; return canBlend; }
+static int interp_build(float t, int first) { (void)t; (void)first; fakeNow += prepareCost; return canBlend; }
 static void interp_build_verts(float t) { (void)t; fakeNow += 10000000; }
 static void interp_wall(float t) { (void)t; }
 static void interp_wall_real(void) {}
@@ -93,9 +93,23 @@ int main(void) {
     /* Ordinary interpolation has the same resource lifetime. */
     frame(1, 2);
     assert(presents == 1 && !sInterpRepeat && scaleCalls == 0);
-    assert(lastCost >= 11000000); /* synthesis + render, not just the 1 ms backend */
+    assert(lastCost >= 16000000); /* initial camera/pairing + synthesis + render */
     while (sInterpNext) interp_show_next();
     assert(presents == 4 && scaleCalls == 1 && labelCalls == 1);
+    /* A long stall drops overdue blends but must present the real frame and
+       release retained render targets exactly once. */
+    frame(1,2);
+    assert(presents==1 && sInterpNext==2 && resourcesLive);
+    fakeNow+=100000000;
+    assert(interp_show_next());
+    assert(presents==2 && !sInterpNext && scaleCalls==1 && labelCalls==1);
+    /* Expensive reconstruction shows one untouched real frame, with no
+       synthetic model or duplicate replay, even with interpolation requested. */
+    prepareCost=40000000;
+    frame(1,2);
+    assert(presents==1 && sInterpSteps==1 && !sInterpNext && !sInterpRepeat);
+    assert(lastCost>=41000000 && scaleCalls==1 && labelCalls==1);
+    prepareCost=5000000;
     /* With smoothing disabled, changes apply immediately after the picture. */
     frame(0, 0);
     assert(presents == 1 && !sInterpNext && scaleCalls == 1 && labelCalls == 1);

@@ -26,6 +26,11 @@ static int sInterpNext,sInterpSteps;
 int main(int argc,char **argv) {
     assert(argc==2);
     int scenario=atoi(argv[1]);
+    /* Protection starts with the very first slow frame, not 300 presents later. */
+    interp_cost(80000000);
+    assert(sInterpCap==1);
+    for(int i=0;i<10;i++) interp_cost(1000000);
+    assert(sInterpCap==1); /* Cheap real frames cannot immediately re-enable blends. */
     /* At 60 FPS, the real frame needs its own render cost, not blend synthesis time. */
     sInterpBlendShown=100000000;sInterpTickNs=33366700;
     sInterpSteps=sInterpNext=2;sInterpBlendTook=4000000;sInterpRealTook=1000000;
@@ -33,6 +38,12 @@ int main(int argc,char **argv) {
     /* Earlier intermediate frames still account for their reconstruction work. */
     sInterpSteps=4;sInterpNext=2;
     assert(interp_due()+sInterpBlendTook==sInterpBlendShown+sInterpTickNs/4);
+    /* Slow renders must retain their real cost in scheduling at 45/32 FPS. */
+    sInterpSteps=sInterpNext=2;
+    sInterpRealTook=22222222;
+    assert(interp_due()+sInterpRealTook==sInterpBlendShown+sInterpTickNs/2);
+    sInterpRealTook=31250000;
+    assert(interp_due()+sInterpRealTook==sInterpBlendShown+sInterpTickNs/2);
     paced=scenario!=0;
     uint64_t cost=scenario==2 ? 8333333 : scenario==3 ? 4166667 : 16666667;
     int expected=scenario==2 ? 4 : scenario==3 ? 8 : scenario==0 ? 1 : 2;
@@ -40,7 +51,7 @@ int main(int argc,char **argv) {
     assert(sInterpCap==expected);
     if(paced) {
         /* Genuine slow rendering must still reduce the output rate. */
-        for(int i=0;i<100;i++) interp_cost(40000000);
+        interp_cost(40000000);
         assert(sInterpCap==1);
         for(int i=0;i<500;i++) interp_cost(cost);
         assert(sInterpCap==expected);

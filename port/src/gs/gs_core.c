@@ -1382,6 +1382,10 @@ void Port_GsGifChannel(uint32_t addr, uint32_t qwc, int chain) {
     }
     if (sThreaded) {
         render_wait(); /* the GS is one device: this transfer goes after the list that is being drawn */
+    } else if (sGpu) {
+        extern void GsGpu_InterpPump(int ahead_ms, int all);
+        /* Texture uploads must not change resources named by a retained frame. */
+        GsGpu_InterpPump(0, 1);
     }
     if (!chain) {
         Gs_Gif((const uint8_t *)Port_Ptr(addr), qwc);
@@ -1423,6 +1427,10 @@ void Port_GsVif1Chain(uint32_t tadr, int tte) {
         GsGpu_InterpHurry(1);
         render_wait(); /* the previous list must be finished before this one starts (the PS2's sceGsSyncPath) */
     } else {
+        extern void GsGpu_InterpPump(int ahead_ms, int all);
+        /* Finish the previous real frame before decoding the next list. Under
+         * overload it may still be pending after the vertical-blank pumps. */
+        GsGpu_InterpPump(0, 1);
         run_chain(tadr, tte);
     }
     /* The frame's work ends here. Time it (ZENKAIPOWER_GS_VERBOSE), then keep 30 frames per second. */

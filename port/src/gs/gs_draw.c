@@ -2747,6 +2747,7 @@ static uint64_t sInterpTickNs = 33366700ull; /* how long the tick being shown la
 static unsigned gInterpTicks;
 static uint64_t sInterpBlendShown, sInterpBlendTook; /* when the in-between picture was handed to the screen; how long replaying its list took */
 static uint64_t sInterpRealTook; /* real frames do not pay the intermediate vertex reconstruction cost */
+static uint64_t sInterpPrepareTook; /* pairing/camera work before the first replay */
 static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
 unsigned gInterpShown, gInterpSkipped; /* in-between pictures shown / left out since the start */
 static unsigned gInterpCuts, gInterpStatic, gInterpNotMutual;
@@ -3011,26 +3012,82 @@ static int interp_camera_centre(const double *screen, double *c) {
     return c[0] == c[0] && c[1] == c[1] && c[2] == c[2];
 }
 
-/* A bone half way: the average of the two matrices, with each axis given back its length (the average of two
-   directions is shorter than either), and, for a bone that holds the place as seen from the camera, the place
-   moved around the camera and not through the chord. */
-static void interp_bone(const float *p, const float *c, float t, int around, float *o) {
-    int col, k;
-
-    for (k = 0; k < 16; k++) {
-        o[k] = p[k] + (c[k] - p[k]) * t;
+/* Extract an orthogonal rotation and signed scale from a column-major bone.
+ * Normalizing blended axes separately still permits shear or a zero-width model
+ * near a half turn. Interpolate the rotation as a unit quaternion instead. */
+static int interp_bone_quat(const float *m, float *q, float *scale) {
+    float r[9], det, trace, f;
+    int row, col, i, j, k;
+    for (col = 0; col < 3; col++) {
+        const float *v = m + col * 4;
+        scale[col] = sqrtf(v[0]*v[0] + v[1]*v[1] + v[2]*v[2]);
+        if (!isfinite(scale[col]) || scale[col] < 1e-8f) return 0;
+        for (row = 0; row < 3; row++) r[row*3+col] = v[row] / scale[col];
     }
-    for (col = 0; col < (around ? 4 : 3); col++) {
-        const float *a = &p[col * 4], *b = &c[col * 4];
-        float *m = &o[col * 4];
-        float la = sqrtf(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]), lb = sqrtf(b[0] * b[0] + b[1] * b[1] + b[2] * b[2]);
-        float lm = sqrtf(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]), want = la + (lb - la) * t;
-        if (lm > 1e-12f && la > 1e-12f && lb > 1e-12f && lm > 0.3f * want) {
-            float f = want / lm;
-            m[0] *= f;
-            m[1] *= f;
-            m[2] *= f;
+    for (i = 0; i < 3; i++) {
+        for (j = i+1; j < 3; j++) {
+            float dot = 0.0f;
+            for (k = 0; k < 3; k++) dot += r[k*3+i]*r[k*3+j];
+            if (fabsf(dot) > 0.02f) return 0; /* authored shear: keep a real basis */
         }
+    }
+    det = r[0]*(r[4]*r[8]-r[5]*r[7]) - r[1]*(r[3]*r[8]-r[5]*r[6]) + r[2]*(r[3]*r[7]-r[4]*r[6]);
+    if (det < 0.0f) {
+        scale[2] = -scale[2];
+        for (row = 0; row < 3; row++) r[row*3+2] = -r[row*3+2];
+    }
+    trace = r[0]+r[4]+r[8];
+    if (trace > 0.0f) {
+        f = sqrtf(trace+1.0f)*2.0f;
+        q[3]=0.25f*f; q[0]=(r[7]-r[5])/f; q[1]=(r[2]-r[6])/f; q[2]=(r[3]-r[1])/f;
+    } else {
+        i = r[4] > r[0] ? 1:0;
+        if (r[8] > r[i*3+i]) i=2;
+        j=(i+1)%3; k=(i+2)%3;
+        f=sqrtf(1.0f+r[i*3+i]-r[j*3+j]-r[k*3+k])*2.0f;
+        q[i]=0.25f*f; q[j]=(r[j*3+i]+r[i*3+j])/f; q[k]=(r[k*3+i]+r[i*3+k])/f;
+        q[3]=(r[k*3+j]-r[j*3+k])/f;
+    }
+    return 1;
+}
+
+static void interp_bone(const float *p, const float *c, float t, int around, float *o) {
+    float a[4], b[4], q[4], sa[3], sb[3], dot=0.0f, norm=0.0f, wa=1.0f-t, wb=t;
+    int col, row, k;
+    for (k=0; k<16; k++) o[k]=p[k]+(c[k]-p[k])*t;
+    if (interp_bone_quat(p,a,sa) && interp_bone_quat(c,b,sb) && sa[2]*sb[2]>0.0f) {
+        for (k=0; k<4; k++) dot+=a[k]*b[k];
+        if (dot<0.0f) { dot=-dot; for (k=0; k<4; k++) b[k]=-b[k]; }
+        if (dot>1.0f) dot=1.0f;
+        if (dot<0.9995f) {
+            float angle=acosf(dot), inv=1.0f/sinf(angle);
+            wa=sinf((1.0f-t)*angle)*inv; wb=sinf(t*angle)*inv;
+        }
+        for (k=0; k<4; k++) { q[k]=wa*a[k]+wb*b[k]; norm+=q[k]*q[k]; }
+        norm=1.0f/sqrtf(norm);
+        for (k=0; k<4; k++) q[k]*=norm;
+        {
+            float x=q[0], y=q[1], z=q[2], w=q[3];
+            float r[9]={1-2*(y*y+z*z), 2*(x*y-z*w), 2*(x*z+y*w),
+                        2*(x*y+z*w), 1-2*(x*x+z*z), 2*(y*z-x*w),
+                        2*(x*z-y*w), 2*(y*z+x*w), 1-2*(x*x+y*y)};
+            for (col=0; col<3; col++) {
+                float scale=sa[col]+(sb[col]-sa[col])*t;
+                for (row=0; row<3; row++) o[col*4+row]=r[row*3+col]*scale;
+            }
+        }
+    } else {
+        /* A singular/sheared basis or changing handedness has no safe rotation
+         * blend. Keep the nearer real basis instead of flattening the mesh. */
+        const float *basis=t<0.5f ? p:c;
+        for (col=0; col<3; col++) for (row=0; row<3; row++) o[col*4+row]=basis[col*4+row];
+    }
+    if (around) {
+        float la=sqrtf(p[12]*p[12]+p[13]*p[13]+p[14]*p[14]);
+        float lb=sqrtf(c[12]*c[12]+c[13]*c[13]+c[14]*c[14]);
+        float lm=sqrtf(o[12]*o[12]+o[13]*o[13]+o[14]*o[14]);
+        float want=la+(lb-la)*t;
+        if (lm>1e-12f && lm>0.3f*want) for (k=12; k<15; k++) o[k]*=want/lm;
     }
 }
 
@@ -3255,6 +3312,13 @@ static int interp_build_view(float t, int first) {
         sInterpRoots = 0;
         if (agreed) {
             sInterpRoots = interp_sqrt_d(sInterpDd, sInterpRoot[0]) && interp_sqrt_d(sInterpRoot[0], sInterpRoot[1]) && interp_sqrt_d(sInterpRoot[1], sInterpRoot[2]);
+            if (!sInterpRoots && getenv("ZENKAIPOWER_INTERP_LINEAR") == NULL) {
+                /* A large/discontinuous camera move has no reliable fractional
+                 * transform. Show the real scene rather than warp the stage. */
+                gInterpCuts++;
+                sInterpWasCut = 1;
+                return 0;
+            }
         }
     }
     /* 2b. Scenery that goes with the camera. The far backdrop is drawn with the scenery's own screen matrix, but its
@@ -4948,25 +5012,19 @@ static int interp_present_paced(void) {
 
 static void interp_cost(uint64_t ns) {
     static int said;
+    static unsigned recover;
     int was = sInterpCap;
     int paced = interp_present_paced();
     uint64_t tick = Port_BlankNs() * 2;
     uint64_t downBudget = tick * (paced ? 110 : 70) / 100;
     uint64_t upBudget = tick * (paced ? 105 : 50) / 100;
 
-    {   /* Not the first pictures of a run: they create the pipelines and load what the first screens need, and
-           took long enough on any machine to switch the in-between pictures off for a moment and say so (seen in
-           the user's log on a fast graphics card: "shows a picture in 12.0 ms" at the logos). */
-        static unsigned seen;
-        if (seen < 300) {
-            seen++;
-            return;
-        }
-    }
     if (ns > 100000000ull) { /* (one long pause, a load or a stall, does not count for more than this) */
         ns = 100000000ull;
     }
-    sInterpCostNs = sInterpCostNs == 0 ? ns : (sInterpCostNs * 7 + ns) / 8;
+    /* React to a slow present immediately, including at startup. Recover
+     * gradually so cheap real frames do not repeatedly re-enable costly blends. */
+    sInterpCostNs = ns > sInterpCostNs ? ns : (sInterpCostNs * 7 + ns) / 8;
     if (getenv("ZENKAIPOWER_INTERP_NOCAP") != NULL) {
         return;
     }
@@ -4977,8 +5035,11 @@ static void interp_cost(uint64_t ns) {
     while (sInterpCap > 1 && sInterpCostNs * (uint64_t)sInterpCap > downBudget) {
         sInterpCap /= 2;
     }
-    if (sInterpCap == was && sInterpCap < 8 && sInterpCostNs * (uint64_t)sInterpCap * 2 < upBudget) {
+    if (sInterpCap < was) recover = 30;
+    else if (recover != 0) recover--;
+    if (recover == 0 && sInterpCap == was && sInterpCap < 8 && sInterpCostNs * (uint64_t)sInterpCap * 2 < upBudget) {
         sInterpCap *= 2;
+        recover = 30;
     }
     if (sInterpCap < was && sInterpCap < interp_steps() && !said) {
         said = 1;
@@ -5030,7 +5091,7 @@ static void interp_show(int step) {
             sBackend->frameEnd();
             /* Vertex matching and camera/wall reconstruction consume the same
                frame budget as submission, especially while moving around a map. */
-            interp_cost(gpu_now() - buildStart);
+            interp_cost(gpu_now() - buildStart + (step == 1 ? sInterpPrepareTook : 0));
         } else {
             gsVertCount = gsVuVertCount = gsVuIdxCount = gsVuUniCount = gsDrawCount = 0; /* (as the back end leaves them) */
         }
@@ -5050,7 +5111,6 @@ static void interp_show(int step) {
         }
         interp_wall_restore();
         sInterpRealTook = gpu_now() - realStart;
-        if (sInterpRealTook > 4000000ull) sInterpRealTook = 4000000ull;
         interp_present_log('R');
         scale_apply();
         menu_labels_apply();
@@ -5065,6 +5125,17 @@ static void interp_show(int step) {
    all = 1: the game is back with a new tick: what is left is dropped, except the tick's real picture. */
 /* The next of the tick's pictures (the in-between ones, then the real one). 0: ZENKAIPOWER_INTERP_ONLY ended them there. */
 static int interp_show_next(void) {
+    if (sInterpNext > 0 && sInterpNext < sInterpSteps && sInterpTickNs != 0) {
+        uint64_t now = gpu_now();
+        uint64_t interval = sInterpTickNs / (uint64_t)sInterpSteps;
+        if (interval != 0 && now > sInterpBlendShown) {
+            uint64_t elapsed = now - sInterpBlendShown;
+            /* Do not catch up by displaying stale blends back-to-back. Keep
+             * the real frame, which commits history and releases resources. */
+            int step = elapsed >= sInterpTickNs ? sInterpSteps : (int)(elapsed / interval) + 1;
+            if (step > sInterpNext) sInterpNext = step < sInterpSteps ? step : sInterpSteps;
+        }
+    }
     if (sInterpNext == sInterpSteps && getenv("ZENKAIPOWER_INTERP_ONLY") != NULL) {
         sInterpNext = 0; /* testing: only in-between pictures are shown (so a screenshot holds one) */
         sInterpRepeat = 0;
@@ -5272,7 +5343,18 @@ void GsGpu_FrameEnd(void) {
             interp_signatures(sInterpSig);
             sInterpPrimCount = interp_prims(sInterpPrims);
         }
-        if (gsInterp > 0 && sInterpSteps > 1 && interp_build(getenv("ZENKAIPOWER_INTERP_T") != NULL ? (float)atof(getenv("ZENKAIPOWER_INTERP_T")) : 1.0f / (float)sInterpSteps, 1)) {
+        uint64_t prepareStart = gpu_now();
+        int blendReady = gsInterp > 0 && sInterpSteps > 1 && interp_build(getenv("ZENKAIPOWER_INTERP_T") != NULL ? (float)atof(getenv("ZENKAIPOWER_INTERP_T")) : 1.0f / (float)sInterpSteps, 1);
+        sInterpPrepareTook = gpu_now() - prepareStart;
+        if (blendReady && sInterpPrepareTook > sInterpTickNs * 7 / (10 * (uint64_t)sInterpSteps)) {
+            /* Pairing and camera reconstruction already exhausted this frame's
+             * budget. Present the untouched real models instead of adding a
+             * synthetic frame that will remain visible throughout the stall. */
+            blendReady = 0;
+            interp_cost(sInterpPrepareTook);
+            sInterpSteps = 1; /* No repeated replays of the overloaded frame. */
+        }
+        if (blendReady) {
             uint64_t before;
 
             sInterpSaved.verts = gsVertCount;
@@ -5291,9 +5373,6 @@ void GsGpu_FrameEnd(void) {
             interp_show(1); /* the first in-between picture; the others and the real one follow (GsGpu_InterpPump) */
             sInterpBlendShown = gpu_now();
             sInterpBlendTook = sInterpBlendShown - before;
-            if (sInterpBlendTook > 4000000ull) {
-                sInterpBlendTook = 4000000ull;
-            }
             sInterpNext = 2;
             if (getenv("ZENKAIPOWER_INTERP_LOG") != NULL && (gInterpTicks++ % 300) == 299) {
                 fprintf(stderr, "interp: %u in-between pictures shown, %u ticks without; blocks: %u blended, %u not\n", gInterpShown, gInterpSkipped, gInterpPaired, gInterpUnpaired);
@@ -5334,8 +5413,7 @@ void GsGpu_FrameEnd(void) {
             t1 = gpu_now();
             sBackend->frameEnd();
             sInterpRealTook = gpu_now() - t1;
-            interp_cost(sInterpRealTook);
-            if (sInterpRealTook > 4000000ull) sInterpRealTook = 4000000ull;
+            interp_cost(sInterpRealTook + sInterpPrepareTook);
             interp_present_log('S');
             if (!repeat) {
                 scale_apply();
@@ -5343,7 +5421,7 @@ void GsGpu_FrameEnd(void) {
             }
             if (repeat) {
                 sInterpBlendShown = gpu_now();
-                sInterpBlendTook = sInterpBlendShown - t1 < 4000000ull ? sInterpBlendShown - t1 : 4000000ull;
+                sInterpBlendTook = sInterpBlendShown - t1;
                 sInterpRepeat = 1;
                 sInterpNext = 2;
             }
