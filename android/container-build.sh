@@ -6,6 +6,10 @@ cd /work
 # The unified image sets ZENKAIPOWER_SDL3 to the Windows MinGW package.
 # Android must use the arm64 library installed by android_toolchain.sh.
 export ZENKAIPOWER_SDL3="${ZENKAIPOWER_ANDROID_SDL3:-${ZENKAIPOWER_TOOLCHAIN:-/work/port/build/android-toolchain}/sdl3}"
+# Refresh packaged source resources instead of overlaying deleted/renamed files
+# from a previous checkout. Only staged copies in /work are removed; build
+# caches and generated APK assets remain available for full and ApkOnly builds.
+rm -rf -- port/translations port/third_party/fonts
 tar -C /host --exclude=port/build --exclude=port/build_release \
     --exclude=port/third_party/dolphin-tool --exclude=port/third_party/real-esrgan \
     --exclude=android/.gradle --exclude=android/app/build \
