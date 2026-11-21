@@ -70,6 +70,20 @@ android {
     }
 }
 
+def generatedIconResources = layout.buildDirectory.dir('generated/res/projectIcon')
+// Variant resources override the checked-in fallback icons without rewriting them.
+android.sourceSets.debug.res.srcDir(generatedIconResources)
+android.sourceSets.release.res.srcDir(generatedIconResources)
+tasks.register('generateProjectIcon', Exec) {
+    def generator = rootProject.file('../port/tools/android_icons.py')
+    def avatar = rootProject.file('../assets/zp-avatar.png')
+    inputs.files(generator, avatar)
+    outputs.dir(generatedIconResources)
+    def python = System.getenv('PYTHON') ?: (System.getProperty('os.name').startsWith('Windows') ? 'python' : 'python3')
+    commandLine python, generator.absolutePath, '--source', avatar.absolutePath,
+        '--output', generatedIconResources.get().asFile.absolutePath
+}
+
 tasks.register('checkEngine') {
     doLast {
         ['libzenkaipower.so', 'libmain.so', 'libSDL3.so', 'libinstaller.so', 'libstorage.so'].each {
@@ -111,7 +125,7 @@ tasks.register('checkStorageAdapter') {
 tasks.configureEach {
     if (name.startsWith('merge') && name.endsWith('NativeLibs')) dependsOn('checkStorageAdapter')
 }
-tasks.named('preBuild').configure { dependsOn 'checkEngine' }
+tasks.named('preBuild').configure { dependsOn 'checkEngine', 'generateProjectIcon' }
 
 tasks.register('checkReleaseSigning') {
     doLast {

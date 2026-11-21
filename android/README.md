@@ -51,6 +51,13 @@ use the Docker volume `zenkaipower-android-toolchain` (the NDK has filenames tha
 differ only by case). The staged source and cached objects live in the Docker
 volume `zenkaipower-android-work`; the engine and maps are copied back to
 `port/build/android/`. `-EngineOnly` and `-ApkOnly` select individual stages.
+
+Every Gradle APK build generates the launcher icon and setup/preparation header
+icon from `assets/zp-avatar.png`, including `-ApkOnly` builds. Changing the avatar
+regenerates all launcher densities and the adaptive icon foreground. Generated
+images stay under `android/app/build/`; checked-in fallback icons are unchanged.
+Direct Gradle builds require Python with Pillow (`python3-pil` in the Docker
+image); set `PYTHON` to override the Python executable.
 `ZENKAIPOWER_JOBS` limits compiler parallelism. Unchanged sources are cached between builds.
 Builds fail on unresolved runtime symbols.
 Unused original PS2 SDK dispatch-table entries receive diagnostic traps, like

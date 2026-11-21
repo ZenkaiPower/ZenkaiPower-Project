@@ -582,9 +582,13 @@ static bool commit_locations() {
     return true;
 }
 
+// Temporarily hide folder selection. Set to true to restore both location controls.
+// Existing locations.ini settings still apply so installed data and saves stay accessible.
+static constexpr bool kStorageLocationSelection = false;
+
 static void storage_locations() {
 #ifndef ZENKAIPOWER_ANDROID_INSTALLER
-    if (!sRelease) return;
+    if (!sRelease || !kStorageLocationSelection) return;
     ImGui::SeparatorText(SetupText("locations.title"));
     for (int row=0;row<2;row++) {
         ImGui::PushID(row+100);

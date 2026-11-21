@@ -1,5 +1,10 @@
 # Desktop setup storage locations
 
+Folder selection is temporarily hidden in desktop setup. To restore it, set
+`kStorageLocationSelection` to `true` in `port/setup/setup.cpp`. Existing
+`locations.ini` settings remain active; new installations use Local by default.
+The controls described below apply when folder selection is enabled.
+
 The desktop release setup offers independent **Game data location** and
 **Save game location** choices on the disc-selection and installed-game pages.
 Both default to **Local**:
