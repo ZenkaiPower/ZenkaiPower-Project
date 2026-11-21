@@ -15,12 +15,13 @@ The carousel is generated from README GIFs with `data-carousel-caption`:
 
 ```html
 <img src="./figs/game-mode.gif" width="320"
-     data-carousel-caption="Switch between game editions."
-     data-carousel-duration="7200"/>
+     data-carousel-caption="Switch between game editions."/>
 ```
 
 The caption becomes the carousel subtitle. Only tagged GIFs are included.
-`data-carousel-duration` is optional and specifies milliseconds (default 7000).
+Slide duration is read automatically from the GIF's frame delays for one full
+animation cycle, with a minimum of 5000 milliseconds for short loops.
+`data-carousel-duration` is an optional override in milliseconds.
 Edit, add, or remove these attributes in the root README; the preview rebuilds
 automatically. Captions are plain text. GIFs marked as 32px or 64px wide retain
 their small-icon presentation inside the 16:9 frame.
@@ -46,9 +47,10 @@ When enabled, the System, Dark and Light theme buttons follow the system/browser
 dark when no preference is identified. A manual Light or Dark choice is saved
 in the browser. `assets/theme.js` applies it before the stylesheet loads.
 
-With Python and Jekyll installed, a local build can be checked with:
+With Python, Pillow, and Jekyll installed, a local build can be checked with:
 
 ```sh
+python -m pip install Pillow
 python web/prepare.py port/build/website-source
 jekyll build --source port/build/website-source --destination port/build/website
 python web/check.py port/build/website

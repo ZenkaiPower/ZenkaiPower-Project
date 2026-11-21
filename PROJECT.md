@@ -24,11 +24,6 @@ Confirm `source` points to this project's GitHub repository.
 
 ### Build 
 
-Clear game build cache.
-```powershell
-& { docker volume ls -q --filter 'name=^zenkaipower-release-[0-9a-f]{12}$' | ForEach-Object { docker volume rm $_ }; docker run --rm --mount type=volume,source=zenkaipower-android-work,target=/work --entrypoint /bin/sh zenkaipower/zenkaipower:latest -c 'rm -rf -- /work/port/build/android /work/android/app/build/intermediates /work/android/app/build/generated /work/android/app/build/tmp /work/android/.gradle' }
-```
-
 Build game for all platforms. The build scripts currently require the local
 `zenkaipower` alias; point it at the published image and disable local image rebuilding.
 ```powershell

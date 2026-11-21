@@ -6,13 +6,25 @@
       "version": "1.0.0",
       "platform": "android-arm64"
     },
+    "b1817405883020643d028b7a381cc20b62ab69fed85848c3f8ed240edf062202": {
+      "version": "1.0.0",
+      "platform": "linux-x64"
+    },
     "7e17675740888b343dc55155d098627df988809f8169aaafbfe82fc45bd95301": {
       "version": "1.0.0",
       "platform": "windows-x64"
     },
-    "b1817405883020643d028b7a381cc20b62ab69fed85848c3f8ed240edf062202": {
-      "version": "1.0.0",
+    "8c83be2b5a3cfea736796a5641a1c7ba9b07cc92e6a18f556f151a145d75213d": {
+      "version": "1.1.0",
+      "platform": "android-arm64"
+    },
+    "593bf2a5d1b6334d8b28eb150dd7cf6dbd9041ae4d27efe4a068658697d011a6": {
+      "version": "1.1.0",
       "platform": "linux-x64"
+    },
+    "69b2d63ddaf577b1c05cb68b185f28fbabcc4517f9f3f21574ddd3ac730cbe73": {
+      "version": "1.1.0",
+      "platform": "windows-x64"
     }
   }
 }

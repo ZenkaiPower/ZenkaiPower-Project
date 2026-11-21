@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 import zipfile
@@ -80,6 +81,15 @@ def build_metadata(executable, version=None):
     return {'version': version, 'platform': platform}
 
 
+def signature_order(item):
+    signature, details = item
+    version = details.get('version', 'unknown')
+    parsed = re.fullmatch(r'v?(\d+)\.(\d+)\.(\d+)', version, re.IGNORECASE)
+    # Numeric release order (1.2.0 before 1.10.0); legacy/unknown versions last.
+    version_key = (0, *map(int, parsed.groups())) if parsed else (1, version)
+    return version_key, details.get('platform', 'unknown'), signature
+
+
 def policy(builds=(), reset=False, version=None):
     previous = json.loads(DESTINATION.read_text()) if DESTINATION.exists() and not reset else {}
     signatures = previous.get('signatures', {}) if previous.get('scheme') == 'zenkaipower-binaries-v2' else {}
@@ -92,7 +102,7 @@ def policy(builds=(), reset=False, version=None):
         details = build_metadata(build, version)
         metadata[signature] = details
     return {'scheme': 'zenkaipower-binaries-v2', 'files': FILES,
-            'signatures': {signature: metadata[signature] for signature in sorted(metadata)}}
+            'signatures': dict(sorted(metadata.items(), key=signature_order))}
 
 
 if __name__ == '__main__':

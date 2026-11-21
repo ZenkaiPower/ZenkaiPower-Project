@@ -48,25 +48,25 @@ Support for multiple languages, including the official translations from the Eur
 
 Fan translations can also be added to the game, although they are not included in the installation package.
 
-<img src="./figs/language-selection.gif" alt="Language selection" width="320" data-carousel-caption="Multi-language support." data-carousel-duration="5400"/>
+<img src="./figs/language-selection.gif" alt="Language selection" width="320" data-carousel-caption="Multi-language support."/>
 
 ### Alternative Clash Controls
 
 An optional control mode for *clashes* replaces analog stick rotation with repeated presses of the attack button. The alternative input is now shown in the bottom-left corner of the screen.
 
-<img src="./figs/clash-tap.gif" alt="Clash controls" width="320" data-carousel-caption="Alternative button-tapping input for clashes." data-carousel-duration="7400"/>
+<img src="./figs/clash-tap.gif" alt="Clash controls" width="320" data-carousel-caption="Alternative button-tapping input for clashes."/>
 
 ### Disc Fusion
 
 The *Disc Fusion* game modes can be unlocked and played.
 
-<img src="./figs/disc-fusion.gif" alt="Disc Fusion" width="320" data-carousel-caption="Disc Fusion game modes unlockable." data-carousel-duration="14470"/>
+<img src="./figs/disc-fusion.gif" alt="Disc Fusion" width="320" data-carousel-caption="Disc Fusion game modes unlockable."/>
 
 ### Autosave
 
 <div style="display: flex; align-items: center; gap: 8px;">
   <span>With Autosave enabled, the game saves your progress automatically. The icon shown here appears while saving.</span>
-  <img src="./figs/autosave-crop.gif" alt="Animated saving indicator" width="32" data-carousel-caption="Automatic saving when this icon is shown." data-carousel-duration="5000"/>
+  <img src="./figs/autosave-crop.gif" alt="Animated saving indicator" width="32" data-carousel-caption="Automatic saving when this icon is shown."/>
 </div>
 
 ### Higher 3D Resolutions
@@ -80,6 +80,8 @@ Higher-resolution texture packs can be added to the game.
 ### Video Options
 
 New video options include *V-Sync*, *Frame Skipping*, and *Frame Interpolation*. These allow the game to run at frame rates above the NTSC version's original 30 FPS.
+
+**ZENKAI Power!** improves frame interpolation during camera and character movement, addressing distorted character models, incorrect stage geometry, and uneven frame pacing. When performance drops, interpolation falls back to the game's original frames and restores intermediate frames gradually as performance recovers. These changes improve visual smoothness without increasing the game's simulation speed.
 
 ### Online Multiplayer
 
@@ -101,17 +103,17 @@ In-game options to skip the opening movie and/or logos and copyright screens on 
 
 Both battles and menus now support widescreen displays, going beyond the original releases' 4:3 aspect ratio.
 
-<img src="./figs/ratio-battle.gif" alt="Screen ratio in battle" width="320" data-carousel-caption="Widescreen support for battles." data-carousel-duration="5270"/>
+<img src="./figs/ratio-battle.gif" alt="Screen ratio in battle" width="320" data-carousel-caption="Widescreen support for battles."/>
 
 Each menu was carefully adapted by hand for widescreen support, using a different approach from **Tenkaichi3Decomp**. Battles use the same approach as **Tenkaichi3Decomp**.
 
-<img src="./figs/ratio-menu.gif" alt="Screen ratio in menu" width="320" data-carousel-caption="Widescreen support for menus." data-carousel-duration="5330"/>
+<img src="./figs/ratio-menu.gif" alt="Screen ratio in menu" width="320" data-carousel-caption="Widescreen support for menus."/>
 
 ### Keyboard and Mouse Support
 
 Keyboard and mouse support allows the game to be played without a controller. The mouse can also be used to navigate menus.
 
-<img src="./figs/mouse.gif" alt="Mouse support" width="320" data-carousel-caption="Mouse support for menus." data-carousel-duration="14070"/>
+<img src="./figs/mouse.gif" alt="Mouse support" width="320" data-carousel-caption="Mouse support for menus."/>
 
 ### New Options in the Options Menu
 
@@ -121,7 +123,7 @@ New options have been added directly to the game's Options Menu, providing more 
 
 You can switch between **Sparking! METEOR** and **Budokai Tenkaichi 3**, including each version's exclusive soundtrack and textures.
 
-<img src="./figs/game-mode.gif" alt="Game edition selection" width="320" data-carousel-caption="Switch between Sparking! METEOR and Budokai Tenkaichi 3." data-carousel-duration="7200"/>
+<img src="./figs/game-mode.gif" alt="Game edition selection" width="320" data-carousel-caption="Switch between Sparking! METEOR and Budokai Tenkaichi 3."/>
 
 ### Unlockable BGM
 
@@ -147,7 +149,7 @@ Online play allows players to connect over the internet for casual or ranked mat
 
 ⚠️ Keep your username and user code somewhere safe, as both are required to log in to online mode. Do not share your user code or `savegame/net_account.dat` file.
 
-<img src="./figs/dragon-net-battle.gif" width="320" data-carousel-caption="Dragon Net Battle LAN and online mode." data-carousel-duration="12070"/>
+<img src="./figs/dragon-net-battle.gif" width="320" data-carousel-caption="Dragon Net Battle LAN and online mode."/>
 
 Online mode includes:
 
@@ -161,11 +163,11 @@ Online mode includes:
   - 1 vs 1
 - Global player rankings
 
-<img src="./figs/dragon-net-battle-menu.gif" width="320" data-carousel-caption="Online ranking battle and global ranking leaderboard." data-carousel-duration="9070"/>
+<img src="./figs/dragon-net-battle-menu.gif" width="320" data-carousel-caption="Online ranking battle and global ranking leaderboard."/>
 
 Ranked mode uses the game's native scoring system.
 
-<img src="./figs/ranking-points.gif" width="320" data-carousel-caption="Ranked battles use the original scoring system." data-carousel-duration="7000"/>
+<img src="./figs/ranking-points.gif" width="320" data-carousel-caption="Ranked battles use the original scoring system."/>
 
 ## Mobile Version
 
@@ -178,7 +180,7 @@ A similar project is the **[Tenkaichi3DecompAndroid](https://github.com/dfdx047/
 
 The game's menus have been adapted for touchscreen devices, similar to the Mouse support on PC.
 
-<img src="./figs/touchscreen-menus.gif" alt="Touchscreen support" width="320" data-carousel-caption="Touchscreen menus for mobile devices." data-carousel-duration="7000"/>
+<img src="./figs/touchscreen-menus.gif" alt="Touchscreen support" width="320" data-carousel-caption="Touchscreen menus for mobile devices."/>
 
 ### Virtual Gamepad
 
@@ -186,7 +188,7 @@ During battles, a virtual gamepad can be displayed on the screen, allowing playe
 
 The virtual gamepad uses original game artwork for the buttons.
 
-<img src="./figs/touchscreen-battle.gif" alt="Virtual gamepad" width="320" data-carousel-caption="Virtual touchscreen gamepad for mobile devices using game artworks." data-carousel-duration="18000"/>
+<img src="./figs/touchscreen-battle.gif" alt="Virtual gamepad" width="320" data-carousel-caption="Virtual touchscreen gamepad for mobile devices using game artworks."/>
 
 ### Gamepad Support
 
@@ -196,23 +198,13 @@ Gamepad support is available for Android devices, allowing players to use a cont
 
 The features above bring the original game to modern platforms, with native controls for menus and battles and content from its different editions brought together in one definitive version. **Classic Mode** preserves this experience, retaining the original gameplay and progression.
 
-**Sparking! Changes** goes a step further, introducing small additions and refinements to the classic game while staying true to the spirit of the *Sparking! / Budokai Tenkaichi* franchise. These changes are optional and enabled by default. To disable them, turn **Classic Mode** on under **Options > More Options > General Settings** at the start of a new save. This choice is permanent for that save and disables all the features below.
+⚡ **Sparking! Changes** goes a step further, introducing small additions and refinements to the classic game while staying true to the spirit of the *Sparking! / Budokai Tenkaichi* franchise. These changes are optional and enabled by default. To disable them, turn **Classic Mode** on under **Options > More Options > General Settings** at the start of a new save. This choice is permanent for that save and disables all the features below.
 
 ### Training Settings
 
 Add a pause menu to the training mode, allowing players to adjust training settings like health, ki and blast stock auto regeneration.
 
-<img src="./figs/training-settings.gif" width="320" data-carousel-caption="Training mode with team battle. Enable or disable health, ki, and blast stock regeneration in training." data-carousel-duration="7530"/>
-
-### Starting Characters and Stages
-
-Ready to play *Dragon History* one more time?
-
-Inspired by other Dragon Ball games that start with a limited roster and require players to unlock the remaining characters, **ZENKAI Power!** introduces a similar progression. Instead of starting with 132 characters unlocked, you begin with just 10. The rest of those 132 characters can be unlocked through Dragon History. The remaining characters in the game's full roster of 161 are unlocked as usual, just as in the original releases.
-
-Stages follow a similar progression: you begin with 15 stage entries unlocked instead of the original 27. The other 12 starting entries now unlock by completing specific Dragon History episodes. The remaining 8 entries in the full selection of 35 retain their original unlock requirements.
-
-<img src="./figs/initial-characters.gif" width="320" data-carousel-caption="Start with 10 characters and 15 stages. Unlock more through Dragon History." data-carousel-duration="7000"/>
+<img src="./figs/training-settings.gif" width="320" data-carousel-caption="Training mode with team battle. Enable or disable health, ki, and blast stock regeneration in training."/>
 
 ### Difficulty
 
@@ -222,25 +214,51 @@ Game modes raises base CPU difficulty, making the game a little more challenging
 
 In the first episode of *Dragon History*, Goku (Early) Kaioken Attack, Genki Dama and Kaioken ability was disabled, to be accurate with the history. It also disables Goku (Early) special Kienzan blast on Saiyan Saga, for the same reason.
 
+### Presentation Changes
+
+**Oozaru Transformations**
+
+Characters that previously required Power Ball to transform into a Great Ape now use the stage's full moon when available.
+
+**Goku (Mid)'s Genkidama**
+
+Based on Sparking! NEO / Budokai Tenkaichi 2, Goku (Mid)'s Genkidama / Spirit Bomb now appears above the stage after gathering energy and grows with each of its three charges. The Ultimate's ball size reflects the energy gathered.
+
+<img src="./figs/genkidama.gif" alt="Goku (Mid)'s growing Genkidama" width="320" data-carousel-caption="Goku (Mid)'s Genkidama grows above the stage as he gathers energy."/>
+
+**Perfect Cell's Transformation**
+
+Perfect Cell's transformation into Super Perfect Cell now includes a sequence showing Semi-Perfect Cell self-destructing.
+
+<img src="./figs/cell-transformation.gif" alt="Cell's self-destruct transformation" width="320" data-carousel-caption="A new sequence for Super Perfect Cell Transformation."/>
+
+### Starting Characters and Stages
+
+Ready to play *Dragon History* one more time?
+
+Inspired by other Dragon Ball games that start with a limited roster and require players to unlock the remaining characters, **ZENKAI Power!** introduces a similar progression. Instead of starting with 132 characters unlocked, you begin with just 10. The rest of those 132 characters can be unlocked through Dragon History. The remaining characters in the game's full roster of 161 are unlocked as usual, just as in the original releases.
+
+Stages follow a similar progression: you begin with 15 stage entries unlocked instead of the original 27. The other 12 starting entries now unlock by completing specific Dragon History episodes. The remaining 8 entries in the full selection of 35 retain their original unlock requirements.
+
+<img src="./figs/initial-characters.gif" width="320" data-carousel-caption="Start with 10 characters and 15 stages. Unlock more through Dragon History."/>
+
+### Manual Lock-On
+
+You can now manually unlock from an opponent. Automatic lock-on and searching stay disabled until you choose to resume searching.
+
+<img src="./figs/lock-on.gif" alt="Manual lock-on control" width="320" data-carousel-caption="Manually unlock from your opponent and choose when to resume searching."/>
+
 ### *Dragon World Tour*
 
 Tournament opponents now follow *Dragon History* progression. The CPU roster includes characters you have unlocked, plus the character rewards from every available saga. Brackets favor different characters before adding alternate incarnations or transformations. *World Martial Arts Big Tournament*, *Cell Games*, and *Otherworld Tournament* become available after clearing the *Android Saga*.
 
 CPU-only matches are resolved using DP-weighted odds, giving stronger characters a greater chance of advancing, not the original 50/50 change. *Yamcha Game* uses Desert stages that progress from noon to evening, then night for the final fight.
 
-### Gameplay Changes
-
-**Oozaru Transformations**
-
-Personagens que sempre utilizavam Power Ball para se transformarem em Giant Ape, agora utilizam a lua cheia quando disponível.
-
-**Perfect Cell's Transformation**
-
-A transformação de Perfect Form Cell em Super Perfect Cell foi modificada, incluindo uma animação com Semi-Perfect Cell explodindo.
+### Battle Changes 
 
 **Goku (End) Super Saiyan 2**
 
-Goku Super Saiyajin 2 primeiro Blast 2 se torna Super Kamehameha, e seu Ultimate Blast se torna Instant Kamehameha.
+Goku (End) Super Saiyan 2's first Blast 2 is now Super Kamehameha, and his Ultimate Blast is now Instant Kamehameha.
 
 **Tiered Kaioken**
 
@@ -248,8 +266,9 @@ Kaioken now has three tiers: Kaioken, Kaioken x3, and Kaioken x4. Activation sel
 
 **Ginyu's Body Change**
 
-*Body Change* uses a revised selection of bodies: Goku (Mid), Kid Gohan, Krillin, and Vegeta (Scouter). Using Ginyu's self-injury power-up first enables an alternate selection of Super Saiyan Goku (Mid), Piccolo (Early), and Frieza Final Form.
+*Body Change* now selects Goku (Mid), Kid Gohan, Krillin, or Vegeta (Scouter). While Ginyu's self-injury power-up is active, the choices change to Super Saiyan Goku (Mid), Piccolo (Early), or Frieza (Final Form).
 
+<img src="./figs/body-change.gif" alt="Ginyu's revised Body Change" width="320" data-carousel-caption="Use Ginyu's self-injury power-up to change which bodies Body Change can select."/>
 
 ## Installation
 
@@ -261,12 +280,13 @@ Check the [**releases page**](https://github.com/ZenkaiPower/ZenkaiPower-Project
   <div style="flex: 1 1 0; min-width: 0;">
     <h3>Desktop</h3>
     <p>Download <strong>Windows</strong> or <strong>Linux</strong> <code>.zip</code> files, extract them, and follow the installer's instructions.</p>
-    <div style="text-align: center;"><img src="./figs/setup-desktop.gif" alt="Desktop installer" height="240" data-carousel-caption="Install the desktop version using your original game disc." data-carousel-duration="7000"/></div>
+    <div style="text-align: center;"><img src="./figs/setup-desktop.gif" alt="Desktop installer" height="240" data-carousel-caption="Install the desktop version using your original game disc."/></div>
+    <p>🖥️ On Desktop, the setup can auto-update to a new version when it's available.</p>
   </div>
   <div style="flex: 1 1 0; min-width: 0;">
     <h3>Android</h3>
     <p>Download the <strong>Android</strong> <code>.apk</code> file, install it on your Android device, and follow the instructions in the app.</p>
-    <div style="text-align: center;"><img src="./figs/setup-android.gif" alt="Android installer" height="240" data-carousel-caption="Install the Android version using your original game disc." data-carousel-duration="7000"/></div>
+    <div style="text-align: center;"><img src="./figs/setup-android.gif" alt="Android installer" height="240" data-carousel-caption="Install the Android version using your original game disc."/></div>
   </div>
 </div>
 
@@ -289,4 +309,4 @@ Licenses for third-party components used in **ZENKAI Power!** can be found in th
 
 ## Legal
 
-**ZENKAI Power!** is an unofficial fan modification of **Dragon Ball Z: Sparking! METEOR** and **Dragon Ball Z: Budokai Tenkaichi 3**. It is not affiliated with, sponsored by, or endorsed by Bandai Namco Entertainment, Bird Studio, Shueisha, Toei Animation, or any other rights holder. The project's open-source licenses do not grant rights to the original games content. This project is intended for educational and personal entertainment purposes. Users must supply their own legally obtained game discs. This project does not distribute disc images or original game content.
+**ZENKAI Power!** is an unofficial fan modification of **Dragon Ball Z Sparking! METEOR** and **Dragon Ball Z Budokai Tenkaichi 3**. It is not affiliated with, sponsored by, or endorsed by Bandai Namco Entertainment, Bird Studio, Shueisha, Toei Animation, or any other rights holder. The project's open-source licenses do not grant rights to the original games content. This project is intended for educational and personal entertainment purposes. Users must supply their own legally obtained game discs. This project does not distribute disc images or original game content.

@@ -5,8 +5,18 @@ import argparse
 import json
 import re
 import shutil
+from PIL import Image, ImageSequence
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def gif_duration(path):
+    """One animation cycle, in milliseconds; short loops stay visible for 5s."""
+    with Image.open(path) as image:
+        if image.format != 'GIF':
+            raise ValueError(f'Carousel image is not a GIF: {path}')
+        duration = sum(frame.info.get('duration', 100) for frame in ImageSequence.Iterator(image))
+    return max(5000, duration)
 
 
 def carousel_slides(readme):
@@ -27,7 +37,8 @@ def carousel_slides(readme):
             caption = (attributes['data-carousel-caption'] or '').strip()
             if not caption:
                 raise ValueError(f'Missing carousel caption: {src}')
-            duration = int(attributes.get('data-carousel-duration', '7000'))
+            override = attributes.get('data-carousel-duration')
+            duration = int(override) if override is not None else gif_duration(ROOT / src)
             if not 1000 <= duration <= 300000:
                 raise ValueError(f'Invalid carousel duration: {src}')
             self.slides.append(dict(src='/' + src, caption=caption,
