@@ -442,6 +442,9 @@ void BtlSuper_Leave(BtlSuperChr *chr, s32 cls) {
     switch (BtlSuper_GetId(chr, cls)) {
     case 0x268:
         chr->unkE5C = 0;
+#ifdef PORT
+        { extern void Port_SpiritBombConsume(void *fighter); Port_SpiritBombConsume(chr); }
+#endif
         break;
     case 0x2CD:
         chr->unkE60 = 0;

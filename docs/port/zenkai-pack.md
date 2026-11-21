@@ -27,6 +27,7 @@ of the saved pack state.
 | `extra_outfits` | Future Gohan one-armed outfits 3 and 4, both forms and damage states | `PORT_ZENKAI_EXTRA_OUTFITS` | No |
 | `free_camera` | Horizontal Android camera dragging while unlocked | `PORT_ZENKAI_FREE_CAMERA` | Yes |
 | `manual_lock` | Hold L1 to unlock manually; release and hold L1 again to resume searching | `PORT_ZENKAI_MANUAL_LOCK` | Yes |
+| `spirit_bomb` | Goku (Mid) stores a Spirit Bomb above the arena, can fire a small uncharged Ultimate, and uses four ball sizes across zero to three energy charges | `PORT_ZENKAI_SPIRIT_BOMB` | Yes |
 | `tiered_kaioken` | Kaioken tiers, bonuses, upgrade costs and HP drain | `PORT_ZENKAI_KAIOKEN` | Yes |
 
 `battle_mechanic_change` is a named subset containing `giant_scaling`,

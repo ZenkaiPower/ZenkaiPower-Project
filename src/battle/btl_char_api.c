@@ -350,6 +350,39 @@ f32 BtlCharApi_GetUnkE5CRatio(s32 objId) {
     return BtlUtil_ClampF((f32)chr->unkE5C / 3.0f, 0.0f, 1.0f);
 }
 
+#ifdef PORT
+/* Goku (Mid), roster entry 1, with the original three-charge state. */
+s32 Port_BtlSpiritBombEnabled(s32 objId) {
+    extern s32 *BtlMember_GetActive(BtlCharApiChr *chr);
+    BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
+    return PORT_ZENKAI_SPIRIT_BOMB && Port_ZenkaiPackEnabled() && chr != NULL &&
+        *BtlMember_GetActive(chr) == 1;
+}
+f32 Port_BtlSpiritBombScale(s32 objId, f32 base) {
+    static const f32 sizes[4] = { 0.5f, 0.7f, 0.85f, 1.0f };
+    BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
+    s32 charge = chr != NULL ? chr->unkE5C : 0;
+    if (charge < 0) charge = 0;
+    if (charge > 3) charge = 3;
+    /* Four sizes: uncharged, then one through three energy requests. */
+    return base * sizes[charge];
+}
+s32 Port_BtlSpiritBombAttacking(s32 objId) {
+    extern s32 BtlSuper_GetId(BtlCharApiChr *chr, s32 cls);
+    BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
+    return Port_BtlSpiritBombEnabled(objId) &&
+        BtlAct_IsTechniqueId(BtlAct_GetCurrent(chr)) &&
+        BtlAct_GetCurrentClass(chr) == 4 && BtlSuper_GetId(chr, 4) == 0x268;
+}
+s32 Port_BtlSpiritBombCharge(s32 objId) {
+    extern s32 BtlCharApi_IsInTechnique(s32 objId);
+    BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
+    if (!Port_BtlSpiritBombEnabled(objId) || BtlChar_IsDead(chr) ||
+        BtlCharApi_IsInTechnique(objId)) return 0;
+    return chr->unkE5C < 0 ? 0 : chr->unkE5C > 3 ? 3 : chr->unkE5C;
+}
+#endif
+
 /* Fighter counter +0xE60 as a 0..1 ratio of 5. */
 f32 BtlCharApi_GetUnkE60Ratio(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);

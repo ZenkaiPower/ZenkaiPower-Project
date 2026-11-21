@@ -260,7 +260,7 @@ damage='int damage(int slot) {int health=0;switch(0x17) { '+skills[a:b]+' }retur
 harness=r'''
 #include <assert.h>
 #include "sys/port_zenkai_features.h"
-typedef int s32;typedef unsigned int u32;typedef struct {int dodges,dodgesB,unkE5C;} BtlActJChr;
+typedef int s32;typedef unsigned int u32;typedef struct {int dodges,dodgesB,unkE5C,objId;} BtlActJChr;
 static int pack,changed,boost;
 int Port_GinyuSelfDamageActive(void *chr) {return boost;}
 int Port_GinyuSideSelfDamageActive(int side) {return boost;}
@@ -275,6 +275,7 @@ int Port_ZenkaiPackEnabled(void) {return pack;}
 int BtlChar_TestMemberUnk70(void *chr) {return changed;}
 int BtlCtrl_TestMemberUnk70(int side) {return changed;}
 int Port_GokuFirstEpisodeRestricted(void *chr) {return 0;}
+int Port_BtlSpiritBombEnabled(int objId) {return 0;}
 int BtlChar_TestFlag(void *chr,int flag) {return 1;}
 int BtlSuper_GetKiCost(void *chr,int slot) {return 0;}
 int BtlMember_HasKi(void *chr,int cost) {return 1;}
@@ -288,7 +289,7 @@ int main(void) {
  for(pack=0;pack<2;pack++) for(changed=0;changed<2;changed++) for(boost=0;boost<2;boost++) {
   for(slot=2;slot<=4;slot++) {
    int enabled=!changed || (pack && PORT_ZENKAI_GINYU_BODY_CHANGE && (slot!=4));
-   assert(BtlAct_CanUseTechnique(0,slot)==enabled);
+   assert(BtlAct_CanUseTechnique(&chr,slot)==enabled);
   }
   assert(BtlText_IsLineDimmed(0,4,0)==(pack && PORT_ZENKAI_GINYU_BODY_CHANGE && changed));
   assert(BtlText_IsLineDimmed(0,1,0)==(pack && PORT_ZENKAI_GINYU_BODY_CHANGE && changed));

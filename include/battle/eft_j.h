@@ -236,13 +236,6 @@ typedef struct EftJHitRec {
     /* 0x6C */ u8 unk6C[0x124];
 } EftJHitRec; /* size 0x190 */
 
-/* Work of the manager task of effect type 0, "blast" (class 0x2C38C8). */
-typedef struct EftBlastMgr {
-    /* 0x000 */ s32 unk0;
-    /* 0x004 */ EftJSet set;
-    /* 0x140 */ u8 unk140[0x1E4];
-} EftBlastMgr; /* size 0x324 */
-
 /* Work of an item of effect type 0 (class 0x2C38E0). */
 typedef struct EftBlast {
     /* 0x000 */ s32 flags;
@@ -271,6 +264,26 @@ typedef struct EftBlast {
     /* 0x5B0 */ EftJSet *set;
     /* 0x5B4 */ u8 unk5B4[0xC];
 } EftBlast; /* size 0x5C0 */
+
+/* Work of the manager task of effect type 0, "blast" (class 0x2C38C8). */
+typedef struct EftBlastMgr {
+    /* 0x000 */ s32 unk0;
+    /* 0x004 */ EftJSet set;
+    /* 0x140 */ u8 unk140[0x1E4];
+#ifdef PORT
+    /* Owned by the slot manager, within its 0x2000-byte task allocation. */
+    EftJSrc *spiritSrc;
+    EftBlast spiritPreview;
+    /* EftEmitNodes layout: every sampled node is pinned to the sky anchor. */
+    struct {
+        u32 flags, flagsC, fixed;
+        s32 pad;
+        struct { s32 id, pad[3]; Vec4 pos; } n[6][2], c[6];
+    } spiritNodes;
+    s32 spiritOn;
+#endif
+} EftBlastMgr; /* size 0x324 */
+
 
 /* ---- module "shots" (classes 0x2C38F8 manager / 0x2C3910 item); its callbacks are in eft_k.c, where the same
    blocks are called EftShotTechMgr / EftShotTech / EftKModel. ---- */

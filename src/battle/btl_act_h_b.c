@@ -2087,6 +2087,9 @@ void BtlSkill_Apply(BtlActIChr *chr, s32 slot) {
         break;
     case 0x41:
         chr->skillCount3 = BtlUtil_Clamp(chr->skillCount3 + 1, 0, 3);
+#ifdef PORT
+        { extern void Port_SpiritBombRemember(void *fighter); Port_SpiritBombRemember(chr); }
+#endif
         break;
     }
 

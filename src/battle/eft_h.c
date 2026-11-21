@@ -1225,6 +1225,54 @@ void EftEmit_InitState(EftSet *set, EftSetState *st) {
     }
 }
 
+#ifdef PORT
+/* Keep a stored charging effect at its initial size instead of advancing the
+ * attack cinematic's one-shot shrink animation. The shared definition stays intact. */
+void Port_EftEmitHoldScale(EftSet *set, EftSetState *st, s32 group, s32 index) {
+    s32 n = set->group[group].firstPart + index;
+    st->unk168[n] = set->parts[n].unk1C;
+    st->unk208[n] = 0.0f;
+}
+/* Bottom edge of the core ball relative to its anchor, in world units.
+ * World Y increases downward: the bottom is center + radius.
+ * Billboard key heights are half-heights in 1/16 world units. Read the
+ * largest key so placement also covers the largest configured animation key. */
+f32 Port_EftSpiritBombBottom(EftSet *set, f32 scale, s32 phase, f32 dirY) {
+    EftSetGroup *g = &set->group[16];
+    f32 bottom = 0.0f;
+    s32 i, key;
+    if (!(set->head->mask & (1 << 16))) return 0.0f;
+    for (i = 0; i < g->entry->nParts; i++) {
+        EftSetDef *part = &set->parts[g->firstPart + i];
+        /* EftLineDef.length[3], shared by the billboard definition. */
+        f32 *height;
+        f32 radius = 0.0f, edge, offset;
+        if (part->phase != phase || set->pair[g->firstPair+i].a == NULL) continue;
+        height = (f32 *)((u8 *)set->pair[g->firstPair+i].a + 0x34);
+        for (key = 0; key < 3; key++) {
+            f32 h = height[key];
+            if (h < 0.0f) h = -h;
+            if (h > radius) radius = h;
+        }
+        radius *= 0.0625f * part->unk1C * scale;
+        offset = (part->flags & 0x40) ? 0.0f : dirY * part->unk10 * scale;
+        edge = offset + radius;
+        if (edge > bottom) bottom = edge;
+    }
+    return bottom;
+}
+
+void Port_EftEmitWorldDepth(EftSet *set, EftSetState *st, s32 group, s32 index) {
+    extern s32 Port_EftBillWorldDepth(void *task);
+    s32 n, half;
+    if (group != 16) return;
+    n = set->group[group].firstPart + index;
+    for (half = 0; half < 2; half++)
+        Port_EftBillWorldDepth(st->handle[half][n]);
+}
+
+#endif
+
 /* Counterpart of EftEmit_InitState: nothing to release. */
 void EftEmit_TermState(EftSet *set, EftSetState *st) {
 }
@@ -1618,6 +1666,8 @@ extern s32 EftBill_SetDelay(void *obj, f32 v);
 extern s32 EftBill_SetEndDelay(void *obj, f32 v);
 extern s32 EftBill_SetFront(void *obj);
 extern s32 EftBill_SetType(void *obj, s32 type);
+
+
 
 /* Type 16. */
 /* Matching note (EftEmit_SpawnType16): the resource pointer is built in two statements with texA read in between

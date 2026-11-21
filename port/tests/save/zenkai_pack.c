@@ -15,9 +15,9 @@ void Snd_PlaySe(int a,int b) {}
 extern int TestPackTransfer(int *,int *,int,float);
 int main(void) {
     static const char *const ids[]={"giant_scaling","dragon_history_unlocking","world_tour_change",
-        "raise_base_level","story_restrictions","goku_ssj2","tiered_kaioken","ginyu_body_change","extra_outfits","future_gohan_grab","great_ape_moon","cell_transformation","manual_lock","free_camera"};
+        "raise_base_level","story_restrictions","goku_ssj2","tiered_kaioken","ginyu_body_change","extra_outfits","future_gohan_grab","great_ape_moon","cell_transformation","spirit_bomb","manual_lock","free_camera"};
     static const int compiled[]={PORT_ZENKAI_GIANTS,PORT_ZENKAI_STORY_UNLOCKS,PORT_ZENKAI_TOURNAMENT,
-        PORT_ZENKAI_RAISED_DIFFICULTY,PORT_ZENKAI_STORY_RESTRICTIONS,PORT_ZENKAI_SSJ2_MOVESET,PORT_ZENKAI_KAIOKEN,PORT_ZENKAI_GINYU_BODY_CHANGE,PORT_ZENKAI_EXTRA_OUTFITS,PORT_ZENKAI_FUTURE_GOHAN_GRAB,PORT_ZENKAI_GREAT_APE_MOON,PORT_ZENKAI_CELL_TRANSFORMATION,PORT_ZENKAI_MANUAL_LOCK,PORT_ZENKAI_FREE_CAMERA};
+        PORT_ZENKAI_RAISED_DIFFICULTY,PORT_ZENKAI_STORY_RESTRICTIONS,PORT_ZENKAI_SSJ2_MOVESET,PORT_ZENKAI_KAIOKEN,PORT_ZENKAI_GINYU_BODY_CHANGE,PORT_ZENKAI_EXTRA_OUTFITS,PORT_ZENKAI_FUTURE_GOHAN_GRAB,PORT_ZENKAI_GREAT_APE_MOON,PORT_ZENKAI_CELL_TRANSFORMATION,PORT_ZENKAI_SPIRIT_BOMB,PORT_ZENKAI_MANUAL_LOCK,PORT_ZENKAI_FREE_CAMERA};
     int i,n,points;
     /* Legacy zero-balance saves remain locked: spending cannot establish no earnings. */
     assert(Port_ZenkaiPackEnabled() && !Port_ZenkaiPackCanDisable());
@@ -26,7 +26,7 @@ int main(void) {
     for(i=0;i<(int)(sizeof(ids)/sizeof(ids[0]));i++) {
         assert(Port_ZenkaiFeatureEnabled(ids[i])==compiled[i]);
         assert(Port_ZenkaiFeatureInGroup(ids[i],"zenkai_pack"));
-        assert(Port_ZenkaiFeatureInGroup(ids[i],"battle_mechanic_change")== (i==0 || i==5 || i==6 || i==9 || i==10 || i==11 || i==12 || i==13));
+        assert(Port_ZenkaiFeatureInGroup(ids[i],"battle_mechanic_change")== (i==0 || i==5 || i==6 || i==9 || i==10 || i==11 || i==12 || i==13 || i==14));
     }
     assert(!Port_ZenkaiFeatureEnabled("unknown") && !Port_ZenkaiFeatureInGroup(0,"zenkai_pack"));
     Save_AddMoney(0);Save_AddMoney(-5);assert(Port_ZenkaiPackCanDisable());

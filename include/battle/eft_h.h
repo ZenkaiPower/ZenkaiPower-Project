@@ -328,7 +328,7 @@ typedef struct EftSetState {
     /* 0x000 */ void *handle[2][40]; /* task of each part, by part index */
     /* 0x140 */ u8 flag[40];         /* 2 started, 4 stopped, 0x20, 0x40, 0x80 */
     /* 0x168 */ f32 unk168[40];      /* EftSetDef.unk1C */
-    /* 0x208 */ u8 unk208[0xA0];
+    /* 0x208 */ f32 unk208[40];       /* per-emitter scale animation time */
     /* 0x2A8 */ f32 unk2A8;
     /* 0x2AC */ f32 unk2AC;
     /* 0x2B0 */ f32 unk2B0;

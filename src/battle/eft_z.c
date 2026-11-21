@@ -936,6 +936,27 @@ s32 EftBill_SetFront(EftZTask *task) {
     return 1;
 }
 
+#ifdef PORT
+/* World effects must be occluded by nearer fighters and scenery. */
+s32 Port_EftBillWorldDepth(EftZTask *task) {
+    EftBill *w;
+
+    if (task == NULL) {
+        return 0;
+    }
+    if (*task->cls != (void *)EftBill_Update) {
+        return 0;
+    }
+    w = task->work;
+    if (!(w->flags & EFT_BILL_ALIVE)) {
+        return 0;
+    }
+    w->flags &= ~EFT_BILL_FRONT;
+    return 1;
+}
+#endif
+
+
 /* Sets the effect type the stop / hide tests use. */
 s32 EftBill_SetType(EftZTask *task, s32 type) {
     EftBill *w;

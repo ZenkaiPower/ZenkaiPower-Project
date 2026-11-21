@@ -2,6 +2,9 @@
 #include "battle/eft_j.h"
 #ifdef PORT
 #include "sys/port_zenkai.h"
+#include "sys/heap.h"
+#include "sys/file.h"
+#include "battle/btl_pool.h"
 #endif
 
 /*
@@ -55,6 +58,7 @@
  * matrix translate / rotate X / rotate Y / rotate by angles / scale; Vec3_Copy copies a position.
  */
 
+extern void *memcpy(void *dst,const void *src,u32 n);
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 rand(void);
 extern f32 atan2f(f32 y, f32 x);
@@ -134,6 +138,11 @@ extern void EftEmit_UpdateNodesReq(EftJSrc *src, void *out);
 extern s32 EftEmit_HasWidth2(EftJSet *set);
 extern f32 EftEmit_GetWidth2(void *emit);
 extern f32 EftEmit_GetTrailWidth(void *emit);
+#ifdef PORT
+extern s32 Port_BtlSpiritBombEnabled(s32 objId);
+extern f32 Port_EftSpiritBombBottom(EftJSet *set, f32 scale, s32 phase, f32 dirY);
+extern void Port_EftEmitOffsetNodes(void *nodes, f32 y);
+#endif
 extern s32 EftObj_Create(void *arg, s32 *model);
 extern void EftObj_Destroy(s32 obj);
 extern void EftObj_SetMtx(s32 obj, Mtx44 *m);
@@ -1269,6 +1278,16 @@ void EftBlast_Init(EftJTask *task, EftJSrc *arg) {
         w->scale += ratio * 0.3f;
         w->flags |= 0x1800;
     }
+#ifdef PORT
+    if (src->def->id == 0x268) {
+        extern s32 Port_BtlSpiritBombEnabled(s32 objId);
+        extern f32 Port_BtlSpiritBombScale(s32 objId, f32 base);
+        if (Port_BtlSpiritBombEnabled(src->objId)) {
+            w->scale = Port_BtlSpiritBombScale(src->objId, def->scale);
+            w->flags &= ~0x1000; /* Keep the selected tier through firing. */
+        }
+    }
+#endif
     if (src->def->id == 0x2CD) {
         f32 ratio = BtlCharApi_GetUnkE60Ratio(src->objId);
         f32 add;
@@ -1321,6 +1340,7 @@ void EftBlast_Update(EftJTask *task) {
         EftShot_PlayFireSound(src->objId, src);
     }
     EftEmit_UpdateNodesReq(src, w->node);
+
     if (!(w->flags & 0x40)) {
         if (EftShot_TestBits(src->objId, 2)) {
             EftAim_GetDir(&w->dir, &w->hand, src->objId);
@@ -1336,6 +1356,7 @@ void EftBlast_Update(EftJTask *task) {
             w->flags |= 0x40;
         }
     }
+
     if (w->flags & 0x40) {
         switch (task->state) {
         case 0:
@@ -1353,6 +1374,7 @@ void EftBlast_Update(EftJTask *task) {
             }
             if (EftShot_TestBits(src->objId, 4)) {
                 w->flags |= 0x10;
+                /* All Spirit Bomb sizes use the original cinematic center. */
                 Vec4_Copy(&w->origin, &w->muzzle);
                 Vec4_Copy(&w->head, &w->origin);
                 BtlCharApi_GetNodePos(src->objId, 0x11, &w->tail);
@@ -1490,28 +1512,189 @@ void EftBlast_Reset(EftJTask *task) {
 void EftBlast_Draw(EftJTask *task) {
 }
 
+#ifdef PORT
+extern s32 Port_BtlSpiritBombCharge(s32 objId);
+extern f32 Port_BtlSpiritBombScale(s32 objId, f32 base);
+extern f32 BtlStage_GetTop(void);
+extern void Port_EftEmitWorldDepth(EftJSet *set, void *emit, s32 group, s32 part);
+extern void Port_EftEmitHoldScale(EftJSet *set, void *emit, s32 group, s32 part);
+extern void EftEmit_Spawn(EftJSet *set, void *emit, void *nodes, void *pos,
+    void *dir, s32 objId, s32 node, s32 own, s32 group, s32 part, s32 flags, f32 scale);
+extern s32 EftEmit_GetFlags(EftJSet *set, void *emit, s32 objId, s32 group,
+                           s32 part, s32 ending, s32 kill, s32 requests);
+
+static void Port_SpiritBombHide(EftBlastMgr *mgr) {
+    if (mgr->spiritOn) {
+        EftEmit_KillAll(&mgr->set, mgr->spiritPreview.emit);
+        EftEmit_TermState(&mgr->set, mgr->spiritPreview.emit);
+        mgr->spiritOn = 0;
+    }
+}
+
+/* A visual-only instance of the Ultimate's charging emitters. It never calls
+ * the technique timeline, collision registration, damage, sound or camera code. */
+static void Port_SpiritBombUpdate(EftBlastMgr *mgr) {
+    EftJSrc *src = mgr->spiritSrc;
+    EftBlast *w = &mgr->spiritPreview;
+    s32 charge, requests, g, j;
+    f32 target;
+    if (src == NULL) return;
+    { extern s32 Port_SpiritBombStageCharge(s32 side);
+      charge = Port_SpiritBombStageCharge(src->objId20); }
+    { extern s32 Port_BtlSpiritBombAttacking(s32 objId);
+      /* Hide before the stopped check: the Ultimate can freeze the stage. */
+      if (!charge || Port_BtlSpiritBombAttacking(src->objId20)) {
+          Port_SpiritBombHide(mgr); return;
+      } }
+    if (BtlScene_IsCharStopped(src->objId20)) return;
+    requests = 0;
+    if (!mgr->spiritOn) {
+        memset(w, 0, sizeof(*w));
+        EftEmit_InitState(&mgr->set, w->emit);
+        /* Center is calculated from the largest ball's diameter below.
+         * Retune Port_BtlSpiritBombScale if stage/ball dimensions change. */
+        w->head.w = 1.0f;
+        memset(&mgr->spiritNodes, 0, sizeof(mgr->spiritNodes));
+        mgr->spiritNodes.flags = 0x555; /* resolved, unpaired nodes */
+        mgr->spiritNodes.flagsC = 0x3F;
+        mgr->spiritNodes.fixed = 0x555;
+        w->dir.y = -1.0f;
+        w->drawScale = src->def->scale * 0.5f;
+        mgr->spiritOn = 1;
+        requests = 2; /* START: charging parts only, never FIRE or explosion. */
+    }
+    /* The charged owner may currently be in reserve or transformed. */
+    target = src->def->scale * (0.25f * (charge + 1));
+    w->drawScale += (target - w->drawScale) * 0.15f;
+    {
+        f32 fullBottom = Port_EftSpiritBombBottom(&mgr->set, src->def->scale, 0, -1.0f);
+        f32 currentBottom = Port_EftSpiritBombBottom(&mgr->set, w->drawScale, 0, -1.0f);
+        f32 ceiling = BtlStage_GetTop();
+        f32 lift = (ceiling < 0 ? -ceiling:ceiling)*0.05f;
+        f32 fullCenter = ceiling - fullBottom - lift;
+        /* Y increases downward: full-size center = ceiling - radius. Lower
+         * smaller balls by the missing radius, including while they grow. */
+        w->head.y = fullCenter + fullBottom - currentBottom;
+        for (g = 0; g < 6; g++) {
+            mgr->spiritNodes.n[g][0].pos = *(Vec4 *)&w->head;
+            mgr->spiritNodes.n[g][1].pos = *(Vec4 *)&w->head;
+            mgr->spiritNodes.c[g].pos = *(Vec4 *)&w->head;
+        }
+    }
+    EftEmit_UpdateAlive(&mgr->set, w->emit);
+    for (g = 0; g < 19; g++) {
+        if (!(*mgr->set.mask & (1 << g))) continue;
+        for (j = 0; j < mgr->set.grp[g].info[1]; j++) {
+            s32 flags;
+            Port_EftEmitHoldScale(&mgr->set, w->emit, g, j);
+            flags = EftEmit_GetFlags(&mgr->set, w->emit, src->objId20,
+                                     g, j, 0, 0, requests);
+            if (flags) EftEmit_Spawn(&mgr->set, w->emit, &mgr->spiritNodes,
+                &w->head, &w->dir, src->objId20, src->def->unk6, 1,
+                g, j, flags, w->drawScale);
+            Port_EftEmitWorldDepth(&mgr->set, w->emit, g, j);
+        }
+    }
+}
+/* Sky effects own their resources for the battle, not for the active model. */
+typedef struct PortSpiritStage {
+    EftBlastMgr mgr;
+    EftJSrc src;
+    u8 def[0x8C] __attribute__((aligned(16)));
+    s32 identity;
+} PortSpiritStage;
+static PortSpiritStage *sSpiritStage[2];
+static u32 *sSpiritStageFile;
+static u8 sSpiritDefinition[0x8C] __attribute__((aligned(16)));
+static s32 sSpiritDefinitionReady;
+void Port_SpiritBombStageInit(void) {
+    extern void Port_SpiritBombReset(void);
+    sSpiritStage[0]=sSpiritStage[1]=NULL;sSpiritStageFile=NULL;
+    sSpiritDefinitionReady=0;Port_SpiritBombReset();
+}
+void Port_SpiritBombStageTick(void) {
+    extern s32 Port_SpiritBombStageCharge(s32 side);
+    extern s32 Port_SpiritBombStageIdentity(s32 side);
+    s32 side,pool;
+    for(side=0;side<2;side++) {
+        PortSpiritStage *stage=sSpiritStage[side];
+        s32 charge=Port_SpiritBombStageCharge(side);
+        s32 identity=Port_SpiritBombStageIdentity(side);
+        if(!stage && charge && sSpiritDefinitionReady) {
+            if(!sSpiritStageFile) sSpiritStageFile=File_LoadSync(0x5A3,NULL,0);
+            if(!sSpiritStageFile) continue;
+            stage=Heap_Alloc(sizeof(*stage),0x20,0,HEAP_ANY);
+            if(!stage) continue;
+            memset(stage,0,sizeof(*stage));
+            memcpy(stage->def,sSpiritDefinition,0x8C);
+            stage->src.objId=stage->src.objId20=side;
+            stage->src.unk4=-1;
+            stage->src.pack=BtlScene_GetPackEntry(sSpiritStageFile,5);
+            stage->src.def=(EftJDef *)stage->def;
+            stage->mgr.spiritSrc=&stage->src;
+            stage->identity=identity;
+            pool=BtlPool_GetCurrent();BtlPool_SetCurrent(3);
+            EftEmit_LoadSet(&stage->src,&stage->mgr.set,0,stage->src.pack,0,4);
+            BtlPool_SetCurrent(pool);sSpiritStage[side]=stage;
+        }
+        if(stage) {
+            if(stage->identity!=identity) {
+                Port_SpiritBombHide(&stage->mgr);stage->identity=identity;
+            }
+            EftEmit_BeginFrame(&stage->mgr.set);
+            Port_SpiritBombUpdate(&stage->mgr);
+        }
+    }
+}
+void Port_SpiritBombStageTerm(void) {
+    s32 side,pool=BtlPool_GetCurrent();
+    BtlPool_SetCurrent(3);
+    for(side=0;side<2;side++) if(sSpiritStage[side]) {
+        Port_SpiritBombHide(&sSpiritStage[side]->mgr);
+        EftEmit_FreeSet(&sSpiritStage[side]->mgr.set);
+        Heap_Free(sSpiritStage[side]);sSpiritStage[side]=NULL;
+    }
+    if(sSpiritStageFile) Heap_Free(sSpiritStageFile);
+    sSpiritStageFile=NULL;sSpiritDefinitionReady=0;BtlPool_SetCurrent(pool);
+}
+
+#endif
+
 /* Init callback of the manager. */
 void EftBlastMgr_Init(EftJTask *task, EftJSrc *src) {
     EftBlastMgr *m = task->work;
 
     EftShot_Nop(0x324);
-    memset(m, 0, 0x324);
+    memset(m, 0, sizeof(*m));
+#ifdef PORT
+    if (src->def->id == 0x268 && src->def->unk4 == 2 &&
+        Port_BtlSpiritBombEnabled(src->objId20)) {
+        memcpy(sSpiritDefinition,src->def,0x8C);sSpiritDefinitionReady=1;
+    }
+#endif
     EftEmit_LoadSet(src, &m->set, 0, src->pack, 0, 4);
     BtlTask_CreateChildList(task, 2, 0x5C0);
 }
 
 /* Term callback of the manager. */
 void EftBlastMgr_Term(EftJTask *task) {
+#ifdef PORT
+    Port_SpiritBombHide(task->work);
+#endif
     EftEmit_FreeSet(&((EftBlastMgr *)task->work)->set);
 }
 
 /* Update callback of the manager. */
 void EftBlastMgr_Update(EftJTask *task) {
     EftEmit_BeginFrame(&((EftBlastMgr *)task->work)->set);
+
 }
 
 /* Reset callback of the manager: nothing. */
 void EftBlastMgr_Reset(EftJTask *task) {
+#ifdef PORT
+    Port_SpiritBombHide(task->work);
+#endif
 }
 
 /* ---- effect type 2, "shots" (item class 0x2C3910, manager class 0x2C38F8): helpers; callbacks in eft_k.c ---- */

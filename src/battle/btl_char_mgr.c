@@ -361,6 +361,9 @@ void BtlChar_BindObject(BtlMgrChr *chr) {
     if (!Port_ZenkaiCellTransformTemporary(obj))
 #endif
     BtlStat_Reset(chr);
+#ifdef PORT
+    { extern void Port_SpiritBombRestore(void *fighter); Port_SpiritBombRestore(chr); }
+#endif
     OBJ_WORD_18028(obj) = 0;
 }
 

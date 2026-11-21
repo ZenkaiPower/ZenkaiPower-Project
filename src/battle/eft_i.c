@@ -577,6 +577,20 @@ void EftEmit_SpawnType12(EftEmitSet *set, EftEmitHandles *handles, s32 flags, s3
     }
 }
 
+#ifdef PORT
+/* Nodes are freshly sampled each frame; offset positions without accumulating
+ * a displacement or moving the fighter/camera themselves. */
+void Port_EftEmitOffsetNodes(EftEmitNodes *nodes, f32 y) {
+    s32 i, j;
+    if (!(nodes->flags & 1) || (nodes->flags & 0x1000)) return;
+    for (i = 0; i < EFT_EMIT_NODES; i++) {
+        for (j = 0; j < 2; j++) nodes->n[i][j].pos.y += y;
+        if ((nodes->flagsC & (1 << i)) || (nodes->flagsC & 1))
+            nodes->c[i].pos.y += y;
+    }
+}
+#endif
+
 /* EftEmit_Spawn for the set's own fighter: object id and node come from the set's owner, arg7 is 1. */
 void EftEmit_SpawnOwn(EftEmitSet *set, EftEmitState *state, EftEmitNodes *nodes, Vec4 *pos, Vec4 *dir, s32 type,
                       s32 idx, s32 flags, f32 scale) {

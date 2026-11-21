@@ -914,3 +914,58 @@ void Port_BtlHpDrainTick(void *fighter,int kaioken) {
     if(amount>0) BtlMember_Damage(chr,amount,kaioken ? 0x2B:0x42B);
 }
 #endif
+
+#ifdef PORT
+/* Battle-only, per-member charge ownership. Never belongs to the replacement
+ * fighter in a tag switch; retained across Goku (Mid)'s two forms. */
+static s32 sSpiritCharge[2][BTL_MEMBER_SLOTS];
+static s32 sSpiritOwned[2][BTL_MEMBER_SLOTS];
+void Port_SpiritBombReset(void) {
+    s32 side,i;
+    for(side=0;side<2;side++) for(i=0;i<BTL_MEMBER_SLOTS;i++)
+        sSpiritCharge[side][i]=sSpiritOwned[side][i]=0;
+}
+void Port_SpiritBombRemember(void *fighter) {
+    BtlMemberChr *chr=fighter;
+    s32 n=chr->active;
+    if(!PORT_ZENKAI_SPIRIT_BOMB || !Port_ZenkaiPackEnabled() || chr->side<0 || chr->side>1 ||
+       n<0 || n>=BTL_MEMBER_SLOTS) return;
+    sSpiritOwned[chr->side][n]=chr->members[n].chara==1;
+    sSpiritCharge[chr->side][n]=*(s32 *)((u8 *)chr+0xE5C);
+}
+void Port_SpiritBombRestore(void *fighter) {
+    BtlMemberChr *chr=fighter;
+    s32 n=chr->active;
+    if(!PORT_ZENKAI_SPIRIT_BOMB || !Port_ZenkaiPackEnabled() || chr->side<0 || chr->side>1 ||
+       n<0 || n>=BTL_MEMBER_SLOTS) return;
+    *(s32 *)((u8 *)chr+0xE5C)=sSpiritCharge[chr->side][n];
+}
+void Port_SpiritBombConsume(void *fighter) {
+    BtlMemberChr *chr=fighter;
+    s32 n=chr->active;
+    if(!PORT_ZENKAI_SPIRIT_BOMB || !Port_ZenkaiPackEnabled() || chr->side<0 || chr->side>1 ||
+       n<0 || n>=BTL_MEMBER_SLOTS) return;
+    sSpiritCharge[chr->side][n]=0;
+}
+s32 Port_SpiritBombStageCharge(s32 side) {
+    extern BtlMemberChr *BtlChar_Get(s32 side);
+    BtlMemberChr *chr;
+    s32 i,best=0;
+    if(side<0 || side>1 || !PORT_ZENKAI_SPIRIT_BOMB || !Port_ZenkaiPackEnabled()) return 0;
+    chr=BtlChar_Get(side);
+    if(!chr) return 0;
+    for(i=0;i<chr->memberCount && i<BTL_MEMBER_SLOTS;i++) {
+        if(chr->members[i].gauge.health<=0 ||
+           (sSpiritOwned[side][i] && chr->members[i].chara!=1 && chr->members[i].chara!=2))
+            sSpiritCharge[side][i]=0;
+        if(sSpiritOwned[side][i] && sSpiritCharge[side][i]>best) best=sSpiritCharge[side][i];
+    }
+    return best>3 ? 3:best;
+}
+s32 Port_SpiritBombStageIdentity(s32 side) {
+    extern BtlMemberChr *BtlChar_Get(s32 side);
+    BtlMemberChr *chr=BtlChar_Get(side);
+    return chr ? chr->active*256+BtlMember_GetActive(chr)->chara:-1;
+}
+
+#endif

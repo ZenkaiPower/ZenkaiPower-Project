@@ -1689,6 +1689,9 @@ void EftShotMgr_Init(EftTask *task) {
     s32 size;
     EftShotChar *c;
 
+#ifdef PORT
+    { extern void Port_SpiritBombStageInit(void); Port_SpiritBombStageInit(); }
+#endif
     BtlPool_SetCurrent(3);
     gEftShot = BtlPool_Alloc(BtlPool_GetCurrent(), sizeof(EftShotMgr));
     memset(gEftShot, 0, sizeof(EftShotMgr));
@@ -1708,6 +1711,9 @@ void EftShotMgr_Init(EftTask *task) {
 
 /* Shot layer term callback: frees the blocks and empties pools 3, 4 and 5. */
 void EftShotMgr_Term(void) {
+#ifdef PORT
+    { extern void Port_SpiritBombStageTerm(void); Port_SpiritBombStageTerm(); }
+#endif
     BtlPool_SetCurrent(3);
     BtlPool_Free(BtlPool_GetCurrent(), gEftShot->chr);
     BtlPool_Free(BtlPool_GetCurrent(), gEftShot);
@@ -1719,6 +1725,9 @@ void EftShotMgr_Term(void) {
 
 /* Shot layer update callback: nothing. */
 void EftShotMgr_Update(void) {
+#ifdef PORT
+    { extern void Port_SpiritBombStageTick(void); Port_SpiritBombStageTick(); }
+#endif
 }
 
 /* Character task init callback: selects the character's pool, creates its child list (6 tasks of 0x2000 bytes)

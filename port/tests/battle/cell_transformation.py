@@ -248,6 +248,7 @@ void BtlChar_ClearFlag(BtlMgrChr *c, s32 flag) {}
 void BtlChar_ClearFlagRange(BtlMgrChr *c, s32 a, s32 b) {}
 void BtlObj_InitChains(BtlMgrObj *o) {}
 void BtlStat_Reset(BtlMgrChr *c) { statResets++; }
+void Port_SpiritBombRestore(void *fighter) {}
 BtlMgrMember *BtlMember_GetActive(BtlMgrChr *c) { return &member; }
 s32 BtlMember_GetActiveIndex(BtlMgrChr *c) { return 0; }
 f32 BtlMember_GetHealthRatio(BtlMgrChr *c) { return (float)member.gauge.health / member.gauge.healthMax; }
