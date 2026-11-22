@@ -4,6 +4,12 @@ import org.libsdl.app.SDLActivity;
 import org.libsdl.app.SDLSurface;
 import android.content.Context;
 import android.os.Bundle;
+import android.view.InputDevice;
+import android.view.KeyEvent;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.ViewGroup;
 import android.content.Intent;
@@ -83,7 +89,17 @@ public class GameActivity extends SDLActivity {
     }
     @Override public void onBackPressed() {
         if (getIntent().getBooleanExtra("prepareText", false)) cancelPreparation();
+        else if (touchPad != null) ((TouchMouseSurface)mSurface).sendBack();
         else super.onBackPressed();
+    }
+    @Override public boolean dispatchKeyEvent(KeyEvent event) {
+        // SDL's surface can consume hardware Back before Activity sees it.
+        if (touchPad != null && event.getKeyCode() == KeyEvent.KEYCODE_BACK &&
+                !event.isFromSource(InputDevice.SOURCE_MOUSE)) {
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) onBackPressed();
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
     @Override protected void onPause() {
         if (touchPad != null) touchPad.setVibrationResumed(false);
@@ -101,6 +117,29 @@ public class GameActivity extends SDLActivity {
     @Override public void onWindowFocusChanged(boolean focused) {
         if (!focused && touchPad != null) touchPad.release();
         super.onWindowFocusChanged(focused);
+        if (focused && touchPad != null) hideStatusBar();
+    }
+    @Override protected boolean sendCommand(int command, Object data) {
+        boolean sent = super.sendCommand(command, data);
+        if (sent && command == COMMAND_CHANGE_WINDOW_STYLE) {
+            // Apply after SDL updates the window style on the UI thread.
+            getWindow().getDecorView().post(() -> {
+                if (touchPad != null) hideStatusBar();
+            });
+        }
+        return sent;
+    }
+    private void hideStatusBar() {
+        Window window = getWindow();
+        window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN);
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) controller.hide(WindowInsets.Type.statusBars());
+        } else {
+            View decor = window.getDecorView();
+            decor.setSystemUiVisibility(decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_FULLSCREEN);
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        }
     }
     @Override protected String[] getLibraries() {
         // libzenkaipower is loaded at a low address by libmain, after sidecars are available.

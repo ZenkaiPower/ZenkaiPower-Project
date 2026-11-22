@@ -17,6 +17,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".GameActivity" android:exported="false" android:process=":game"
+            android:enableOnBackInvokedCallback="false"
             android:screenOrientation="sensorLandscape" android:launchMode="singleTask"
             android:configChanges="layoutDirection|locale|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|keyboard|keyboardHidden|navigation|density">
         </activity>

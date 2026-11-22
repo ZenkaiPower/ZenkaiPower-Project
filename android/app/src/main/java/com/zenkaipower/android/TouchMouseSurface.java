@@ -63,10 +63,16 @@ final class TouchMouseSurface extends SDLSurface {
         } finally { local.recycle(); }
     }
 
-    private void click(int button) {
-        SDLActivity.onNativeMouse(button, MotionEvent.ACTION_DOWN, mouseX, mouseY, false);
+    void sendBack() {
+        cancelTouch();
+        // Use a point inside the game picture even before the first touch.
+        click(MotionEvent.BUTTON_SECONDARY, mWidth / 2f, mHeight / 2f);
+    }
+
+    private void click(int button, float x, float y) {
+        SDLActivity.onNativeMouse(button, MotionEvent.ACTION_DOWN, x, y, false);
         // SDL expects the remaining held-button mask, not the released button.
-        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, mouseX, mouseY, false);
+        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, x, y, false);
     }
 
     @Override public boolean onTouch(View view, MotionEvent event) {
@@ -130,7 +136,7 @@ final class TouchMouseSurface extends SDLSurface {
         if (action == MotionEvent.ACTION_UP) {
             endDrag();
             if (!cancelled && !moved && event.getEventTime() - started <= ViewConfiguration.getLongPressTimeout())
-                click(multiple ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY);
+                click(multiple ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY, mouseX, mouseY);
             primaryId = -1;
         }
         // Consume fingers so SDL does not synthesize a second left click.
