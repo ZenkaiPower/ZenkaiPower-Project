@@ -42,6 +42,7 @@ GsState gGs;
 uint32_t gGsPageGen[512];
 unsigned gGsFbUploads; /* bit 0 / 1: pixels were uploaded into display buffer 0 / 0x70 since the back end last looked */
 unsigned gGsFrame;
+unsigned gGsFrameBlank;
 #define gs gGs
 #define Vertex GsVertex
 #define sFrame gGsFrame
@@ -1266,11 +1267,13 @@ void Gs_RenderIdle(void) {
 }
 
 static void render_post(int job, uint32_t tadr, int tte) {
+    extern unsigned gPortVBlanks;
     pthread_mutex_lock(&sLock);
     sJob = job;
     sListDone = 0;
     sJobTadr = tadr;
     sJobTte = tte;
+    if (job == 2) gGsFrameBlank = gPortVBlanks;
     pthread_cond_signal(&sWake);
     pthread_mutex_unlock(&sLock);
 }
@@ -1591,6 +1594,8 @@ static void walk_chain(uint32_t tadr, int tte, void (*block)(const uint32_t *tag
 
 /* Executes one frame's list: the DMA chain at `tadr` on VIF1, then the end-of-frame work of the back end. */
 static void run_chain(uint32_t tadr, int tte) {
+    extern unsigned gPortVBlanks;
+    gGsFrameBlank = gPortVBlanks;
     walk_chain(tadr, tte, chain_block);
     chain_end();
 }

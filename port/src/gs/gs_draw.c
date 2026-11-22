@@ -2742,6 +2742,7 @@ static uint32_t sInterpPrevCount;
 static int sInterpNext;  /* the tick's next picture still to be shown (2..sInterpSteps), 0 = none */
 static int sInterpRepeat; /* the tick could not be blended (a camera cut): its pictures are its own, shown again */
 static int sInterpSteps = 2;
+static unsigned sInterpBlanks = 2;
 static unsigned sInterpLastBlank;
 static uint64_t sInterpTickNs = 33366700ull; /* how long the tick being shown lasts */
 static unsigned gInterpTicks;
@@ -5126,7 +5127,16 @@ static void interp_show(int step) {
    the pictures that fall before the blank) and after (those at it).
    all = 1: the game is back with a new tick: what is left is dropped, except the tick's real picture. */
 /* The next of the tick's pictures (the in-between ones, then the real one). 0: ZENKAIPOWER_INTERP_ONLY ended them there. */
+static void interp_limit_pending(void) {
+    int allowed = sInterpCap * (int)sInterpBlanks / 2;
+    if (allowed < 1) allowed = 1;
+    /* A slow present may lower the cap during this very tick. Do not finish
+       replaying its old, more expensive schedule before honoring that cap. */
+    if (sInterpNext != 0 && sInterpSteps > allowed) sInterpNext = sInterpSteps;
+}
+
 static int interp_show_next(void) {
+    interp_limit_pending();
     if (sInterpNext > 0 && sInterpNext < sInterpSteps && sInterpTickNs != 0) {
         uint64_t now = gpu_now();
         uint64_t interval = sInterpTickNs / (uint64_t)sInterpSteps;
@@ -5157,6 +5167,7 @@ static int interp_show_next(void) {
 
 /* When the tick's next picture is due. */
 static uint64_t interp_due(void) {
+    interp_limit_pending();
     uint64_t due = sInterpBlendShown + (uint64_t)(sInterpNext - 1) * (sInterpTickNs / (uint64_t)sInterpSteps);
     uint64_t cost = sInterpNext == sInterpSteps ? sInterpRealTook : sInterpBlendTook;
     return due > cost ? due - cost : 0;
@@ -5300,6 +5311,7 @@ void GsGpu_FrameEnd(void) {
         }
         sInterpPrevCount = 0;
         sInterpPrevPrimCount = 0;
+        sInterpLastBlank = gGsFrameBlank;
         gsVertCount = gsVuVertCount = gsVuIdxCount = gsVuUniCount = gsDrawCount = 0;
         skip_decide();
         return;
@@ -5333,16 +5345,16 @@ void GsGpu_FrameEnd(void) {
             /* A scene the game shows at 60 a second (one vertical blank per picture: menus, the character select) has
                half the time per tick and needs half the pictures: none at "60", one at "120". How many blanks this
                tick will last is taken from the last one. */
-            extern unsigned gPortVBlanks;
-            unsigned blanks = gPortVBlanks - sInterpLastBlank;
-            sInterpLastBlank = gPortVBlanks;
+            unsigned blanks = gGsFrameBlank - sInterpLastBlank;
+            sInterpLastBlank = gGsFrameBlank;
             blanks = blanks < 1 ? 1 : blanks > 2 ? 2 : blanks;
+            sInterpBlanks = blanks;
             sInterpSteps = (interp_steps() < sInterpCap ? interp_steps() : sInterpCap) * (int)blanks / 2;
             if (sInterpSteps < 1) sInterpSteps = 1;
             sInterpTickNs = (uint64_t)blanks * Port_BlankNs();
         }
         uint64_t prepareStart = gpu_now();
-        if (gsInterp > 0) {
+        if (gsInterp > 0 && sInterpSteps > 1) {
             interp_signatures(sInterpSig);
             sInterpPrimCount = interp_prims(sInterpPrims);
         }
@@ -5355,7 +5367,7 @@ void GsGpu_FrameEnd(void) {
             interp_build_verts(blendT);
         }
         sInterpPrepareTook = gpu_now() - prepareStart;
-        if (blendReady && sInterpPrepareTook > sInterpTickNs * 7 / (10 * (uint64_t)sInterpSteps)) {
+        if (sInterpSteps > 1 && sInterpPrepareTook > sInterpTickNs * 7 / (10 * (uint64_t)sInterpSteps)) {
             /* Pairing and geometry reconstruction already exhausted this frame's
              * budget. Present the untouched real models instead of adding a
              * synthetic frame that will remain visible throughout the stall. */
@@ -5403,7 +5415,13 @@ void GsGpu_FrameEnd(void) {
             int repeat = gsInterp > 0 && sInterpSteps > 1 && !GS_NO_PICTURE && gsDrawCount != 0 && getenv("ZENKAIPOWER_INTERP_REALONLY") == NULL &&
                          getenv("ZENKAIPOWER_INTERP_NOREPEAT") == NULL;
             if (gsInterp > 0) {
-                interp_remember();
+                if (sInterpSteps > 1) {
+                    interp_remember();
+                } else {
+                    /* Native-rate menus and overload fallback need no pairing,
+                       sorting or history copies. Start fresh when blends resume. */
+                    sInterpPrevCount = sInterpPrevPrimCount = 0;
+                }
                 gInterpSkipped++;
             }
             if (repeat) {

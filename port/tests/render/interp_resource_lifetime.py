@@ -33,7 +33,7 @@ static unsigned gsVertCount, gsVuVertCount, gsVuIdxCount, gsVuUniCount, gsDrawCo
 static int gsTargetCount = 1;
 static struct { unsigned draws; } gsTargets[MAX_TARGETS];
 static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
-static unsigned sInterpPrevCount, sInterpPrevPrimCount, sInterpPrimCount, sInterpLastBlank;
+static unsigned sInterpPrevCount, sInterpPrevPrimCount, sInterpPrimCount, sInterpLastBlank, sInterpBlanks = 2;
 static unsigned gInterpTicks, gInterpShown, gInterpSkipped, gInterpPaired, gInterpUnpaired, gInterpCamera;
 static unsigned gInterpTris, gInterpTrisBlended, gInterpWhy[5], gInterpTrisCamera, gInterpStatic, gInterpThrough, gInterpCuts;
 static int sInterpNext, sInterpRepeat, sInterpSteps, sInterpCap = 8;
@@ -43,15 +43,16 @@ static uint32_t *sInterpPrevSig, *sInterpSig;
 static Vtx *sInterpPrevVerts, *sInterpBlendVerts, *gsVerts;
 static InterpPrim *sInterpPrevPrims, *sInterpPrims;
 static void *sInterpPrimUsed;
-unsigned gPortVBlanks, gGsFrame;
+unsigned gPortVBlanks, gGsFrame, gGsFrameBlank;
 static int scalePending, scaleCalls, labelCalls, presents, canBlend;
 static int resourcesLive = 1;
 static unsigned tickBlanks = 2;
 static uint64_t fakeNow, lastCost, prepareCost = 1000000, vertexCost = 1000000;
-static unsigned vertexBuilds;
+static unsigned vertexBuilds, signatureBuilds, remembers;
 static void render(void) {
     assert(resourcesLive); /* A retained draw may never reference released targets. */
     presents++;
+    gPortVBlanks += 17; /* game clock advances independently of the submitted frame */
     fakeNow += 1000000;
     gsVertCount = gsVuVertCount = gsVuIdxCount = gsVuUniCount = gsDrawCount = 0;
 }
@@ -62,14 +63,14 @@ static uint64_t gpu_now(void) { return ++fakeNow; }
 static uint64_t Port_BlankNs(void) { return 16683350; }
 static int Port_Setting(const char *s, int d) { (void)s; return d; }
 static int interp_steps(void) { return gsInterp ? 4 : 1; }
-static void interp_signatures(uint32_t *s) { (void)s; }
+static void interp_signatures(uint32_t *s) { (void)s; signatureBuilds++; }
 static unsigned interp_prims(InterpPrim *p) { (void)p; return 0; }
 static int interp_build(float t, int first) { (void)t; (void)first; fakeNow += prepareCost; return canBlend; }
 static void interp_build_verts(float t) { (void)t; vertexBuilds++; fakeNow += vertexCost; }
 static void interp_wall(float t) { (void)t; }
 static void interp_wall_real(void) {}
 static void interp_wall_restore(void) {}
-static void interp_remember(void) {}
+static void interp_remember(void) { remembers++; }
 static void interp_cost(uint64_t t) { lastCost=t; }
 static void interp_present_log(char c) { (void)c; }
 static void skip_decide(void) {}
@@ -81,7 +82,8 @@ static void frame(int blend, int interpolation) {
     resourcesLive = 1; gsTargetCount = 1;
     gsDrawCount = gsVertCount = 1;
     scalePending = 1; scaleCalls = labelCalls = presents = 0;
-    sInterpNext = 0; vertexBuilds = 0; gPortVBlanks += tickBlanks;
+    sInterpNext = 0; vertexBuilds = signatureBuilds = remembers = 0;
+    gGsFrameBlank += tickBlanks;
     GsGpu_FrameEnd();
 }
 int main(void) {
@@ -107,12 +109,22 @@ int main(void) {
     fakeNow+=100000000;
     assert(interp_show_next());
     assert(presents==2 && !sInterpNext && scaleCalls==1 && labelCalls==1);
+    /* An overload cap takes effect during the retained tick, not after all
+       of its now-unaffordable blends have been replayed. */
+    frame(1,2);sInterpCap=2;
+    assert(interp_show_next());
+    assert(presents==2 && !sInterpNext && vertexBuilds==1);
+    assert(scaleCalls==1 && labelCalls==1);
+    sInterpCap=8;
     /* Expensive reconstruction shows one untouched real frame, with no
        synthetic model or duplicate replay, even with interpolation requested. */
     prepareCost=40000000;
     frame(1,2);
     assert(presents==1 && sInterpSteps==1 && !sInterpNext && !sInterpRepeat);
     assert(lastCost>=41000000 && scaleCalls==1 && labelCalls==1);
+    /* Failed pairing is also expensive: do not schedule duplicate cut frames. */
+    frame(0,2);
+    assert(presents==1 && sInterpSteps==1 && !sInterpNext && !sInterpRepeat);
     prepareCost=1000000;
     /* A native 60 Hz menu can have cheap model pairing but expensive sprite
        reconstruction. Reject that blend before showing synthetic geometry. */
@@ -121,6 +133,19 @@ int main(void) {
     assert(vertexBuilds==1 && presents==1 && sInterpSteps==1);
     assert(!sInterpNext && !sInterpRepeat && lastCost>=12000000);
     assert(scaleCalls==1 && labelCalls==1);
+    vertexCost=1000000;
+    /* A 60 Hz menu stays at that cadence while the game runs ahead of drawing. */
+    for(int i=0;i<5;i++) {
+        frame(1,2);
+        assert(sInterpBlanks==1 && sInterpSteps==2);
+        assert(sInterpTickNs==Port_BlankNs());
+        while(sInterpNext) interp_show_next();
+    }
+    /* A skipped menu frame must not turn the next menu frame into a 30 Hz tick. */
+    gsSkipFrame=1;gGsFrameBlank++;GsGpu_FrameEnd();gsSkipFrame=0;
+    frame(0,2);
+    assert(sInterpBlanks==1 && sInterpSteps==2);
+    while(sInterpNext) interp_show_next();
     vertexCost=1000000;tickBlanks=2;
     /* With smoothing disabled, changes apply immediately after the picture. */
     frame(0, 0);
@@ -129,6 +154,7 @@ int main(void) {
     tickBlanks=1;sInterpCap=1;
     frame(0,1);
     assert(sInterpSteps==1 && presents==1 && !sInterpNext);
+    assert(!signatureBuilds && !remembers);
     puts("Interpolation resource lifetime checks passed");
 }
 '''
@@ -136,6 +162,6 @@ with tempfile.TemporaryDirectory(prefix='zenkaipower-interp-lifetime-') as tmp:
     c = Path(tmp) / 'test.c'
     binary = Path(tmp) / 'test'
     c.write_text(prefix + '\n' + '\n'.join(function(name) for name in
-        ('interp_counts_restore', 'interp_show', 'interp_show_next', 'GsGpu_FrameEnd')) + suffix)
+        ('interp_counts_restore', 'interp_show', 'interp_limit_pending', 'interp_show_next', 'GsGpu_FrameEnd')) + suffix)
     subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', str(c), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
