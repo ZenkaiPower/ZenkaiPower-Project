@@ -2014,11 +2014,13 @@ static void misc_tab(void) {
 }
 
 static void ui_tab(PortVideo &v) {
+#ifndef __ANDROID__
     bool nativeKeyboard = Port_Setting("native_keyboard", 1) != 0;
     if (ui_checkbox("Native Keyboard (Work in Progress)", &nativeKeyboard)) {
         Port_SettingSave("native_keyboard", nativeKeyboard);
         Port_SettingsWrite();
     }
+#endif
     bool mouseSupport = Port_Setting("mouse_support", 1) != 0;
     if (ui_checkbox("Mouse Support (Work in Progress)", &mouseSupport)) {
         Port_SettingSave("mouse_support", mouseSupport);

@@ -55,7 +55,12 @@ int Port_NativeKeyboardPage(void) {
 
 void Port_NativeKeyboardSet(int active) {
     pthread_mutex_lock(&sNativeKeyLock);
+#ifdef __ANDROID__
+    /* Android taps already reach the in-game keys through TouchMouseSurface. */
+    active = 0;
+#else
     active = active && Port_Setting("native_keyboard", 1);
+#endif
     if (active != sNativeKeyActive) {
         sNativeKeyCount = 0;
         PortInput_SwallowKeys();

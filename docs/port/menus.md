@@ -40,6 +40,9 @@ available. While typing, printable keys do not also trigger controller bindings
 or open online chat. Settings, chat, focus loss and leaving a keyboard discard
 queued input. Disabling the option restores the normal configured key bindings.
 
+On Android, tap the in-game keys in Data Center and Dragon Net Battle. These
+screens keep the Android keyboard closed.
+
 Run the focused mailbox check with `python3 port/tests/ui/native_keyboard.py`.
 
 Esc goes back in menus, matching right-click. During battle and in the battle pause menu, Esc acts as Start to pause or resume.
