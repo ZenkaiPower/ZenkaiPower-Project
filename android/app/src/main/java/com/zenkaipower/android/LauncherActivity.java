@@ -73,7 +73,6 @@ public final class LauncherActivity extends Activity {
         progressScreen.setVisibility(View.GONE);
         refresh();
         if (root != null && GameStorage.hasAccess(this)) prepareFolder(root);
-        else if (state == null) screen.layout.post(this::chooseFolder);
     }
     private void chooseFolder() {
         if (busy) return;
