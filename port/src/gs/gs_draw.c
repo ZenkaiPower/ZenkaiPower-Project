@@ -5082,7 +5082,9 @@ static void interp_show(int step) {
             fprintf(stderr, "step %d of %d, t %.3f, frame %u\n", step, sInterpSteps, t, gGsFrame);
         }
         if (getenv("ZENKAIPOWER_INTERP_3D") == NULL) { /* (ZENKAIPOWER_INTERP_3D=1: the vertex programs' draws only, as the first prototype) */
-            interp_build_verts(t);
+            if (step > 1) {
+                interp_build_verts(t); /* the first picture's geometry was included in the overload check */
+            }
             interp_wall(t);
             gsVerts = sInterpBlendVerts;
         }
@@ -5339,15 +5341,22 @@ void GsGpu_FrameEnd(void) {
             if (sInterpSteps < 1) sInterpSteps = 1;
             sInterpTickNs = (uint64_t)blanks * Port_BlankNs();
         }
+        uint64_t prepareStart = gpu_now();
         if (gsInterp > 0) {
             interp_signatures(sInterpSig);
             sInterpPrimCount = interp_prims(sInterpPrims);
         }
-        uint64_t prepareStart = gpu_now();
-        int blendReady = gsInterp > 0 && sInterpSteps > 1 && interp_build(getenv("ZENKAIPOWER_INTERP_T") != NULL ? (float)atof(getenv("ZENKAIPOWER_INTERP_T")) : 1.0f / (float)sInterpSteps, 1);
+        float blendT = getenv("ZENKAIPOWER_INTERP_T") != NULL ? (float)atof(getenv("ZENKAIPOWER_INTERP_T")) : 1.0f / (float)sInterpSteps;
+        int blendReady = gsInterp > 0 && sInterpSteps > 1 && interp_build(blendT, 1);
+        if (blendReady && getenv("ZENKAIPOWER_INTERP_3D") == NULL) {
+            /* Menu sprites and text use the CPU-transformed geometry path.
+             * Include its matching/reconstruction before deciding whether an
+             * intermediate picture fits; retain it for interp_show(1). */
+            interp_build_verts(blendT);
+        }
         sInterpPrepareTook = gpu_now() - prepareStart;
         if (blendReady && sInterpPrepareTook > sInterpTickNs * 7 / (10 * (uint64_t)sInterpSteps)) {
-            /* Pairing and camera reconstruction already exhausted this frame's
+            /* Pairing and geometry reconstruction already exhausted this frame's
              * budget. Present the untouched real models instead of adding a
              * synthetic frame that will remain visible throughout the stall. */
             blendReady = 0;
@@ -5372,7 +5381,7 @@ void GsGpu_FrameEnd(void) {
             sInterpRepeat = 0; /* (a blendable tick: its pictures are blends) */
             interp_show(1); /* the first in-between picture; the others and the real one follow (GsGpu_InterpPump) */
             sInterpBlendShown = gpu_now();
-            sInterpBlendTook = sInterpBlendShown - before;
+            sInterpBlendTook = sInterpBlendShown - before + sInterpPrepareTook;
             sInterpNext = 2;
             if (getenv("ZENKAIPOWER_INTERP_LOG") != NULL && (gInterpTicks++ % 300) == 299) {
                 fprintf(stderr, "interp: %u in-between pictures shown, %u ticks without; blocks: %u blended, %u not\n", gInterpShown, gInterpSkipped, gInterpPaired, gInterpUnpaired);

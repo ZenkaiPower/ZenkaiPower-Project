@@ -47,7 +47,8 @@ unsigned gPortVBlanks, gGsFrame;
 static int scalePending, scaleCalls, labelCalls, presents, canBlend;
 static int resourcesLive = 1;
 static unsigned tickBlanks = 2;
-static uint64_t fakeNow, lastCost, prepareCost = 5000000;
+static uint64_t fakeNow, lastCost, prepareCost = 1000000, vertexCost = 1000000;
+static unsigned vertexBuilds;
 static void render(void) {
     assert(resourcesLive); /* A retained draw may never reference released targets. */
     presents++;
@@ -64,7 +65,7 @@ static int interp_steps(void) { return gsInterp ? 4 : 1; }
 static void interp_signatures(uint32_t *s) { (void)s; }
 static unsigned interp_prims(InterpPrim *p) { (void)p; return 0; }
 static int interp_build(float t, int first) { (void)t; (void)first; fakeNow += prepareCost; return canBlend; }
-static void interp_build_verts(float t) { (void)t; fakeNow += 10000000; }
+static void interp_build_verts(float t) { (void)t; vertexBuilds++; fakeNow += vertexCost; }
 static void interp_wall(float t) { (void)t; }
 static void interp_wall_real(void) {}
 static void interp_wall_restore(void) {}
@@ -80,7 +81,7 @@ static void frame(int blend, int interpolation) {
     resourcesLive = 1; gsTargetCount = 1;
     gsDrawCount = gsVertCount = 1;
     scalePending = 1; scaleCalls = labelCalls = presents = 0;
-    sInterpNext = 0; gPortVBlanks += tickBlanks;
+    sInterpNext = 0; vertexBuilds = 0; gPortVBlanks += tickBlanks;
     GsGpu_FrameEnd();
 }
 int main(void) {
@@ -93,9 +94,12 @@ int main(void) {
     /* Ordinary interpolation has the same resource lifetime. */
     frame(1, 2);
     assert(presents == 1 && !sInterpRepeat && scaleCalls == 0);
-    assert(lastCost >= 16000000); /* initial camera/pairing + synthesis + render */
+    assert(lastCost >= 3000000); /* initial camera/pairing + synthesis + render */
+    assert(sInterpBlendTook >= 3000000); /* later blends budget reconstruction too */
+    assert(vertexBuilds == 1); /* budgeted geometry is reused for the first replay */
     while (sInterpNext) interp_show_next();
     assert(presents == 4 && scaleCalls == 1 && labelCalls == 1);
+    assert(vertexBuilds == 3);
     /* A long stall drops overdue blends but must present the real frame and
        release retained render targets exactly once. */
     frame(1,2);
@@ -109,7 +113,15 @@ int main(void) {
     frame(1,2);
     assert(presents==1 && sInterpSteps==1 && !sInterpNext && !sInterpRepeat);
     assert(lastCost>=41000000 && scaleCalls==1 && labelCalls==1);
-    prepareCost=5000000;
+    prepareCost=1000000;
+    /* A native 60 Hz menu can have cheap model pairing but expensive sprite
+       reconstruction. Reject that blend before showing synthetic geometry. */
+    tickBlanks=1;vertexCost=10000000;
+    frame(1,2);
+    assert(vertexBuilds==1 && presents==1 && sInterpSteps==1);
+    assert(!sInterpNext && !sInterpRepeat && lastCost>=12000000);
+    assert(scaleCalls==1 && labelCalls==1);
+    vertexCost=1000000;tickBlanks=2;
     /* With smoothing disabled, changes apply immediately after the picture. */
     frame(0, 0);
     assert(presents == 1 && !sInterpNext && scaleCalls == 1 && labelCalls == 1);
