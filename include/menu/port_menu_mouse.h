@@ -10,6 +10,8 @@ extern "C" {
 typedef struct PortMenuMouse {
     float x, y;
     int moved, confirm, cancel, wheel;
+    float dragX, dragY;
+    int dragStart, dragHeld, dragEnd;
 } PortMenuMouse;
 
 void PortMenuMouse_Enable(int enabled);
@@ -31,6 +33,7 @@ int Port_FlashMenuMouseHit(int scope, const char *name, float width, float heigh
 /* Unbounded coordinates in the drawn clip's unit rectangle, for dragging. */
 int Port_FlashMenuMousePosition(int scope,const char *name,float width,float height,
                                float pivot,float x,float y,float *u,float *v);
+int Port_ItemListMouseScroll(PortMenuMouse *mouse, int scope, int rows, int count, int *top);
 void Port_DialogMouseSelect(int choice);
 
 /* Drawn menu controls, including their current animation transforms. */

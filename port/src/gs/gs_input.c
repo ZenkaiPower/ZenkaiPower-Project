@@ -296,6 +296,7 @@ void PortMenuMouse_Read(PortMenuMouse *out) {
         sMenuMouseHoverCheck = 1;
     }
     sMenuMouse.moved = sMenuMouse.confirm = sMenuMouse.cancel = sMenuMouse.wheel = 0;
+    sMenuMouse.dragStart = sMenuMouse.dragEnd = 0;
     pthread_mutex_unlock(&sMenuMouseLock);
 }
 
@@ -482,6 +483,13 @@ void PortInput_MenuMouseEvent(const SDL_Event *ev, int consumed) {
         goto done;
     }
     if (!sMenuMouseEnabled || window == NULL) goto done;
+#ifdef __ANDROID__
+    /* TouchMouseSurface sends a middle-button gesture only after a finger drags. */
+    if (ev->type == SDL_EVENT_MOUSE_BUTTON_UP && ev->button.button == SDL_BUTTON_MIDDLE) {
+        sMenuMouse.dragEnd = sMenuMouse.dragHeld;
+        sMenuMouse.dragHeld = 0;
+    }
+#endif
     if (ev->type == SDL_EVENT_MOUSE_MOTION) {
         if (ev->motion.xrel == 0 && ev->motion.yrel == 0) goto done;
         x = ev->motion.x; y = ev->motion.y;
@@ -493,6 +501,12 @@ void PortInput_MenuMouseEvent(const SDL_Event *ev, int consumed) {
     sMenuMouseUsed = 1;
     if (!sMenuMouseReady || !PortInput_MousePoint(x, y, &x, &y)) goto done;
     sMenuMouse.x = x; sMenuMouse.y = y;
+#ifdef __ANDROID__
+    if (ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN && ev->button.button == SDL_BUTTON_MIDDLE) {
+        sMenuMouse.dragX = x; sMenuMouse.dragY = y;
+        sMenuMouse.dragStart = sMenuMouse.dragHeld = 1;
+    }
+#endif
     if (ev->type == SDL_EVENT_MOUSE_MOTION) {
         float dx = x - sMenuMouseScrollX, dy = y - sMenuMouseScrollY;
         /* Wheel navigation owns selection until the pointer deliberately moves.

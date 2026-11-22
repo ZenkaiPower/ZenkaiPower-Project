@@ -821,7 +821,21 @@ static void Shop_MouseInput(void) {
         }
     } else if(level==SHOP_LV_BUY || level==SHOP_LV_ALL) {
         list=&gShop->list[level-1];
-        hit=Port_SelectionMouseHit(&mouse,scope,"mc_list_plate_%d",1,list->rows,256,32,256);
+        s32 tab=list->tab, top=list->top[tab];
+        if (Port_ItemListMouseScroll(&mouse,scope,list->rows,list->count[tab],&top)) {
+            if (top!=list->top[tab]) {
+                s32 row=list->cur[tab]-list->top[tab];
+                Shop_SetPlate(level,level,0,"fl_off_start");
+                list->top[tab]=top;
+                list->cur[tab]=top+row;
+                list->bottom[tab]=top+list->rows-1;
+                list->extra=list->bottom[tab];
+                Shop_SetPlate(level,level,0,"fl_on_start");
+            }
+            return;
+        }
+        if (mouse.y>=0x86 && mouse.y<(level==SHOP_LV_BUY ? 0x116 : 0x17F))
+            hit=Port_SelectionMouseHit(&mouse,scope,"mc_list_plate_%d",1,list->rows,256,32,256);
         if(hit>=1 && list->top[list->tab]+hit-1>=list->count[list->tab]) hit=-1;
         if(hit>=1 && list->cur[list->tab]!=list->top[list->tab]+hit-1) {
             Shop_SetPlate(level,level,0,"fl_off_start");list->cur[list->tab]=list->top[list->tab]+hit-1;

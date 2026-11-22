@@ -233,6 +233,7 @@ static PortSelectionMouseClip sSelectionMouseClips[512];
 static s32 sSelectionMouseCount, sSelectionMouseScope;
 static const char *sSelectionMouseParent;
 static s32 sOptionMouseDrawClip = -1;
+static s32 sItemMousePlateBody;
 /* Arrow children repeat under each digit/editor group. Keep their parent in
    the hit name and capture visible quads, including the child's shape offset. */
 static const char *Flash_MouseChildName(const char *name) {
@@ -255,6 +256,16 @@ static s32 Flash_CharRefMouseControl(s32 scope,const char *name) {
         strcmp(name,"mc_yajirusi_icon_up")==0 || strcmp(name,"mc_yajirusi_icon_down")==0 ||
         strcmp(name,"mc_yajirusi_num_up")==0 || strcmp(name,"mc_yajirusi_num_dwn")==0);
 }
+static s32 Flash_ItemMouseScope(s32 scope) {
+    return scope==53 || scope==55 || scope==56;
+}
+static s32 Flash_ItemMouseThumb(s32 scope,const char *name) {
+    return Flash_ItemMouseScope(scope) && strcmp(name,"mc_scroll_bar_point")==0;
+}
+static s32 Flash_ItemMouseRow(s32 scope,const char *name) {
+    return Flash_ItemMouseScope(scope) && strncmp(name,"mc_list_plate_",14)==0 &&
+        name[14]>='1' && name[14]<='8' && name[15]==0;
+}
 void Port_FlashMenuMouseBegin(void) { sSelectionMouseCount = 0; }
 int Port_FlashMenuMousePosition(int scope,const char *name,float width,float height,
                                float pivot,float x,float y,float *u,float *v) {
@@ -265,7 +276,7 @@ int Port_FlashMenuMousePosition(int scope,const char *name,float width,float hei
         f32 ax,ay,bx,by,dx,dy,det;
         if(clip->scope!=scope || strcmp(clip->name,name)!=0) continue;
         memset(&plate,0,sizeof(plate));
-        if(scope==68 || Flash_CharRefMouseControl(scope,name)) plate=clip->drawn;
+        if(scope==68 || Flash_CharRefMouseControl(scope,name) || Flash_ItemMouseThumb(scope,name)) plate=clip->drawn;
         else Flash_MouseRegion(&plate,0,width,height,pivot,&clip->prop,clip->flash);
         if(!plate.valid) continue;
         ax=plate.pt[1][0]-plate.pt[0][0];ay=plate.pt[1][1]-plate.pt[0][1];
@@ -277,6 +288,59 @@ int Port_FlashMenuMousePosition(int scope,const char *name,float width,float hei
     }
     return 0;
 }
+
+int Port_ItemListMouseScroll(PortMenuMouse *mouse, int scope, int rows, int count, int *top) {
+    static int dragScope, startTop, touch;
+    static float startX, startY;
+    const char *thumb = "mc_scroll_bar_point";
+    float u, v;
+    int held = PortMenuMouse_LeftHeld();
+    if (dragScope != scope || mouse->cancel || !(touch ? mouse->dragHeld || mouse->dragEnd : held))
+        dragScope = 0;
+    if (count <= rows ||
+        !Port_FlashMenuMousePosition(scope, thumb, 16, 32, 256, mouse->x, mouse->y, &u, &v)) {
+        dragScope = 0;
+        return 0;
+    }
+    int over = u >= 0 && u <= 1 && v >= 0 && v <= 1;
+    if (over) PortMenuMouse_SetHover(1);
+    if (mouse->dragStart || (mouse->confirm && held && over)) {
+        float x = mouse->dragStart ? mouse->dragX : mouse->x;
+        float y = mouse->dragStart ? mouse->dragY : mouse->y;
+        float grabU = u, grabV = v;
+        float padding = 0, verticalPadding = 0;
+        if (mouse->dragStart) {
+            float unused, paddedV;
+            dragScope = 0;
+            Port_FlashMenuMousePosition(scope, thumb, 16, 32, 256, x, y, &grabU, &grabV);
+            if (Port_FlashMenuMousePosition(scope, thumb, 16, 32, 256, x, y + 5, &unused, &paddedV))
+                verticalPadding = paddedV - grabV;
+            padding = 0.5f;
+        }
+        if (grabU >= -padding && grabU <= 1 + padding &&
+            grabV >= -verticalPadding && grabV <= 1 + verticalPadding) {
+            dragScope = scope;
+            startTop = *top;
+            startX = x;
+            startY = y;
+            touch = mouse->dragStart;
+        }
+    }
+    if (dragScope == scope) {
+        float grabU, grabV = v;
+        Port_FlashMenuMousePosition(scope, thumb, 16, 32, 256, startX, startY, &grabU, &grabV);
+        /* The thumb spans one page. Compare both points in the same draw
+           transform so rounding the moving thumb's offset cannot cause drift. */
+        float delta = (v - grabV) * rows;
+        int next = startTop + (int)(delta + (delta >= 0 ? 0.5f : -0.5f));
+        *top = next < 0 ? 0 : next > count - rows ? count - rows : next;
+        if (touch && !mouse->dragHeld) dragScope = 0;
+        PortMenuMouse_SetHover(1);
+        return 1;
+    }
+    return over && mouse->confirm;
+}
+
 int Port_FlashMenuMouseHit(int scope, const char *name, float width, float height,
                           float pivot, float x, float y) {
     s32 i;
@@ -298,7 +362,7 @@ int Port_FlashMenuMouseHit(int scope, const char *name, float width, float heigh
             memset(&plate, 0, sizeof(plate));
             FlashProp hitProp = clip->prop;
             f32 left=0,top=0;
-            if(Flash_CharRefMouseControl(scope,name) || Flash_EvoMouseArrow(scope,name) || (scope==33 && (strcmp(name,"mc_yajirusi_l")==0 || strcmp(name,"mc_yajirusi_r")==0)) ||
+            if(Flash_ItemMouseRow(scope,name) || Flash_CharRefMouseControl(scope,name) || Flash_EvoMouseArrow(scope,name) || (scope==33 && (strcmp(name,"mc_yajirusi_l")==0 || strcmp(name,"mc_yajirusi_r")==0)) ||
                (scope==31 && strncmp(name,"mc_dragonball_off_",18)==0) ||
                (scope==62 && strncmp(name,"mc_input_code_",14)==0) ||
                (scope==68 && Port_OptionsMouseControl(name)) ||
@@ -1833,7 +1897,7 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
                  strncmp(clip->name,"mc_num_zp_",10)==0 ||
                  strncmp(clip->name,"mc_input_code_",14)==0 ||
                  strcmp(clip->name,"mc_custom_yajirusi")==0 ||
-                 (sSelectionMouseScope==67 && strcmp(clip->name,"mc_scroll_bar_point")==0) ||
+                 ((sSelectionMouseScope==67 || Flash_ItemMouseScope(sSelectionMouseScope)) && strcmp(clip->name,"mc_scroll_bar_point")==0) ||
                  strncmp(clip->name,"mc_reconfir_plate_",18)==0 ||
                  strncmp(clip->name, "mc_taikai_plate_",16)==0 ||
                  strncmp(clip->name, "mc_dragonball_off_",18)==0 ||
@@ -1889,6 +1953,7 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
             {
                 const char *oldMouseParent = sSelectionMouseParent;
                 s32 oldOptionMouseDrawClip = sOptionMouseDrawClip;
+                s32 oldItemMousePlateBody = sItemMousePlateBody;
                 s32 oldOptionsCaptionLayer = sOptionsCaptionLayer;
                 /* Override the resolved draw property: timeline evaluation can
                    replace the earlier clip UV override during menu_change. */
@@ -1924,9 +1989,14 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
                    strcmp(sSelectionMouseClips[sSelectionMouseCount-1].name,clip->name)==0 &&
                    strncmp(clip->name,"mc_input_code_",14)==0)
                     sOptionMouseDrawClip=sSelectionMouseCount-1;
-                if(sSelectionMouseCount>0 && Flash_CharRefMouseControl(sSelectionMouseScope,clip->name) &&
+                if(sSelectionMouseCount>0 && (Flash_CharRefMouseControl(sSelectionMouseScope,clip->name) ||
+                   Flash_ItemMouseThumb(sSelectionMouseScope,clip->name) || Flash_ItemMouseRow(sSelectionMouseScope,clip->name)) &&
                    strcmp(sSelectionMouseClips[sSelectionMouseCount-1].name,clip->name)==0)
                     sOptionMouseDrawClip=sSelectionMouseCount-1;
+                /* Use the item plate itself; icons and captions can extend outside it. */
+                if (Flash_ItemMouseScope(sSelectionMouseScope) &&
+                    (strcmp(clip->name,"mc_list_plate_off")==0 || strcmp(clip->name,"mc_list_plate_on")==0))
+                    sItemMousePlateBody = 1;
                 if(sSelectionMouseCount>0 && Flash_EvoMouseArrow(sSelectionMouseScope,clip->name) &&
                    strcmp(Flash_MouseChildName(sSelectionMouseClips[sSelectionMouseCount-1].name),clip->name)==0)
                     sOptionMouseDrawClip=sSelectionMouseCount-1;
@@ -1937,6 +2007,7 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
                 FlashTl_Draw(&clip->tl, &prop);
                 sSelectionMouseParent = oldMouseParent;
                 sOptionMouseDrawClip = oldOptionMouseDrawClip;
+                sItemMousePlateBody = oldItemMousePlateBody;
                 sOptionsCaptionLayer = oldOptionsCaptionLayer;
             }
 #ifdef PORT
@@ -3437,6 +3508,8 @@ void FlashShape_Draw(FlashShape *shape, FlashProp *prop, Flash *flash) {
            are centered and proportional; the cyan thumb uses full-page scale. */
         if(sOptionMouseDrawClip>=0 && pq->rgba[3] &&
            (Flash_CharRefMouseControl(sSelectionMouseScope,sSelectionMouseClips[sOptionMouseDrawClip].name) ||
+            Flash_ItemMouseThumb(sSelectionMouseScope,sSelectionMouseClips[sOptionMouseDrawClip].name) ||
+            (sItemMousePlateBody && Flash_ItemMouseRow(sSelectionMouseScope,sSelectionMouseClips[sOptionMouseDrawClip].name)) ||
             Flash_EvoMouseArrow(sSelectionMouseScope,sSelectionMouseClips[sOptionMouseDrawClip].name) ||
             (sSelectionMouseScope==68 && (rec.image==33 || rec.image==34 ||
              Port_OptionsMouseSelector(sSelectionMouseClips[sOptionMouseDrawClip].name))) || sSelectionMouseScope==4 ||

@@ -15,11 +15,21 @@ final class TouchMouseSurface extends SDLSurface {
     private int secondaryId = -1;
     private float startX, startY, secondX, secondY, mouseX, mouseY;
     private long started;
-    private boolean moved, multiple, cancelled;
+    private boolean moved, multiple, cancelled, dragging;
     private int cameraDragMode;
     private float dragX,dragY;
 
-    void cancelTouch() { primaryId = -1; GameActivity.nativeCameraDrag(0,0,0); }
+    void cancelTouch() {
+        endDrag();
+        primaryId = -1;
+        GameActivity.nativeCameraDrag(0,0,0);
+    }
+
+    private void endDrag() {
+        if (!dragging) return;
+        SDLActivity.onNativeMouse(0, MotionEvent.ACTION_UP, mouseX, mouseY, false);
+        dragging = false;
+    }
 
     TouchMouseSurface(Context context) {
         super(context);
@@ -81,11 +91,11 @@ final class TouchMouseSurface extends SDLSurface {
         }
         if (primaryId == -1) return true;
         if (action == MotionEvent.ACTION_CANCEL) {
-            GameActivity.nativeCameraDrag(0,0,0);
-            primaryId = -1;
+            cancelTouch();
             return true;
         }
         if (action == MotionEvent.ACTION_POINTER_DOWN) {
+            endDrag();
             GameActivity.nativeCameraDrag(0,0,0);
             if (multiple || event.getPointerCount() != 2) cancelled = true;
             multiple = true;
@@ -99,6 +109,12 @@ final class TouchMouseSurface extends SDLSurface {
             float x = event.getX(primary), y = event.getY(primary);
             moved |= distanceSquared(x, y, startX, startY) > slopSquared;
             if (!multiple) {
+                if (moved && !dragging && cameraDragMode == 0) {
+                    move(startX, startY);
+                    SDLActivity.onNativeMouse(MotionEvent.BUTTON_TERTIARY, MotionEvent.ACTION_DOWN,
+                            mouseX, mouseY, false);
+                    dragging = true;
+                }
                 if (cameraDragMode!=0 && moved && !cancelled && getWidth()>0 && getHeight()>0) {
                     GameActivity.nativeCameraDrag(cameraDragMode,(x-dragX)/getWidth(),(y-dragY)/getHeight());
                     dragX=x;dragY=y;
@@ -112,6 +128,7 @@ final class TouchMouseSurface extends SDLSurface {
                     secondX, secondY) > slopSquared;
 
         if (action == MotionEvent.ACTION_UP) {
+            endDrag();
             if (!cancelled && !moved && event.getEventTime() - started <= ViewConfiguration.getLongPressTimeout())
                 click(multiple ? MotionEvent.BUTTON_SECONDARY : MotionEvent.BUTTON_PRIMARY);
             primaryId = -1;

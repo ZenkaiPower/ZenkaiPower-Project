@@ -88,8 +88,22 @@ static void EvoZ_MouseInput(EvoZ *ez) {
         }
     } else if(ez->state==EVOZ_ST_LIST) {
         s32 tab=ez->list.tab;
-        format="mc_list_plate_%d";first=2;count=ez->list.count[tab]-ez->list.top[tab];if(count>6) count=6;
-        hit=Port_SelectionMouseHit(&mouse,53,format,first,count,256,32,256);
+        s32 top=ez->list.top[tab];
+        if (Port_ItemListMouseScroll(&mouse,53,ez->list.rows,ez->list.count[tab],&top)) {
+            if (top!=ez->list.top[tab]) {
+                s32 row=ez->list.cur[tab]-ez->list.top[tab];
+                EvoZ_ClipGoto(ez,2,EVOZ_CLIP_LIST,0,"fl_off_start");
+                ez->list.top[tab]=top;
+                ez->list.cur[tab]=top+row;
+                ez->list.bottom[tab]=top+ez->list.rows-1;
+                ez->list.edge=ez->list.bottom[tab];
+                EvoZ_ClipGoto(ez,2,EVOZ_CLIP_LIST,0,"fl_on_start");
+            }
+            return;
+        }
+        first=2;count=ez->list.count[tab]-top;if(count>ez->list.rows) count=ez->list.rows;
+        if (mouse.y>=0xC6 && mouse.y<0x19C)
+            hit=Port_SelectionMouseHit(&mouse,53,"mc_list_plate_%d",first,count,256,32,256);
         if(hit>=first) {
             s32 index=ez->list.top[tab]+hit-first;
             if(ez->list.cur[tab]!=index) {
@@ -107,7 +121,6 @@ static void EvoZ_MouseInput(EvoZ *ez) {
             }
             mouse.confirm=0;
         }
-        format=NULL;
         {
             s32 up=Port_SelectionMouseHit(&mouse,53,"mc_menu_yajirusi_up",0,1,32,32,256);
             s32 down=Port_SelectionMouseHit(&mouse,53,"mc_menu_yajirusi_down",0,1,32,32,256);
