@@ -43,7 +43,7 @@ These are preferences, not bans: when too few different identities are eligible,
 - **Frieza Soldier:** one participant per valid outfit/color.
 - **Appule:** one participant per valid outfit/color.
 
-Each permitted individual is a separate selection chance at new-identity priority, not a lower-priority duplicate. Thus these entries contribute **5 + 5 + Frieza Soldier outfit count + Appule outfit count** participant slots. Player-selected entrants consume slots too. Outfit-specific slots must keep their selected outfit in battle. See the [slot rules](tournament-character-families.md#individual-participant-exceptions) for identity keys, limits, and costume counts. Eligibility still follows rule 3.
+Saibamen, Cell Juniors, and Frieza Soldiers each have one chance at new-identity priority. Extra entrants of these types fill gaps only after the other eligible choices run out. Each eligible Appule outfit retains a separate chance at new-identity priority. Player-selected entrants consume slots too. Outfit-specific slots must keep their selected outfit in battle. See the [slot rules](tournament-character-families.md#individual-participant-exceptions) for identity keys, limits, and costume counts. Eligibility still follows rule 3.
 
 Example: with Goku (Mid) selected, prefer Krillin over Goku (End), and prefer Goku (End) over Goku (Mid) Super Saiyan when no unused identity remains. The mapping is selection policy for Zenkai; the original duplicate check only compares exact IDs.
 
@@ -162,7 +162,7 @@ Original mode retains its random selection from unlocked Yamcha Game stages.
 - Frieza availability expands the pool immediately to include its 28-entry group; no individual Frieza or Special clears are required for this expansion.
 - Actual unlocks from other modes remain eligible at every story stage.
 - Generation prefers unused identities, then unused incarnations/families, then unused forms; it terminates without exceeding the allowed pool.
-- The individual-participant exceptions allow five Saibamen, five Cell Juniors, one Frieza Soldier per valid outfit/color, and one Appule per valid outfit/color. Each has an individual new-identity selection chance; total limits include player-selected entrants.
+- The individual-participant exceptions allow five Saibamen, five Cell Juniors, one Frieza Soldier per valid outfit/color, and one Appule per valid outfit/color. Extra Saibamen, Cell Juniors, and Frieza Soldiers fill gaps in the bracket. Total limits include player-selected entrants.
 - An original boss candidate qualifies when actually unlocked or included in an available saga's preview group; candidates outside the eligible CPU pool are never selected.
 - Clearing six Cell episodes leaves the three gated tournaments unavailable; clearing all seven permits them.
 - Owning all original 132 entries permits all tournament types even with no Cell clears. Owning 132 entries with an original-roster entry missing does not activate the exception.

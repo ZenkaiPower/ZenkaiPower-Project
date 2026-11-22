@@ -2,6 +2,27 @@
 #define MENU_PORT_TOUR_BRACKET_H
 #include "menu/port_tour_rules.h"
 
+static int PortTour_HasSmallerForm(int chara, const u8 *allowed,
+                                  const LTourEntrant *entries, int count, int boss) {
+    static const struct { u8 giant, first, last; } forms[] = {
+        {12,11,11}, {30,29,29}, {72,71,71}, {74,73,73}, {76,75,75},
+        {78,77,77}, {81,80,80}, {122,121,121}, {124,123,123},
+        {137,138,138}, {143,140,142},
+    };
+    int i, form, entrant;
+    for (i = 0; i < (int)(sizeof(forms) / sizeof(forms[0])); i++) {
+        if (forms[i].giant != chara) continue;
+        for (form = forms[i].first; form <= forms[i].last; form++) {
+            if (!allowed[form] || form == boss) continue;
+            for (entrant = 0; entrant < count; entrant++)
+                if (entries[entrant].chara == form) break;
+            if (entrant == count) return 1;
+        }
+        break;
+    }
+    return 0;
+}
+
 /* A bounded scan replaces rejection sampling, including when cost preferences
  * cannot be met. Never admit a character outside the progression pool. */
 static int PortTour_Pick(const u8 *allowed, const LTourEntrant *entries, int count,
@@ -10,6 +31,7 @@ static int PortTour_Pick(const u8 *allowed, const LTourEntrant *entries, int cou
     int best = 0x7FFFFFFF, choices = 0, picked = -1;
     for (chara = 0; chara < SAVE_CHARA_COUNT; chara++) {
         if (!allowed[chara] || chara == boss) continue;
+        if (PortTour_HasSmallerForm(chara, allowed, entries, count, boss)) continue;
         copies = identities = families = 0;
         for (i = 0; i < count; i++) {
             int other = entries[i].chara;
@@ -23,30 +45,33 @@ static int PortTour_Pick(const u8 *allowed, const LTourEntrant *entries, int cou
             families += sPortTourCharacters[boss].family == sPortTourCharacters[chara].family;
         }
         if (!PortTour_IsIndividual(chara) && copies) continue;
+        if ((chara == 79 || chara == 109) && copies >= 5) continue;
         slots = 1;
-        if (chara == 79 || chara == 109) slots = 5;
         if (chara == 98 || chara == 99) slots = ChrTbl_WrapCostume(chara, NULL);
+        if (chara == 99 && !copies && slots > 0) slots = 1;
         cost = ChrTbl_GetCost(chara);
         tier = !identities ? 0 : !families ? 1 : 2;
         score = tier * 10000 + identities * 100 + families * 10;
+        /* Appule's outfits retain independent new-identity priority. */
+        if (PortTour_IsIndividual(chara))
+            score = chara != 98 && copies ? 30000 : 0;
         score += level == 0 ? cost >= 4 : level == 1 ? cost >= 8 : cost < 7;
         for (slot = 0; slot < slots; slot++) {
-            if ((chara == 79 || chara == 109) && slot < copies) continue;
             if (chara == 98 || chara == 99) {
                 for (i = 0; i < count; i++)
                     if (entries[i].chara == chara && entries[i].costume == slot) break;
                 if (i != count) continue;
             }
-            /* Each unused individual is an independent first-priority chance. */
-            if (PortTour_IsIndividual(chara))
-                score = level == 0 ? cost >= 4 : level == 1 ? cost >= 8 : cost < 7;
             if (score < best) { best = score; choices = 0; }
             if (score == best && Rand_Range(++choices) == 0) {
                 picked = chara;
-                *costume = (chara == 98 || chara == 99) ? slot : 0;
+                *costume = chara == 99 && !copies ? -1 :
+                    (chara == 98 || chara == 99) ? slot : 0;
             }
         }
     }
+    if (picked == 99 && *costume < 0)
+        *costume = Rand_Range(ChrTbl_WrapCostume(picked, NULL));
     return picked;
 }
 

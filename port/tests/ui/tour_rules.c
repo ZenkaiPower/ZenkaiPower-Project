@@ -70,7 +70,7 @@ static void bracketCheck(int stage, int tour, int level, int players) {
             n++;
             if(id==98 || id==99) assert(b.entrant[j].costume!=b.entrant[i].costume);
         }
-        if(id==79 || id==109) assert(n<5);
+        if(id==79 || id==109 || id==99) assert(n==0); /* These pools can fill the bracket without copies. */
         else if(id!=98 && id!=99 && i>=players) assert(n==0);
     }
 }
@@ -123,9 +123,31 @@ int main(void) {
         }
         assert(PortTour_Pick(pool,entries,limits[j],-1,0,&costume)==-1);
      }}
-    /* An unused individual is a new identity, not a third-tier duplicate. */
-    memset(pool,0,sizeof(pool));pool[79]=pool[2]=1;entries[0].chara=79;entries[1].chara=1;
-    assert(PortTour_Pick(pool,entries,2,-1,0,&costume)==79);
+    /* Additional entrants fill gaps after eligible alternatives run out. */
+    {const int fallback[]={79,109,99};
+     for(j=0;j<3;j++) {
+        memset(pool,0,sizeof(pool));
+        pool[fallback[j]]=pool[2]=1;entries[0].chara=fallback[j];entries[0].costume=0;entries[1].chara=1;
+        for(i=0;i<3;i++) assert(PortTour_Pick(pool,entries,2,-1,i,&costume)==2);
+        entries[2].chara=2;
+        assert(PortTour_Pick(pool,entries,3,-1,0,&costume)==fallback[j]);
+        if(fallback[j]==99) assert(costume!=0);
+     }}
+    /* Appule outfits retain independent new-identity priority. */
+    memset(pool,0,sizeof(pool));pool[98]=pool[2]=1;entries[0].chara=98;
+    assert(PortTour_Pick(pool,entries,2,-1,0,&costume)==98);
+    /* Prefer a smaller form in either transformation direction, at every difficulty. */
+    {const int giants[]={30,137,143}, forms[]={29,138,142};
+     for(j=0;j<3;j++) {
+        memset(pool,0,sizeof(pool));pool[giants[j]]=pool[forms[j]]=1;
+        for(i=0;i<3;i++) assert(PortTour_Pick(pool,entries,0,-1,i,&costume)==forms[j]);
+        entries[0].chara=forms[j];
+        assert(PortTour_Pick(pool,entries,1,-1,0,&costume)==giants[j]);
+        pool[forms[j]]=0;
+        assert(PortTour_Pick(pool,entries,0,-1,0,&costume)==giants[j]);
+     }}
+    memset(pool,0,sizeof(pool));pool[120]=pool[139]=1;
+    assert(PortTour_Pick(pool,entries,0,120,0,&costume)==139);
     /* Reserve boss identity without excluding its other forms entirely. */
     memset(pool,0,sizeof(pool));pool[67]=pool[25]=1;
     assert(PortTour_Pick(pool,entries,0,66,0,&costume)==25);

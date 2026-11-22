@@ -9,12 +9,15 @@ For each generated CPU entrant, rank eligible entries in this order:
 1. **New identity:** neither this character nor any incarnation/form of it is represented.
 2. **New family of an existing identity:** another incarnation or standalone variant of an already represented character.
 3. **New form of an existing family:** another transformation from an already represented incarnation.
+4. **Additional Saibamen, Cell Juniors, and Frieza Soldiers:** fill remaining slots after exhausting the other eligible choices.
 
 Use a lower tier only when no candidate remains in a higher tier. Track player-selected entrants and reserve the selected boss's identity/family when applying these preferences, so generated entrants prefer other identities. These are preferences: fallback tiers permit a full bracket when the eligible pool contains fewer identities than slots. Exact roster IDs remain unique except for the individual participant slots defined below.
 
 Apply these tiers inside the eligible pool from [Dragon World Tour changes](dragon-world-tour-changes.md). Neither a fallback tier nor a boss reservation grants access to an ineligible entry. Tournament cost preferences must not defeat the identity-first ordering; relax cost preferences within the better diversity tier before moving to a worse tier. Within the same tier, prefer identities/families with fewer representatives before random selection.
 
 Example: after selecting Goku (Mid), prefer Krillin over Goku (End); if no new identity remains, prefer Goku (End) over Goku (Mid) Super Saiyan.
+
+The CPU considers a giant form only after its eligible non-giant transformation forms are already represented or unavailable. Standalone giants such as Dr. Wheelo and Hirudegarn follow the normal selection priorities.
 
 ## Mapping conventions
 
@@ -38,7 +41,7 @@ These four roster entries represent multiple individuals for tournament selectio
 | 99 | Frieza Soldier | One individual for each valid outfit/color | Number of valid outfits/colors |
 | 98 | Appule | One individual for each valid outfit/color | Number of valid outfits/colors |
 
-Each slot has its own selection identity and its own chance to participate at the **new-identity priority**, even if another slot of the same roster character is already present. For example, selecting Saibaman 1 does not lower Saibaman 2's priority. These slots are ordinary eligible choices, not duplicates held back until other characters run out. The four entries contribute **5 + 5 + Frieza Soldier outfit count + Appule outfit count** individual chances, replacing their four ordinary slots.
+Saibamen, Cell Juniors, and Frieza Soldiers each have one chance at **new-identity priority**. Additional entrants of these types fill gaps once the bracket runs out of other eligible choices. Each eligible Appule outfit keeps its own chance at new-identity priority.
 
 Saibamen and Cell Juniors use an occurrence index to distinguish participants; they may repeat the same exact character/form ID and outfit. Frieza Soldier and Appule use the pair **roster ID + outfit/color ID**; each pair may appear only once. Obtain valid outfit counts from the game's character costume data (`ChrTbl_WrapCostume`), rather than assuming a fixed number or inventing additional colors.
 
@@ -162,7 +165,7 @@ Each roster ID occurs exactly once. The pair **Identity + Family** identifies a 
 - The mapping contains 83 identities and 104 families across 161 roster entries.
 - Five Saibamen and five Cell Juniors can participate, including repeated outfits; a sixth of either cannot.
 - Frieza Soldier and Appule each permit one participant per valid outfit/color; a repeated outfit for the same roster ID cannot participate twice.
-- Each unused exception slot receives new-identity priority and an individual selection chance; player selections consume slots and count toward the limits.
+- Extra Saibamen, Cell Juniors, and Frieza Soldiers appear only when other eligible choices run out. Appule outfits receive independent new-identity chances. Player selections consume slots and count toward the limits.
 - Gohan/Future Gohan, adult Trunks/Kid Trunks, and Fat Buu/Buu (Evil/Super/Kid) are independent identities: selecting one does not lower the other's new-identity priority.
 - Cover IDs 0-160 exactly once; reject list markers 161-164 as character entries.
 - Different Goku incarnations share one identity, while their individual transformation families remain distinct.
