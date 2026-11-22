@@ -209,7 +209,8 @@ static void Flash_MouseLocalRegion(PortMousePlate *plates, s32 row, f32 left, f3
     q.rgba[3] = 128;
     FlashDraw_TransformQuad(&q, &identity, &color, prop, flash->ofs);
     if (q.rgba[3] == 0) return;
-    if (Port_PageAspectMilli() > 1340 && (!gPortMenuMode || (Port_TitleMainChars43() && !Port_Menus43())))
+    if (pivot >= 0.0f && Port_PageAspectMilli() > 1340 &&
+        (!gPortMenuMode || (Port_TitleMainChars43() && !Port_Menus43())))
         narrow = 1333.333f / (f32)Port_PageAspectMilli();
     for (i = 0; i < 3; i++) {
         plates[row].pt[i][0] = pivot + (q.pt[i][0] - pivot) * narrow;
@@ -265,6 +266,28 @@ static s32 Flash_ItemMouseThumb(s32 scope,const char *name) {
 static s32 Flash_ItemMouseRow(s32 scope,const char *name) {
     return Flash_ItemMouseScope(scope) && strncmp(name,"mc_list_plate_",14)==0 &&
         name[14]>='1' && name[14]<='8' && name[15]==0;
+}
+
+static void Flash_KeyboardMouseRegion(PortMousePlate *plate, PortSelectionMouseClip *clip) {
+    const char *key = clip->name + 14;
+    f32 left = 16.0f, top = 16.0f, width = 31.0f, height = 33.0f;
+    /* Unselected keys have no individual drawn quad. Their glyphs are baked
+       into mc_text_keyboard, and the key clips give each cell's placement. */
+    if (key[0] == '5') {
+        left = key[3] == '2' ? 46.0f : 68.0f;
+        width = key[3] == '2' ? 168.0f : 122.0f;
+        top = 12.0f;
+        height = 42.0f;
+    } else if (strcmp(key, "3_13") == 0 || strcmp(key, "3_14") == 0) {
+        top = 1.0f;
+        width = 33.0f;
+        height = 66.0f;
+    } else if (strcmp(key, "4_11") == 0) {
+        top = 20.0f;
+        width = 62.0f;
+    }
+    /* Both keyboard movies stretch with the full game page. */
+    Flash_MouseLocalRegion(plate, 0, left, top, width, height, -1.0f, &clip->prop, clip->flash);
 }
 void Port_FlashMenuMouseBegin(void) { sSelectionMouseCount = 0; }
 int Port_FlashMenuMousePosition(int scope,const char *name,float width,float height,
@@ -362,9 +385,24 @@ int Port_FlashMenuMouseHit(int scope, const char *name, float width, float heigh
             memset(&plate, 0, sizeof(plate));
             FlashProp hitProp = clip->prop;
             f32 left=0,top=0;
-            if(Flash_ItemMouseRow(scope,name) || Flash_CharRefMouseControl(scope,name) || Flash_EvoMouseArrow(scope,name) || (scope==33 && (strcmp(name,"mc_yajirusi_l")==0 || strcmp(name,"mc_yajirusi_r")==0)) ||
+            if (scope==62 && strncmp(name,"mc_input_code_",14)==0) {
+                Flash_KeyboardMouseRegion(&plate, clip);
+                if (Flash_MouseRow(&plate,1,x,y)==0) { PortMenuMouse_SetHover(1);return 1; }
+                continue;
+            }
+            if (Flash_ItemMouseRow(scope,name)) {
+                /* The 64px artwork overlaps adjacent rows. Use the 35px row
+                   pitch and the authored vertical inset for each list. */
+                Flash_MouseLocalRegion(&plate,0,0,scope==53 ? -3 : 15,256,35,256,&clip->prop,clip->flash);
+                if (scope==53 && clip->drawn.valid) {
+                    for (s32 corner=0; corner<3; corner++)
+                        plate.pt[corner][0]=clip->drawn.pt[corner][0];
+                }
+                if (Flash_MouseRow(&plate,1,x,y)==0) { PortMenuMouse_SetHover(1);return 1; }
+                continue;
+            }
+            if(Flash_CharRefMouseControl(scope,name) || Flash_EvoMouseArrow(scope,name) || (scope==33 && (strcmp(name,"mc_yajirusi_l")==0 || strcmp(name,"mc_yajirusi_r")==0)) ||
                (scope==31 && strncmp(name,"mc_dragonball_off_",18)==0) ||
-               (scope==62 && strncmp(name,"mc_input_code_",14)==0) ||
                (scope==68 && Port_OptionsMouseControl(name)) ||
                (scope==4 && (strcmp(name,"mc_menu_plate_1")==0 || strcmp(name,"mc_menu_plate_2")==0))) {
                 if(Flash_MouseRow(&clip->drawn,1,x,y)==0) { PortMenuMouse_SetHover(1);return 1; }
@@ -1985,16 +2023,13 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
                    strcmp(sSelectionMouseClips[sSelectionMouseCount-1].name,clip->name)==0 &&
                    (strcmp(clip->name,"mc_yajirusi_l")==0 || strcmp(clip->name,"mc_yajirusi_r")==0))
                     sOptionMouseDrawClip=sSelectionMouseCount-1;
-                if(sSelectionMouseScope==62 && sSelectionMouseCount>0 &&
-                   strcmp(sSelectionMouseClips[sSelectionMouseCount-1].name,clip->name)==0 &&
-                   strncmp(clip->name,"mc_input_code_",14)==0)
-                    sOptionMouseDrawClip=sSelectionMouseCount-1;
                 if(sSelectionMouseCount>0 && (Flash_CharRefMouseControl(sSelectionMouseScope,clip->name) ||
-                   Flash_ItemMouseThumb(sSelectionMouseScope,clip->name) || Flash_ItemMouseRow(sSelectionMouseScope,clip->name)) &&
+                   Flash_ItemMouseThumb(sSelectionMouseScope,clip->name) ||
+                   (sSelectionMouseScope==53 && Flash_ItemMouseRow(sSelectionMouseScope,clip->name))) &&
                    strcmp(sSelectionMouseClips[sSelectionMouseCount-1].name,clip->name)==0)
                     sOptionMouseDrawClip=sSelectionMouseCount-1;
                 /* Use the item plate itself; icons and captions can extend outside it. */
-                if (Flash_ItemMouseScope(sSelectionMouseScope) &&
+                if (sSelectionMouseScope==53 &&
                     (strcmp(clip->name,"mc_list_plate_off")==0 || strcmp(clip->name,"mc_list_plate_on")==0))
                     sItemMousePlateBody = 1;
                 if(sSelectionMouseCount>0 && Flash_EvoMouseArrow(sSelectionMouseScope,clip->name) &&
@@ -3514,7 +3549,6 @@ void FlashShape_Draw(FlashShape *shape, FlashProp *prop, Flash *flash) {
             (sSelectionMouseScope==68 && (rec.image==33 || rec.image==34 ||
              Port_OptionsMouseSelector(sSelectionMouseClips[sOptionMouseDrawClip].name))) || sSelectionMouseScope==4 ||
             (sSelectionMouseScope==31 && strncmp(sSelectionMouseClips[sOptionMouseDrawClip].name,"mc_dragonball_off_",18)==0) ||
-            (sSelectionMouseScope==62 && strncmp(sSelectionMouseClips[sOptionMouseDrawClip].name,"mc_input_code_",14)==0) ||
             (sSelectionMouseScope==33 && (strcmp(sSelectionMouseClips[sOptionMouseDrawClip].name,"mc_yajirusi_l")==0 ||
              strcmp(sSelectionMouseClips[sOptionMouseDrawClip].name,"mc_yajirusi_r")==0)))) {
             PortSelectionMouseClip *capture=&sSelectionMouseClips[sOptionMouseDrawClip];

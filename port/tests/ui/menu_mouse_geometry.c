@@ -168,6 +168,43 @@ int main(void) {
     sSelectionMouseClips[0].scope=70;
     CHECK(Port_FlashMenuMouseHit(70,"mc_list_plate_1",256,24,256,130,105));
     CHECK(!Port_FlashMenuMouseHit(71,"mc_list_plate_1",256,24,256,130,105));
+    /* The 64px shop plate quads overlap; adjacent targets follow the 35px row pitch. */
+    {
+        PortSelectionMouseClip saved = sSelectionMouseClips[0];
+        int scope, wide;
+        sSelectionMouseCount=2;
+        for (scope=55; scope<=56; scope++) {
+            for (int row=0; row<2; row++) {
+                PortSelectionMouseClip *clip=&sSelectionMouseClips[row];
+                *clip=saved;
+                strcpy(clip->name,row ? "mc_list_plate_2" : "mc_list_plate_1");
+                clip->scope=scope;
+                clip->prop.mtx.m[0]=clip->prop.mtx.m[4]=1;
+                clip->prop.mtx.m[2]=26;
+                clip->prop.mtx.m[5]=139+35*row;
+            }
+            for (wide=0; wide<=1; wide++) {
+                art43=wide;
+                CHECK(Port_FlashMenuMouseHit(scope,"mc_list_plate_1",256,32,256,267,208));
+                CHECK(!Port_FlashMenuMouseHit(scope,"mc_list_plate_1",256,32,256,267,210));
+                CHECK(!Port_FlashMenuMouseHit(scope,"mc_list_plate_2",256,32,256,267,208));
+                CHECK(Port_FlashMenuMouseHit(scope,"mc_list_plate_2",256,32,256,267,210));
+            }
+        }
+        for (int row=0; row<2; row++) {
+            PortSelectionMouseClip *clip=&sSelectionMouseClips[row];
+            clip->scope=53;
+            clip->prop.mtx.m[5]=127+35*row;
+            clip->drawn=(PortMousePlate){{{130,136+35*row},{403,136+35*row},{130,200+35*row}},1};
+        }
+        CHECK(Port_FlashMenuMouseHit(53,"mc_list_plate_1",256,32,256,400,158));
+        CHECK(!Port_FlashMenuMouseHit(53,"mc_list_plate_1",256,32,256,400,179));
+        CHECK(!Port_FlashMenuMouseHit(53,"mc_list_plate_2",256,32,256,400,158));
+        CHECK(Port_FlashMenuMouseHit(53,"mc_list_plate_2",256,32,256,400,179));
+        art43=0;
+        sSelectionMouseCount=1;
+        sSelectionMouseClips[0]=saved;
+    }
     /* Battle rule choices are 256-wide and right anchored on wide pages. */
     strcpy(sSelectionMouseClips[0].name,"mc_set_1_1");
     sSelectionMouseClips[0].scope=9;
