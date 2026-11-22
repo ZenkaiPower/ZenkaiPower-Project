@@ -29,19 +29,24 @@ final class VirtualPadView extends View {
         final Rect directionCrop;
         final Rect directionPressedCrop;
         final int directionKey;
+        final boolean sequential;
         final Rect imageCrop, pressedCrop;
         final float artSize;
         final RectF bounds = new RectF();
         boolean held;
         boolean wanted;
         long pressedAt;
+        long secondPressedAt;
         long animationUntil;
         Runnable release;
+        Runnable secondPress;
+        boolean secondHeld;
         Button(File art, String label, int key, int axis) {
             this(art, label, key, axis, null, 0);
         }
         Button(File art, String label, int key, int axis, String direction, int directionKey) {
             this.directionKey = directionKey;
+            sequential = key == KeyEvent.KEYCODE_BUTTON_Y && directionKey == KeyEvent.KEYCODE_BUTTON_R1;
             directionImage = direction == null ? null : loadArt(art, direction + ".png");
             directionPressedImage = direction == null ? null : loadArt(art, direction + "-pressed.png");
             directionCrop = crop(directionImage);
@@ -118,8 +123,8 @@ final class VirtualPadView extends View {
         buttons.add(new Button(art, "l2", 0, 4, "down", KeyEvent.KEYCODE_DPAD_DOWN));
         buttons.add(new Button(art, "triangle", KeyEvent.KEYCODE_BUTTON_Y, -1,
                 "circle", KeyEvent.KEYCODE_BUTTON_B));
-        buttons.add(new Button(art, "r1", KeyEvent.KEYCODE_BUTTON_R1, -1,
-                "triangle", KeyEvent.KEYCODE_BUTTON_Y));
+        buttons.add(new Button(art, "triangle", KeyEvent.KEYCODE_BUTTON_Y, -1,
+                "r1", KeyEvent.KEYCODE_BUTTON_R1));
     }
 
     private final Runnable pollBattle = new Runnable() {
@@ -191,6 +196,11 @@ final class VirtualPadView extends View {
     private void held(Button button, boolean down) {
         if (button.held == down) return;
         button.held = down;
+        if (!down) {
+            if (button.secondPress != null) removeCallbacks(button.secondPress);
+            button.secondPress = null;
+            button.secondHeld = false;
+        }
         updatePadButtons();
     }
 
@@ -208,7 +218,7 @@ final class VirtualPadView extends View {
             if (button.axis == 5) r2 |= button.held;
             if (button.held) {
                 wantedKeys.put(button.key, 1);
-                wantedKeys.put(button.directionKey, 1);
+                if (!button.sequential || button.secondHeld) wantedKeys.put(button.directionKey, 1);
             }
         }
         // A combo and a separate face button can hold the same key together.
@@ -229,12 +239,33 @@ final class VirtualPadView extends View {
             button.release = null;
         }
         if (down) {
-            if (!button.held) button.pressedAt = SystemClock.uptimeMillis();
+            if (!button.held) {
+                button.pressedAt = SystemClock.uptimeMillis();
+                if (button.sequential) {
+                    // Give the game a Triangle-only sample before adding R1.
+                    button.secondPress = () -> {
+                        button.secondPress = null;
+                        button.secondHeld = true;
+                        button.secondPressedAt = SystemClock.uptimeMillis();
+                        // A busy UI thread may run this late. Preserve R1's
+                        // sample interval even if the finger is already up.
+                        if (button.release != null) {
+                            removeCallbacks(button.release);
+                            postDelayed(button.release, 40);
+                        }
+                        updatePadButtons();
+                    };
+                    postDelayed(button.secondPress, 40);
+                }
+            }
             button.animationUntil = SystemClock.uptimeMillis() + 120;
             held(button, true);
         } else {
             // The game samples pad state each frame; preserve very short taps.
-            long delay = Math.max(0, 40 - (SystemClock.uptimeMillis() - button.pressedAt));
+            // A quick sequential tap also needs a full sample with both down.
+            long delay = Math.max(0, (button.sequential ? 80 : 40) - (SystemClock.uptimeMillis() - button.pressedAt));
+            if (button.sequential && button.secondHeld)
+                delay = Math.max(delay, 40 - (SystemClock.uptimeMillis() - button.secondPressedAt));
             button.release = () -> {
                 button.release = null;
                 held(button, false);
