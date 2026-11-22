@@ -1,6 +1,11 @@
 #include "common.h"
 #include "menu/menu_k.h"
 
+#ifdef PORT
+extern s32 Port_TitleMainChars43(void), Port_Menus43(void), Port_PageAspectMilli(void);
+extern f32 ceilf(f32);
+#endif
+
 /*
  * Bracket, 0x3673F8..0x368068: the per-frame clip set-up of the bracket screen. Its read-only data (0x3B6BC0..
  * 0x3B6FC4) ends before a 16-byte alignment gap: Bracket_Load, the next function, starts another object.
@@ -16,6 +21,16 @@ void Bracket_SetupDraw(Bracket *b) {
     char name[0x40];
     MFlash *flash;
     s32 i;
+    s32 scrollX = (s32)b->scroll;
+
+#ifdef PORT
+    if (scrollX > 0 && Port_TitleMainChars43() && !Port_Menus43()) {
+        s32 aspect = Port_PageAspectMilli();
+        /* As the bracket leaves, add the right-side margin opened by widescreen. */
+        if (aspect > 1340)
+            scrollX += (s32)ceilf(0.5f * scrollX * (aspect / 1333.333f - 1.0f));
+    }
+#endif
 
     /* title plate: the round's name; result banner */
     flash = &b->flash[BRK_FL_TITLE];
@@ -92,7 +107,7 @@ void Bracket_SetupDraw(Bracket *b) {
 
     /* the tree: scroll, arrows, the 17 chips */
     flash = &b->flash[BRK_FL_TREE];
-    Flash_SetOffset(flash, (s32)b->scroll, 0);
+    Flash_SetOffset(flash, scrollX, 0);
     Flash_FindLabel(flash, NULL, "mc_scroll_yazirusi", &ref);
     Flash_ClipSetOffset(flash, &ref, -(s32)b->scroll, 0);
     for (i = 0; i < 2; i++) {
@@ -158,7 +173,7 @@ void Bracket_SetupDraw(Bracket *b) {
                 Flash_ClipSetUv(flash, &ref, &uv);
             }
         }
-        x = Bracket_GetPosX(BK_ENT(BK_MATCH.ent[0]).pos) + (s32)b->scroll;
+        x = Bracket_GetPosX(BK_ENT(BK_MATCH.ent[0]).pos) + scrollX;
         y = Bracket_GetPosY(BK_ENT(BK_MATCH.ent[0]).pos);
         Flash_SetOffset(flash, x, y);
     }
@@ -178,7 +193,7 @@ void Bracket_SetupDraw(Bracket *b) {
                 Flash_ClipSetUv(flash, &ref, &uv);
             }
         }
-        x = Bracket_GetPosX(BK_ENT(BK_MATCH.ent[0]).pos) + (s32)b->scroll;
+        x = Bracket_GetPosX(BK_ENT(BK_MATCH.ent[0]).pos) + scrollX;
         y = Bracket_GetPosY(BK_ENT(BK_MATCH.ent[0]).pos);
         Flash_SetOffset(flash, x, y);
     }
