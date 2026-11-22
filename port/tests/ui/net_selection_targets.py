@@ -46,6 +46,17 @@ memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);CHECK(!nav.ready); /* 
 gPortNetStagePicker=1;scope=10;target="mc_map_chip_04";
 memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);CHECK(nav.ready && nav.current==2 && nav.target==4);
 target="mc_map_chip_05";memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);CHECK(nav.target==-1); /* locked stage */
+target="background";input.confirm=1;
+memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);
+CHECK(nav.target==-1);
+#ifdef __ANDROID__
+CHECK(nav.action==0x4000); /* native confirm, no pointer target */
+#else
+CHECK(!nav.action);
+#endif
+target="mc_yajirusi_up";memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);
+CHECK(nav.action==0x10); /* an arrow never confirms */
+input.confirm=0;
 progress.flags=MPROG_FREEZE;memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);CHECK(!nav.ready);
 progress.flags=0;session=0;memset(&nav,0,sizeof(nav));{prefix}_NetMouse(&input,&nav);CHECK(!nav.ready);
 return 0;
@@ -53,6 +64,7 @@ return 0;
 '''
         code=f'#include "menu/{header}.h"\n'+common+setup+shared+function+checks
         path=Path(tmp)/(prefix+'.c');path.write_text(code);exe=path.with_suffix('')
-        subprocess.run(['cc','-std=gnu99','-fno-builtin','-Iinclude','-Iport/include','-include','port_compat.h',str(path),'-o',str(exe)],cwd=root,check=True)
-        subprocess.run([str(exe)],check=True)
+        for platform in ([], ['-D__ANDROID__']):
+            subprocess.run(['cc','-std=gnu99',*platform,'-fno-builtin','-Iinclude','-Iport/include','-include','port_compat.h',str(path),'-o',str(exe)],cwd=root,check=True)
+            subprocess.run([str(exe)],check=True)
         print(prefix+' online mouse targets passed')

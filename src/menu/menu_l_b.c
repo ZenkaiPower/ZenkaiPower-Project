@@ -795,9 +795,11 @@ static void SoloSel_MouseInput(void) {
     } else if (step == SOLOSEL_STEP_PANEL) {
         extern void Port_ItemPanelMouseInput(s32, s32, PortMenuMouse *);
         Port_ItemPanelMouseInput(0, 0, &mouse);
+        if (!(gPad[0].gamePressed & (PADG_CROSS | PADG_TRIANGLE)))
+            Port_SelectionScreenButtons(&mouse,0,0);
         return;
     } else if (step == SOLOSEL_STEP_HELP) hit = 0;
-    Port_SelectionMouseButtons(&mouse, 0, hit >= 0);
+    Port_SelectionScreenButtons(&mouse, 0, hit >= 0);
 }
 #endif
 

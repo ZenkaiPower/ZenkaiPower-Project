@@ -34,7 +34,11 @@ static void Port_SelectionNetTarget(PortMenuMouse *mouse,PortMouseNetNav *nav,Po
         if(Port_SelectionMouseHit(mouse,scope,"mc_menu_plate",0,1,256,32,pivot)>=0) hit=5;
     } else if(state==3) {
         extern void Port_ItemPanelNetTarget(s32,PortMenuMouse *,PortMouseNetNav *);
-        Port_ItemPanelNetTarget(side,mouse,nav);return;
+        Port_ItemPanelNetTarget(side,mouse,nav);
+#ifdef __ANDROID__
+        if(mouse->confirm && !mouse->wheel && nav->target<0 && !nav->action) nav->action=0x4000;
+#endif
+        return;
     } else if(state==4) {if(mouse->confirm) nav->action=0x4000;}
     else if(state==9 || state==10) {
         scope=10;pivot=256;
@@ -53,5 +57,8 @@ static void Port_SelectionNetTarget(PortMenuMouse *mouse,PortMouseNetNav *nav,Po
         s32 down=Port_SelectionMouseHit(mouse,scope,"mc_yajirusi_down",0,1,32,32,pivot);
         if(up>=0 || down>=0) nav->action=up>=0 ? 0x10:0x40;
     }
+#ifdef __ANDROID__
+    if(hit<0 && mouse->confirm && !mouse->wheel && !nav->action) nav->action=0x4000;
+#endif
 }
 #endif

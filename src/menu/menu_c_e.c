@@ -1420,9 +1420,12 @@ void CharSel_Input(s32 *running) {
             if (mouse.confirm && hit < 0) {
                 s32 up=Port_SelectionMouseHit(&mouse,10,"mc_yajirusi_up",0,1,32,32,256);
                 s32 down=Port_SelectionMouseHit(&mouse,10,"mc_yajirusi_down",0,1,32,32,256);
-                if(up>=0 || down>=0) gPad[0].gameRepeat |= up>=0 ? PADG_UP : PADG_DOWN;
+                if(up>=0 || down>=0) {
+                    gPad[0].gameRepeat |= up>=0 ? PADG_UP : PADG_DOWN;
+                    mouse.confirm = 0;
+                }
             }
-            Port_SelectionMouseButtons(&mouse,0,hit>=0);
+            Port_SelectionScreenButtons(&mouse,0,hit>=0);
         }
 #endif
         switch (gCharSel->stage->state) {
@@ -1620,6 +1623,7 @@ void CharSel_Input(s32 *running) {
             if (CS_SIDE->state == CHARSEL_ST_ITEMS) {
                 extern void Port_ItemPanelMouseInput(s32, s32, PortMenuMouse *);
                 Port_ItemPanelMouseInput(CS_N, i, &mouse);
+                if (gPad[i].gamePressed & (PADG_CROSS | PADG_TRIANGLE)) mouse.confirm = 0;
             }
             if (CS_SIDE->state == CHARSEL_ST_ITEMINFO && mouse.confirm) hit = 0;
             if (CS_SIDE->state == CHARSEL_ST_ITEMSET && mouse.confirm) {
@@ -1633,12 +1637,16 @@ void CharSel_Input(s32 *running) {
                     /* The inward arrow opens the highlighted equipment set. */
                     gPad[i].gamePressed |= CS_N == 0 ? PADG_RIGHT : PADG_LEFT;
                     hit = -1;
+                    mouse.confirm = 0;
                 }
             }
             if(mouse.confirm && hit<0) {
                 s32 up=Port_SelectionMouseHit(&mouse,scope,"mc_yajirusi_up",0,1,32,32,pivot);
                 s32 down=Port_SelectionMouseHit(&mouse,scope,"mc_yajirusi_down",0,1,32,32,pivot);
-                if(up>=0 || down>=0) gPad[i].gameRepeat |= up>=0 ? PADG_UP:PADG_DOWN;
+                if(up>=0 || down>=0) {
+                    gPad[i].gameRepeat |= up>=0 ? PADG_UP:PADG_DOWN;
+                    mouse.confirm = 0;
+                }
             }
             if (count == 1 || hit >= 0 || ((mouse.x >= 256) == (CS_N != 0)))
             {
@@ -1647,7 +1655,7 @@ void CharSel_Input(s32 *running) {
                     gPad[i].gameRepeat |= mouse.wheel < 0 ? PADG_LEFT : PADG_RIGHT;
                     navigation.wheel=0;
                 }
-                Port_SelectionMouseButtons(&navigation,i,hit>=0);
+                Port_SelectionScreenButtons(&navigation,i,hit>=0);
             }
         }
 #endif

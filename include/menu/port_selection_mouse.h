@@ -23,4 +23,12 @@ static void Port_SelectionMouseButtons(PortMenuMouse *mouse, s32 pad, s32 hit) {
     if (mouse->cancel) gPad[pad].gamePressed |= PADG_TRIANGLE;
     if (mouse->wheel) gPad[pad].gameRepeat |= mouse->wheel < 0 ? PADG_UP : PADG_DOWN;
 }
+/* Only character/stage/music selectors opt in. Navigation controls consume
+   confirm before reaching here so a tap never both navigates and accepts. */
+static void Port_SelectionScreenButtons(PortMenuMouse *mouse, s32 pad, s32 hit) {
+#ifdef __ANDROID__
+    if (!mouse->wheel) hit = 1;
+#endif
+    Port_SelectionMouseButtons(mouse, pad, hit);
+}
 #endif
