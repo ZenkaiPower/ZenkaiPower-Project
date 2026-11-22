@@ -107,7 +107,9 @@ static int sFullscreen;
 static int sAutoScale, sAutoAspect;
 static int sOutputWidth, sOutputHeight;
 void GsGpu_OutputSize(int width, int height) {
+    extern int Port_PageAspectMilli(void);
     if (width > 0 && height > 0) { sOutputWidth = width; sOutputHeight = height; }
+    MenuText_OutputSize(width, height, Port_PageAspectMilli());
 }
 int GsDraw_OutputSize(int *width, int *height) {
     *width = sOutputWidth; *height = sOutputHeight;
@@ -1859,6 +1861,9 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     int battleText = !d.tex_is_target && sLast != NULL && sLast->tex == d.tex && sLast->battleText;
     int tbo = (prim >> 4) & 1 && ((t0 >> 20) & 0x3F) == TBO_PSM; /* an extracted Wii menu picture */
     int pauseHeading = tbo && TboText_IsPauseHeading((uint32_t)((t0 >> 37) & 0x3FFF));
+    uint32_t tboId = (uint32_t)((t0 >> 37) & 0x3FFF);
+    int generatedText = (tbo && tboId >= TBO_TEXT_BASE && tboId < TBO_TEXT_BASE + TBO_TEXT_SLOTS) ||
+        (!d.tex_is_target && sLast != NULL && sLast->tex == d.tex && sLast->replaced >= 2);
     if (type == 6 || fst) {
         d.sampler &= 7; /* 2D art: never the smaller copies of a replacement */
     }
@@ -1883,6 +1888,12 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         } else {
             d.misc[3] = (float)SCALE;
         }
+    }
+    if (generatedText) {
+        /* Font edge filtering is independent of the artwork's 2D filter.
+           Sampling mip levels makes small generated Options captions blurry. */
+        d.sampler &= ~(1 | 8);
+        if (MenuText_Antialias()) d.sampler |= 1;
     }
     date_snapshot(&d);
     for (i = 0; i < n; i++) {

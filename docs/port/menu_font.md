@@ -240,6 +240,16 @@ Added song and stage names share the corresponding fill and outline colors.
 - `port/tests/menu_font/labels.c`: the maker of the list on its own (to compare its files), and against damaged
   menu archives, with the sanitizers.
 
+The internal `text_screen_size` setting defaults to `1` and chooses shared UI glyph and label raster quality
+from the displayed picture's physical pixel size, including letterboxing, independently of the Resolution option.
+It keeps the existing 2–4x font raster limits and refreshes cached textures after resizing. Setting it to `0`
+restores resolution-based raster quality. Text placement and the final scene render resolution remain unchanged.
+Generated in-game Options captions also use this raster scale while keeping their layout measurements fixed.
+
+The internal `text_antialias` setting defaults to `1`. It enables smooth glyph coverage and linear sampling for
+generated text independently of the artwork's 2D filtering option. Setting it to `0` uses binary glyph coverage
+and nearest sampling. Font and generated-caption caches refresh when it changes.
+
 Texture-pack replacements take precedence over the font settings. They do not touch the game's state: an online
 match is the same with any font on either side. `ZENKAIPOWER_FONT_LOG=1` prints every decoded texture and the time the
 text took.

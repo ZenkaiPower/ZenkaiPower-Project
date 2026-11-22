@@ -217,7 +217,7 @@ uint32_t TboText_Version(uint32_t id) {
         r = sLines[id - TBO_TEXT_BASE].version;
     }
     pthread_mutex_unlock(&sLock);
-    return r;
+    return r ? (r * 16777619u ^ MenuText_RasterKey()) : 0;
 }
 
 /* The picture of a line for the renderer: *w x *h RGBA (the GS's alpha, 0x80 opaque), the filled line in the upper
@@ -235,14 +235,17 @@ uint32_t *TboText_Pixels(uint32_t id, uint32_t *version, uint32_t *w, uint32_t *
     pthread_mutex_lock(&sLock);
     l = sLines[id - TBO_TEXT_BASE];
     pthread_mutex_unlock(&sLock);
-    *version = l.version;
+    *version = l.version ? (l.version * 16777619u ^ MenuText_RasterKey()) : 0;
     if (l.version == 0 || l.advance <= 0) {
         return NULL;
     }
     if (l.kind >= 3 && l.kind <= 5) {
-        px = (uint32_t *)(void *)MenuText_RenderWiiLabel(l.text, l.kind - 3, 2, &lw, &lh);
+        int scale = MenuText_RasterScale(2);
+        px = (uint32_t *)(void *)MenuText_RenderWiiLabel(l.text, l.kind - 3, scale, &lw, &lh);
         if (px == NULL) return NULL;
-        if (lw != l.w || lh != l.h) { free(px); return NULL; }
+        /* Layout stays measured at 2x; normalized UVs allow the actual caption
+           texture to follow the screen without moving or resizing Options rows. */
+        if (lw * 2 != l.w * scale || lh * 2 != l.h * scale) { free(px); return NULL; }
         *w = (uint32_t)lw; *h = (uint32_t)lh;
         return px;
     }

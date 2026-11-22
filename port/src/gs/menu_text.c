@@ -23,6 +23,7 @@
  * this file keeps is on the renderer's side (not saved by a rollback, not in the desync checksum). Texture-pack
  * replacements take precedence. */
 #include "menu_text.h"
+#include "auto_video.h"
 #include "../../../include/menu/ui_text_filter.h"
 #include "menu_labels.h"
 #include "ui_text_extract.h" /* UiText_EuropeanOnStartup */
@@ -361,6 +362,10 @@ static unsigned char *face_bitmap(const Face *f, int glyph, float sx, float sy, 
         bm.pixels = malloc((size_t)bm.w * bm.h);
         if (bm.pixels != NULL) {
             stbtt_Rasterize(&bm, 0.35f, v, n, sx, sy, shiftX, shiftY, x0, y0, 1, NULL);
+            if (!MenuText_Antialias()) {
+                for (int pixel = 0; pixel < bm.w * bm.h; pixel++)
+                    bm.pixels[pixel] = bm.pixels[pixel] >= 128 ? 255 : 0;
+            }
         }
     }
     free(v);
@@ -737,7 +742,26 @@ int MenuText_FontChoice(int id) {
     return r;
 }
 
-int MenuText_RasterScale(int internalScale) { return internalScale < 2 ? 2 : internalScale > 4 ? 4 : internalScale; }
+static int sTextOutputScale = 2;
+
+int MenuText_Antialias(void) { return Port_Setting("text_antialias", 1) != 0; }
+
+void MenuText_OutputSize(int width, int height, int aspect) {
+    if (width > 0 && height > 0 && aspect > 0)
+        __atomic_store_n(&sTextOutputScale, AutoVideo_Scale(width, height, aspect), __ATOMIC_RELEASE);
+}
+
+int MenuText_RasterScale(int internalScale) {
+    /* Internal setting: keep translated labels and shared UI glyphs at the
+       display's raster quality even when the scene resolution is reduced. */
+    int scale = Port_Setting("text_screen_size", 1) ?
+        __atomic_load_n(&sTextOutputScale, __ATOMIC_ACQUIRE) : internalScale;
+    return scale < 2 ? 2 : scale > 4 ? 4 : scale;
+}
+
+uint32_t MenuText_RasterKey(void) {
+    return (uint32_t)MenuText_RasterScale(2) * 2u + (unsigned)MenuText_Antialias();
+}
 
 /* ------------------------------------------------------------------------------------------- menu labels */
 
@@ -767,7 +791,7 @@ static volatile int sFontChoice, sBattleChoice;
 static Face sFont, sBattleFont, sPauseFont;
 static struct { int width, height; } sSizes[32]; /* the sizes of the textures that have labels */
 static int sSizeCount;
-static struct RowCache { int label, scale; unsigned used; Row row; } sRows[ROW_CACHE_MAX];
+static struct RowCache { int label, scale, antialias; unsigned used; Row row; } sRows[ROW_CACHE_MAX];
 static unsigned sRowBytes, sRowClock;
 
 static void rows_clear(void) {
@@ -1668,7 +1692,7 @@ static int row_get(int n, int scale, Row *row, int *owned) {
     unsigned bytes;
     *owned = 0;
     for (i = 0; i < ROW_CACHE_MAX; i++) {
-        if (sRows[i].scale == scale && sRows[i].label == n) {
+        if (sRows[i].scale == scale && sRows[i].label == n && sRows[i].antialias == MenuText_Antialias()) {
             sRows[i].used = ++sRowClock;
             *row = sRows[i].row;
             return 1;
@@ -1696,6 +1720,7 @@ static int row_get(int n, int scale, Row *row, int *owned) {
     if (slot >= 0) {
         sRows[slot].label = n;
         sRows[slot].scale = scale;
+        sRows[slot].antialias = MenuText_Antialias();
         sRows[slot].used = ++sRowClock;
         sRows[slot].row = *row;
         sRowBytes += bytes;
@@ -1967,7 +1992,7 @@ static SharedSheet *shared_sheet(int tbp, int cbp) {
 /* What of the settings here a decoded texture depends on, for the renderer's texture cache. A new catalog also
    changes the key so Battle artwork decoded before the catalog was ready can be identified on its next draw. */
 uint32_t MenuText_TexKey(int width, int height, int indexed, int tbp, int cbp, int scale) {
-    uint32_t key = 0;
+    uint32_t key = (unsigned)MenuText_Antialias() * 0xA24BAED5u;
     if (sFontChoice == 0 && sBattleChoice == 0 && sSharedChoice == 0) {
         return indexed ? sCatalogEpoch * 0x9E3779B9u : 0;
     }
@@ -2317,7 +2342,7 @@ uint32_t MenuText_LineGeneration(void) {
     pthread_mutex_lock(&sLock);
     line_face(0);
     line_face(1);
-    r = sLineGeneration;
+    r = sLineGeneration * 2u + (unsigned)MenuText_Antialias();
     pthread_mutex_unlock(&sLock);
     return r;
 }
