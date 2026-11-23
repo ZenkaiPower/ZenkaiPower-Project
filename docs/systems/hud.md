@@ -1,5 +1,8 @@
 # Battle HUD
 
+For the visual atlas inventory, palette variants, and element-to-texture mapping, see
+[Battle HUD element and texture map](../port/battle-hud-textures.md).
+
 Source (linked): src/battle/hud_a.c (manager, 0x2187E0..0x219EB0), hud_a_b.c (team
 panel, ..0x21BCA0), hud_a_c.c (caption, ..0x21C0E0), hud_a_d.c (head of the health / ki gauge
 part, ..0x21CA60). Layouts in include/battle/hud_a.h, names in config/symbols/hud_a.txt. All 56
