@@ -230,7 +230,8 @@ Device installer checks use a separate test APK and isolated cache folders:
 
 ```powershell
 python port/tests/android/installer_fixtures.py
-# Add --boot <owner-extracted boot-icons.bin> to compare all 18 touch images.
+# Add --boot <owner-extracted boot-icons.bin> --hud <owner-extracted 00005.bin>
+# to compare all 24 touch images, including the six analog-stick poses.
 # Inside the build container, run android.py installer-tests, then copy the
 # generated android/app/src/androidTest/jniLibs back to the checkout.
 .\android\gradlew.bat -p android assembleDebugAndroidTest
@@ -291,6 +292,10 @@ During Sparking! Changes battles, drag an empty area on the right half of the
 screen to turn the camera horizontally while unlocked. Buttons and the left
 movement stick remain usable with other fingers.
 Controls release when the app loses focus or is paused.
+The left stick uses the battle HUD's six analog poses: neutral, 12:00, 1:30,
+3:00, 4:30 and 6:00. Rightward poses mirror for the left directions, with the
+same base pivot, movement radius and deadzone. Existing installations refresh
+the touch artwork from their installed archives when the APK build changes.
 Android's **Options > Controller > Virtual Gamepad** provides an On/Off selector
 (default On), saved through the game's normal Options save flow. Mouse/Keyboard
 is hidden in the Android Controller menu. Tap the battle timer at the top center

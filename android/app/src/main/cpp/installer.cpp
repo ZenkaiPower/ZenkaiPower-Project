@@ -48,3 +48,7 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_zenkaipower_android_DiscInstaller_installed(JNIEnv *env,jobject,jstring folder,jint disc) {
     return Native_DiscInstalled(utf(env,folder)+"/",disc);
 }
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_zenkaipower_android_DiscInstaller_prepareTouchArtwork(JNIEnv *env,jclass,jstring folder) {
+    return Native_PrepareTouchArtwork(utf(env,folder)+"/");
+}

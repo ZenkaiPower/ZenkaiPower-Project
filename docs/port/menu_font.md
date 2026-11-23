@@ -250,8 +250,8 @@ Vulkan/SDL GPU and OpenGL compose the final UI draws containing generated text i
 displayed picture's physical resolution. Battle font announcements are included, both generated lettering and
 recognized original or texture-pack artwork. The selected Resolution still controls the scene. Scene color, depth
 and alpha are copied before the first eligible text draw; text and subsequent UI keep their original order and
-scissors. Draws that read framebuffers, destination-alpha snapshots, shadows and native effects keep their original
-passes. The regular framebuffer is also rendered normally for cross-fades, screenshots and game readbacks.
+scissors. Announcement reveal masks and their destination-alpha snapshots are replayed at the same physical
+resolution as the lettering. Draws that read framebuffers, shadows and native effects keep their original passes. The regular framebuffer is also rendered normally for cross-fades, screenshots and game readbacks.
 
 Generated text always uses smooth glyph coverage and linear sampling independently of the artwork's 2D filtering option.
 

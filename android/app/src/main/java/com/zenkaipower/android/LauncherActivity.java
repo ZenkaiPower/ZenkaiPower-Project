@@ -121,9 +121,11 @@ public final class LauncherActivity extends Activity {
                 }
                 folderProgress(80, "Packing game resources…");
                 GameFiles.packResources(selected);
-                GameIO.write(stamp, build.getBytes(StandardCharsets.UTF_8));
                 folderProgress(90, "Checking installed discs…");
                 updateDiscState(selected);
+                if ((verifiedMask & 1) != 0 && !current &&
+                        !DiscInstaller.prepareTouchArtwork(selected.getAbsolutePath()))
+                    throw new IOException("Could not prepare touch controller artwork.");
                 if ((verifiedMask & 1) != 0 && !GameFiles.ready(selected)) {
                     folderProgress(95, "Restoring game text after interrupted installation...");
                     if (!new DiscInstaller(this, selected).prepareText()) throw new IOException("Could not restore game text. See logs/zenkaipower_log.txt.");
@@ -131,6 +133,7 @@ public final class LauncherActivity extends Activity {
                     updateDiscState(selected);
                 }
                 folderProgress(100, "Game folder ready");
+                GameIO.write(stamp, build.getBytes(StandardCharsets.UTF_8));
                 runOnUiThread(() -> {
                     root = selected; finishWork("");
                     boolean launch=autoStartPending;autoStartPending=false;

@@ -5,17 +5,22 @@
 #include <string.h>
 
 /* A suffix, rather than text moved to the end: subsequent plates, translucent
-   dialogs and fades must remain above the lettering. Buffer reads, destination
-   alpha snapshots, shadows and native effects retain their original passes. */
+   dialogs and fades must remain above the lettering. Destination alpha masks
+   are replayed together. Buffer reads, shadows and native effects retain their
+   original passes. */
 static int GsScreenText_Start(int target, uint32_t (*pipeKey)(int)) {
-    int start = -1;
+    int start = -1, first = -1, masked = 0;
     for (unsigned n = gsDrawCount; n-- > 0;) {
         const GsDraw *d = &gsDraws[n];
-        if (d->native || d->vu || d->target != target || d->tex_is_target ||
-            d->misc[1] != 0 || (pipeKey(d->pipeline) & ((1u << 24) | (1u << 22)))) break;
+        if ((d->native && d->native != 5) || d->vu || d->target != target || d->tex_is_target ||
+            (pipeKey(d->pipeline) & ((1u << 24) | (1u << 22)))) break;
+        first = (int)n;
+        if (d->native == 5 || d->misc[1] != 0) masked = 1;
         if (d->screenText) start = (int)n;
     }
-    return start;
+    /* Reveal masks are built before the word: replay the complete safe UI
+       suffix so their alpha writes and DATE snapshots have display precision. */
+    return start >= 0 && masked ? first : start;
 }
 
 static void GsScreenText_Size(int sw, int sh, int aspect, int *w, int *h) {

@@ -12,6 +12,7 @@ import java.nio.file.Files;
 /** JNI adapter for the shared desktop installer; images are read in place. */
 final class DiscInstaller {
     private static final Object PREPARE_LOCK = new Object();
+    static native boolean prepareTouchArtwork(String root);
     static {
         System.loadLibrary("SDL3");
         org.libsdl.app.SDL.setupJNI();

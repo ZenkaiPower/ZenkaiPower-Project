@@ -6,6 +6,8 @@
 #include <vector>
 struct NativeTitleLogo { int width=0,height=0; std::vector<unsigned char> pixels; };
 NativeTitleLogo Native_ReadTitleLogo(const std::string &path,bool japanese);
+// Android-only: refresh touch artwork from already installed archives.
+bool Native_PrepareTouchArtwork(const std::string &root);
 
 // root: the folder with zenkaipower and zenkaipower.dat, ends in '/'. iso: the USA disc image (empty: the game is set up already);
 // eu, wii and jp: optional disc images; empty omits a disc. An empty USA image adds content to an existing install.

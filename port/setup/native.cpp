@@ -853,6 +853,18 @@ bool Native_DiscInstalled(const std::string &root, int disc) {
     return length > 0;
 }
 
+#ifdef ZENKAIPOWER_ANDROID_INSTALLER
+bool Native_PrepareTouchArtwork(const std::string &root) {
+    if (sRunning) return false;
+    Native_Join();
+    sCancel = false;
+    try {
+        android_buttons(root);
+        return true;
+    } catch (...) { return false; }
+}
+#endif
+
 // Validate packaged programs too: a completion marker alone must not unlock artwork.
 bool Native_VerifyInstalledUs(const std::string &root) {
     try {

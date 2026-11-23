@@ -19,13 +19,16 @@ int main(void) {
     gsDraws[3].screenText=1;
     assert(GsScreenText_Start(0,key)==3);
     gsDraws[3].misc[1]=1;
-    assert(GsScreenText_Start(0,key)==-1);
+    assert(GsScreenText_Start(0,key)==3);
     gsDraws[3].misc[1]=0;gsDraws[3].pipeline=1<<24;
     assert(GsScreenText_Start(0,key)==-1);
     gsDraws[3].pipeline=0;gsDraws[3].native=4;
     assert(GsScreenText_Start(0,key)==-1);
     gsDraws[3].native=0;gsDraws[3].target=1;
     assert(GsScreenText_Start(0,key)==-1);
+    gsDraws[2].tex_is_target=0;gsDraws[3].target=0;
+    gsDraws[2].native=5;gsDraws[3].misc[1]=1;
+    assert(GsScreenText_Start(0,key)==1);
     int w,h,sc[4],full[4]={0,0,512,448};
     GsScreenText_Size(1920,1080,1778,&w,&h);
     assert(w==1920 && h==1080);

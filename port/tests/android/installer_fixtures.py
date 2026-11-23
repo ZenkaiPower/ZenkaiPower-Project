@@ -16,7 +16,9 @@ spec.loader.exec_module(fixture)
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--boot', type=Path, help='Owner-extracted boot icons (optional; never in release assets)')
+    parser.add_argument('--hud', type=Path, help='Owner-extracted HUD file 00005.bin, required with --boot')
     args = parser.parse_args()
+    if bool(args.boot) != bool(args.hud): parser.error('--boot and --hud must be supplied together')
     target = ROOT/'android/app/src/androidTest/assets/installer'
     target.mkdir(parents=True, exist_ok=True)
     fixture.japanese_iso(target/'jp.iso')
@@ -43,7 +45,7 @@ def main():
         from android_buttons import button_images
         game = target/'button-fixture'
         game.mkdir(exist_ok=True)
-        (game/'pzs3us1.afs').write_bytes(fixture.afs({4: args.boot.read_bytes()}, count=5))
+        (game/'pzs3us1.afs').write_bytes(fixture.afs({4: args.boot.read_bytes(), 5: args.hud.read_bytes()}, count=6))
         expected = target/'reference-buttons'; expected.mkdir(exist_ok=True)
         for name, png in button_images(game): (expected/name).write_bytes(png)
     print('Installer fixtures:', target)

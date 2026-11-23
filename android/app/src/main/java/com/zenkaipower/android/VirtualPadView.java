@@ -91,6 +91,8 @@ final class VirtualPadView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final RectF artBounds = new RectF();
     private final RectF timerBounds = new RectF();
+    private final Bitmap[] analogImages = new Bitmap[6];
+    private boolean analogArtwork = true;
     private boolean padMode, gesture, suppressUntilUp;
     private boolean battleActive;
     private int timerId=-1;
@@ -107,6 +109,10 @@ final class VirtualPadView extends View {
         vibration = new DeviceVibration(context);
         setContentDescription("Battle touch gamepad");
         File art = GameIO.file(gameRoot, "gamedata/touch-buttons");
+        for (int frame = 0; frame < analogImages.length; frame++) {
+            analogImages[frame] = Button.loadArt(art, "analog-" + frame + ".png");
+            analogArtwork &= analogImages[frame] != null;
+        }
         add(art, "triangle", KeyEvent.KEYCODE_BUTTON_Y, -1);
         add(art, "circle", KeyEvent.KEYCODE_BUTTON_B, -1);
         add(art, "cross", KeyEvent.KEYCODE_BUTTON_A, -1);
@@ -422,20 +428,37 @@ final class VirtualPadView extends View {
         canvas.drawBitmap(image, crop, artBounds, paint);
     }
 
+    private static int analogFrame(float dx, float dy) {
+        if (dx * dx + dy * dy <= .12f * .12f) return 0;
+        int direction = ((int)Math.round(Math.atan2(dx, -dy) * 4 / Math.PI) + 8) % 8;
+        return direction <= 4 ? direction + 1 : 9 - direction;
+    }
+
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         if (!padMode) return;
         paint.setStyle(Paint.Style.FILL);
         paint.setTextAlign(Paint.Align.CENTER);
-        paint.setColor(0x44606060);
+        paint.setColor(stickId >= 0 ? 0x99aaaaaa : 0x66000000);
         canvas.drawCircle(stickX, stickY, radius, paint);
-        paint.setColor(0x99ffffff);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(unit * .025f);
-        canvas.drawCircle(stickX, stickY, radius, paint);
-        paint.setStyle(Paint.Style.FILL);
-        paint.setColor(stickId >= 0 ? 0xaaeeeeee : 0x66cccccc);
-        canvas.drawCircle(stickX + stickDX * radius, stickY + stickDY * radius, radius * .42f, paint);
+        if (analogArtwork) {
+            int frame = analogFrame(stickDX, stickDY);
+            // Center the shared 64x64 canvas so changing poses keeps the
+            // artwork aligned with the button background.
+            float scale = radius * 1.44f / 64;
+            artBounds.set(stickX - 32 * scale, stickY - 32 * scale,
+                    stickX + 32 * scale, stickY + 32 * scale);
+            paint.setAlpha(stickId >= 0 ? 255 : 210);
+            canvas.save();
+            if (stickDX < 0 && frame >= 2 && frame <= 4) canvas.scale(-1, 1, stickX, stickY);
+            canvas.drawBitmap(analogImages[frame], null, artBounds, paint);
+            canvas.restore();
+            paint.setAlpha(255);
+        }
+        if (stickDX * stickDX + stickDY * stickDY > .12f * .12f) {
+            paint.setColor(0xaaeeeeee);
+            canvas.drawCircle(stickX + stickDX * radius, stickY + stickDY * radius, radius * .16f, paint);
+        }
         long now = SystemClock.uptimeMillis();
         boolean animating = false;
         for (Button button : buttons) {

@@ -378,13 +378,14 @@ static const char *sDclutSamplers[3] = {"depthTex", "auxTex", "clutTex"};
 typedef struct Pipe { uint32_t key, bkey, wmask; int ztst, zwrite, topo, vu, fx, nz, wb, shadow; } Pipe;
 static Pipe sPipes[1024];
 static int sPipeCount;
-static GLuint sScreenCol, sScreenAux, sScreenDep, sScreenFbo;
+static GLuint sScreenCol, sScreenAux, sScreenDep, sScreenFbo, sScreenDate;
 static int sScreenW, sScreenH, sScreenReplay;
 static uint32_t screen_pipe_key(int index) { return sPipes[index].key; }
 
 static int screen_target(int w, int h) {
     if (sScreenFbo && sScreenW == w && sScreenH == h) return 1;
     glDeleteTextures(1, &sScreenCol); glDeleteTextures(1, &sScreenAux); glDeleteTextures(1, &sScreenDep);
+    glDeleteTextures(1, &sScreenDate);
     glDeleteFramebuffers(1, &sScreenFbo);
     sScreenFbo = 0;
     glGenTextures(1, &sScreenCol);
@@ -392,6 +393,9 @@ static int screen_target(int w, int h) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glGenTextures(1, &sScreenAux);
     glBindTexture(GL_TEXTURE_2D, sScreenAux);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+    glGenTextures(1, &sScreenDate);
+    glBindTexture(GL_TEXTURE_2D, sScreenDate);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
     glGenTextures(1, &sScreenDep);
     glBindTexture(GL_TEXTURE_2D, sScreenDep);
@@ -984,19 +988,20 @@ static void frame_end(void) {
             continue;
         }
         if (d->native == 5 || d->native == 4) {
-            GLuint dst = d->native == 5 ? sDateCopy : sAuxCopy;
+            GLuint dst = replay ? sScreenDate : d->native == 5 ? sDateCopy : sAuxCopy;
             GLenum one[1] = {GL_COLOR_ATTACHMENT0};
             int rx = 0, ry = 0, rw = GS_W * SCALE, rh = GS_H * SCALE;
             if (!gsTargets[d->target].cleared) { continue; }
             /* the DATE copy: only what the draws that follow read (gs_draw.c); rows as in the Vulkan back end */
             if (d->native == 5 && !GsDraw_DateRegion(n, &rx, &ry, &rw, &rh)) { continue; }
+            if (replay) { rx = ry = 0; rw = sScreenW; rh = sScreenH; }
             /* The copy of the frame's alpha ids (the outline and the DATE passes read it). glBlitFramebuffer is
                clipped by the scissor test, so with a partial scissor in force (the split screen's halves) only
                part of the alpha would be copied and the outline would draw a stale silhouette; turn it off for
                the blit. (Vulkan's copy pass is not affected, which is why only the GL back end showed it.) */
             glDisable(GL_SCISSOR_TEST);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, sScratchRead);
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sTgAux[d->target], 0);
+            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, replay ? sScreenAux : sTgAux[d->target], 0);
             glReadBuffer(GL_COLOR_ATTACHMENT0);
             glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sScratchDraw);
             glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, dst, 0);
@@ -1078,7 +1083,7 @@ static void frame_end(void) {
             memcpy(&lastFu, &fu, sizeof(fu));
             haveFu = 1;
         }
-        set_textures((GLuint)d->tex, d->sampler, sDateCopy, 6, 0, 6);
+        set_textures((GLuint)d->tex, d->sampler, replay ? sScreenDate : sDateCopy, 6, 0, 6);
         if (d->blendc != lastBlendc) { glBlendColor(d->blendc, d->blendc, d->blendc, d->blendc); lastBlendc = d->blendc; }
         if (replay) {
             int scissor[4]; GsScreenText_Scissor(d->scissor, scissor, sScreenW, sScreenH);

@@ -32,6 +32,25 @@ def png_cell(rgba, width, column):
             chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
 
 
+def analog_images(hud):
+    """Full 64x64 HUD poses retain a common pivot; never crop poses separately."""
+    prompts = menu_font.section(hud, 2)
+    for frame in range(6):
+        rgba = menu_font.texture(prompts, frame + 1)
+        if rgba is None or len(rgba) != 64 * 64 * 4:
+            raise ValueError(f'Cannot decode game analog pose {frame}')
+        # Match the button PNG/alpha conversion while preserving the full pose.
+        def chunk(kind, payload):
+            return struct.pack('>I', len(payload)) + kind + payload + struct.pack('>I', zlib.crc32(kind + payload) & 0xffffffff)
+        rows = bytearray()
+        for y in range(64):
+            row = bytearray(rgba[y*256:(y+1)*256])
+            for a in range(3, len(row), 4): row[a] = min(255, row[a]*2)
+            rows.extend(b'\0' + row)
+        yield f'analog-{frame}.png', (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 64, 64, 8, 6, 0, 0, 0)) +
+                                     chunk(b'IDAT', zlib.compress(rows)) + chunk(b'IEND', b''))
+
+
 def button_images(data):
     boot = menu_font.read_data_entry(data, 'pzs3us1', 4)
     icons = menu_font.section(boot, 8)
@@ -50,6 +69,7 @@ def button_images(data):
         yield name + '.png', png_cell(rgba, width, 0)
         if index in (20, 21, 22, 23):
             yield name + '-pressed.png', png_cell(rgba, width, 1)
+    yield from analog_images(menu_font.read_data_entry(data, 'pzs3us1', 5))
 
 
 if __name__ == '__main__':

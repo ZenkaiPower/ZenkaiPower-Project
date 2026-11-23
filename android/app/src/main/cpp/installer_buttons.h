@@ -52,6 +52,14 @@ void android_buttons(const std::string &root) {
             asset(assets,std::string(names[i])+(column ? "-pressed.png" : ".png"),png_rgba(32,32,rgba));
         }
     }
+    // Common battle HUD, bank R3: neutral, up, upper-right, right, lower-right, down.
+    Bytes hud=afs.entry(5,8<<20);
+    View common(hud); size_t promptsOffset=common.word(2*4)&~3u;
+    View prompts=common.sub(promptsOffset,common.n-promptsOffset);
+    for(int frame=0;frame<6;frame++) {
+        NativeTitleLogo image=android_icon(prompts,frame+1);
+        asset(assets,"analog-"+std::to_string(frame)+".png",png_rgba(image.width,image.height,image.pixels));
+    }
     publish_assets(root+"gamedata/touch-buttons.pak",assets);
     say("@ok Touch controller artwork installed");
 }

@@ -47,7 +47,7 @@ static SDL_GPUTexture *sDateCopy; /* the alpha bytes as they were before a run o
 static SDL_GPUTexture *sAuxCopy;  /* the alpha bytes, copied so that a pass can read them while it writes them */
 /* The attachments of gsTargets[i]: what the shared table holds is GS state only, this is the GPU side of it. */
 static SDL_GPUTexture *sTgCol[MAX_TARGETS], *sTgAux[MAX_TARGETS], *sTgDep[MAX_TARGETS];
-static SDL_GPUTexture *sScreenCol, *sScreenAux, *sScreenDep;
+static SDL_GPUTexture *sScreenCol, *sScreenAux, *sScreenDep, *sScreenDate;
 static SDL_GPUGraphicsPipeline *sScreenCopyPipe;
 static SDL_GPUBuffer *sScreenVbuf;
 static int sScreenW, sScreenH;
@@ -67,8 +67,9 @@ static int sPipeCount;
 static uint32_t screen_pipe_key(int index) { return sPipes[index].key; }
 
 static int screen_target(int w, int h) {
-    if (sScreenCol && sScreenAux && sScreenDep && sScreenVbuf && sScreenW == w && sScreenH == h) return 1;
+    if (sScreenCol && sScreenAux && sScreenDep && sScreenDate && sScreenVbuf && sScreenW == w && sScreenH == h) return 1;
     SDL_ReleaseGPUTexture(sDev, sScreenCol); SDL_ReleaseGPUTexture(sDev, sScreenAux); SDL_ReleaseGPUTexture(sDev, sScreenDep);
+    SDL_ReleaseGPUTexture(sDev, sScreenDate);
     SDL_GPUTextureCreateInfo ci;
     SDL_zero(ci);
     ci.type = SDL_GPU_TEXTURETYPE_2D;
@@ -78,6 +79,7 @@ static int screen_target(int w, int h) {
     sScreenCol = SDL_CreateGPUTexture(sDev, &ci);
     ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
     sScreenAux = SDL_CreateGPUTexture(sDev, &ci);
+    sScreenDate = SDL_CreateGPUTexture(sDev, &ci);
     ci.format = sDepthFormat;
     ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
     sScreenDep = SDL_CreateGPUTexture(sDev, &ci);
@@ -87,7 +89,7 @@ static int screen_target(int w, int h) {
         sScreenVbuf = SDL_CreateGPUBuffer(sDev, &bi);
     }
     sScreenW = w; sScreenH = h;
-    return sScreenCol && sScreenAux && sScreenDep && sScreenVbuf;
+    return sScreenCol && sScreenAux && sScreenDep && sScreenDate && sScreenVbuf;
 }
 
 static void screen_capture(SDL_GPUCommandBuffer *cmd, int target) {
@@ -1228,13 +1230,14 @@ static void vk_frame_end(void) {
             if (!GsDraw_DateRegion(n, &rx, &ry, &rw, &rh)) { /* only what the draws that follow read (gs_draw.c) */
                 continue;
             }
+            if (replay) { rx = ry = 0; rw = sScreenW; rh = sScreenH; }
             cp = SDL_BeginGPUCopyPass(cmd);
             SDL_zero(from);
             SDL_zero(to);
-            from.texture = sTgAux[d->target];
+            from.texture = replay ? sScreenAux : sTgAux[d->target];
             from.x = to.x = (Uint32)rx;
             from.y = to.y = (Uint32)ry;
-            to.texture = sDateCopy;
+            to.texture = replay ? sScreenDate : sDateCopy;
             SDL_CopyGPUTextureToTexture(cp, &from, &to, (Uint32)rw, (Uint32)rh, 1, false);
             SDL_EndGPUCopyPass(cp);
             continue;
@@ -1455,7 +1458,7 @@ static void vk_frame_end(void) {
             lastSampler = (int)d->sampler;
             two[0].texture = lastTex;
             two[0].sampler = sSamplers[d->sampler];
-            two[1].texture = sDateCopy;
+            two[1].texture = replay ? sScreenDate : sDateCopy;
             two[1].sampler = sSamplers[6];
             SDL_BindGPUFragmentSamplers(pass, 0, two, 2);
         }
