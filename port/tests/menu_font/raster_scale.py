@@ -26,13 +26,13 @@ static int Port_Setting(const char *name,int fallback) {
 int main(void) {
     assert(MenuText_RasterScale(8)==2); /* safe startup before an output exists */
     MenuText_OutputSize(1920,1080,1778);
-    for(int resolution=1;resolution<=8;resolution++) assert(MenuText_RasterScale(resolution)==3);
+    for(int resolution=1;resolution<=8;resolution++) assert(MenuText_RasterScale(resolution)==4);
     MenuText_OutputSize(3840,2160,1778);
-    assert(MenuText_RasterScale(1)==4); /* existing font atlas limit */
+    assert(MenuText_RasterScale(1)==8); /* display raster atlas limit */
     MenuText_OutputSize(1080,2400,1778);
-    assert(MenuText_RasterScale(8)==2); /* portrait bars are not part of the picture */
+    assert(MenuText_RasterScale(8)==3); /* portrait bars are not part of the picture */
     MenuText_OutputSize(0,0,0);
-    assert(MenuText_RasterScale(8)==2); /* minimized window preserves valid output */
+    assert(MenuText_RasterScale(8)==3); /* minimized window preserves valid output */
     MenuText_OutputSize(2560,1080,1333);
     assert(MenuText_RasterScale(1)==3); /* side bars do not increase quality */
     setting=0;

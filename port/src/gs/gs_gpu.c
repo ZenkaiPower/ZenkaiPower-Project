@@ -23,6 +23,7 @@
 #include <string.h>
 #include "gs_internal.h"
 #include "gs_draw.h"
+#include "gs_screen_text.h"
 #include "video_driver.h"
 #include "shaders.h" /* generated: kGsVertSpv, kGsFragSpv */
 #include "ui.h"
@@ -46,6 +47,10 @@ static SDL_GPUTexture *sDateCopy; /* the alpha bytes as they were before a run o
 static SDL_GPUTexture *sAuxCopy;  /* the alpha bytes, copied so that a pass can read them while it writes them */
 /* The attachments of gsTargets[i]: what the shared table holds is GS state only, this is the GPU side of it. */
 static SDL_GPUTexture *sTgCol[MAX_TARGETS], *sTgAux[MAX_TARGETS], *sTgDep[MAX_TARGETS];
+static SDL_GPUTexture *sScreenCol, *sScreenAux, *sScreenDep;
+static SDL_GPUGraphicsPipeline *sScreenCopyPipe;
+static SDL_GPUBuffer *sScreenVbuf;
+static int sScreenW, sScreenH;
 static SDL_GPUBuffer *sVuVbuf;
 static SDL_GPUTransferBuffer *sVuXfer;
 static SDL_GPUBuffer *sVuIbuf;          /* gsVuIdx */
@@ -59,6 +64,52 @@ typedef struct Pipe {
 } Pipe;
 static Pipe sPipes[1024];
 static int sPipeCount;
+static uint32_t screen_pipe_key(int index) { return sPipes[index].key; }
+
+static int screen_target(int w, int h) {
+    if (sScreenCol && sScreenAux && sScreenDep && sScreenVbuf && sScreenW == w && sScreenH == h) return 1;
+    SDL_ReleaseGPUTexture(sDev, sScreenCol); SDL_ReleaseGPUTexture(sDev, sScreenAux); SDL_ReleaseGPUTexture(sDev, sScreenDep);
+    SDL_GPUTextureCreateInfo ci;
+    SDL_zero(ci);
+    ci.type = SDL_GPU_TEXTURETYPE_2D;
+    ci.width = w; ci.height = h; ci.layer_count_or_depth = 1; ci.num_levels = 1;
+    ci.format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_COLOR_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    sScreenCol = SDL_CreateGPUTexture(sDev, &ci);
+    ci.format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+    sScreenAux = SDL_CreateGPUTexture(sDev, &ci);
+    ci.format = sDepthFormat;
+    ci.usage = SDL_GPU_TEXTUREUSAGE_DEPTH_STENCIL_TARGET | SDL_GPU_TEXTUREUSAGE_SAMPLER;
+    sScreenDep = SDL_CreateGPUTexture(sDev, &ci);
+    if (!sScreenVbuf) {
+        SDL_GPUBufferCreateInfo bi = {0};
+        bi.usage = SDL_GPU_BUFFERUSAGE_VERTEX; bi.size = MAX_VERTS * sizeof(Vtx);
+        sScreenVbuf = SDL_CreateGPUBuffer(sDev, &bi);
+    }
+    sScreenW = w; sScreenH = h;
+    return sScreenCol && sScreenAux && sScreenDep && sScreenVbuf;
+}
+
+static void screen_capture(SDL_GPUCommandBuffer *cmd, int target) {
+    SDL_GPUColorTargetInfo colors[2] = {{0}};
+    SDL_GPUDepthStencilTargetInfo depth = {0};
+    SDL_GPUTextureSamplerBinding sources[3] = {
+        {sTgCol[target], sSamplers[7]}, {sTgAux[target], sSamplers[6]}, {sTgDep[target], sSamplers[6]}
+    };
+    colors[0].texture = sScreenCol; colors[1].texture = sScreenAux;
+    for (int i = 0; i < 2; i++) {
+        colors[i].load_op = SDL_GPU_LOADOP_DONT_CARE;
+        colors[i].store_op = SDL_GPU_STOREOP_STORE;
+    }
+    depth.texture = sScreenDep;
+    depth.load_op = SDL_GPU_LOADOP_DONT_CARE; depth.store_op = SDL_GPU_STOREOP_STORE;
+    depth.stencil_load_op = SDL_GPU_LOADOP_DONT_CARE; depth.stencil_store_op = SDL_GPU_STOREOP_DONT_CARE;
+    SDL_GPURenderPass *pass = SDL_BeginGPURenderPass(cmd, colors, 2, &depth);
+    SDL_BindGPUGraphicsPipeline(pass, sScreenCopyPipe);
+    SDL_BindGPUFragmentSamplers(pass, 0, sources, 3);
+    SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
+    SDL_EndGPURenderPass(pass);
+}
 
 /* textures created this frame, to upload in the copy pass */
 #define MAX_PENDING 4096
@@ -512,6 +563,24 @@ static void vsync_apply(int on) {
 
 /* --- init --------------------------------------------------------------------------------------- */
 
+static int screen_pipeline_create(void) {
+    SDL_GPUShader *fs = shader(SHADER_CODE(kScreentextFrag), SDL_GPU_SHADERSTAGE_FRAGMENT, 3, 0);
+    SDL_GPUColorTargetDescription colors[2] = {{0}};
+    SDL_GPUGraphicsPipelineCreateInfo ci = {0};
+    colors[0].format = SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM;
+    colors[1].format = SDL_GPU_TEXTUREFORMAT_R8_UNORM;
+    ci.vertex_shader = sFxVs; ci.fragment_shader = fs;
+    ci.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    ci.target_info.color_target_descriptions = colors; ci.target_info.num_color_targets = 2;
+    ci.target_info.has_depth_stencil_target = true; ci.target_info.depth_stencil_format = sDepthFormat;
+    ci.depth_stencil_state.enable_depth_test = true; ci.depth_stencil_state.enable_depth_write = true;
+    ci.depth_stencil_state.compare_op = SDL_GPU_COMPAREOP_ALWAYS;
+    sScreenCopyPipe = fs ? SDL_CreateGPUGraphicsPipeline(sDev, &ci) : NULL;
+    if (fs) SDL_ReleaseGPUShader(sDev, fs);
+    if (!sScreenCopyPipe) { fprintf(stderr, "zenkaipower: screen text pipeline: %s\n", SDL_GetError()); return 0; }
+    return 1;
+}
+
 static int vk_init(void) {
     SDL_GPUBufferCreateInfo bi;
     SDL_GPUTransferBufferCreateInfo ti;
@@ -641,6 +710,7 @@ static int vk_init(void) {
         }
     }
     sDclutFs = shader(SHADER_CODE(kDclutFrag), SDL_GPU_SHADERSTAGE_FRAGMENT, 3, 1);
+    if (!screen_pipeline_create()) return 0;
     copies_create();
 #if SDL_VERSION_ATLEAST(3, 4, 0)
     {   /* the graphics card's name, for F1 > Video */
@@ -867,6 +937,8 @@ static void vk_frame_end(void) {
     int lastScissor[4];
     float lastBlend = -1.0f;
     uint32_t n;
+    int screenStart = -1, screenSaved = 0, screenTarget = -1, outputW = 0, outputH = 0, pictureW, pictureH;
+    Vtx *screenVertices = NULL;
 
     GsGpu_TitlePoll();
     if (sVsyncPending >= 0) {
@@ -957,6 +1029,20 @@ static void vk_frame_end(void) {
             }
         }
     }
+    SDL_GetWindowSizeInPixels(sWindow, &outputW, &outputH);
+    GsGpu_OutputSize(outputW, outputH);
+    { extern int Port_PageAspectMilli(void);
+      GsScreenText_Size(outputW, outputH, Port_PageAspectMilli(), &pictureW, &pictureH); }
+    screenTarget = gGsMainFbp >= 0 ? GsDraw_TargetGet((uint32_t)gGsMainFbp, 0) : gsTargetCount ? 0 : -1;
+    if (screenTarget < 0 && gsTargetCount) screenTarget = 0;
+    if (screenTarget >= 0 && Port_Setting("text_screen_size", 1) &&
+        (pictureW > 512*SCALE || pictureH > 448*SCALE)) {
+        screenStart = GsScreenText_Start(screenTarget, screen_pipe_key);
+        if (screenStart >= 0) {
+            screenVertices = GsScreenText_Vertices();
+            if (!screenVertices || !screen_target(pictureW, pictureH)) screenStart = -1;
+        }
+    }
     sEndT[0] = gpu_now();
     cmd = SDL_AcquireGPUCommandBuffer(sDev);
     /* uploads: this frame's vertices and the textures decoded for it */
@@ -973,6 +1059,13 @@ static void vk_frame_end(void) {
         dst.offset = 0;
         dst.size = gsVertCount * sizeof(Vtx);
         SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        if (screenStart >= 0) {
+            p = SDL_MapGPUTransferBuffer(sDev, sVxfer, true);
+            memcpy(p, screenVertices, gsVertCount * sizeof(Vtx));
+            SDL_UnmapGPUTransferBuffer(sDev, sVxfer);
+            dst.buffer = sScreenVbuf;
+            SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        }
     }
     if (gsVuVertCount != 0) {
         SDL_GPUTransferBufferLocation src;
@@ -1078,8 +1171,20 @@ static void vk_frame_end(void) {
     if (aux_plan_on()) {
         aux_plan();
     }
-    for (n = 0; n < gsDrawCount; n++) {
+    /* Keep the original framebuffer for game reads. Only presentation uses
+       the second, display-resolution replay of the UI suffix. */
+    for (int replay = 0; replay < (screenSaved ? 2 : 1); replay++) {
+    if (replay) {
+        if (pass) { SDL_EndGPURenderPass(pass); pass = NULL; }
+        cur = -1;
+    }
+    for (n = replay ? (unsigned)screenStart : 0; n < gsDrawCount; n++) {
         const GsDraw *d = &gsDraws[n];
+        if (!replay && (int)n == screenStart && gsTargets[screenTarget].cleared) {
+            if (pass) { SDL_EndGPURenderPass(pass); pass = NULL; }
+            screen_capture(cmd, screenTarget);
+            screenSaved = 1; cur = -1;
+        }
         SDL_GPUBufferBinding vb;
         SDL_GPUTextureSamplerBinding ts;
         SDL_FColor bc;
@@ -1238,7 +1343,7 @@ static void vk_frame_end(void) {
         }
         {
             float clearDepth;
-            if (clear_draw(d, &clearDepth)) { /* the frame's clear: the render pass clears instead (clear_draw) */
+            if (!replay && clear_draw(d, &clearDepth)) { /* the frame's clear: the render pass clears instead (clear_draw) */
                 SDL_GPUColorTargetInfo cts[2];
                 SDL_GPUDepthStencilTargetInfo dt;
                 if (pass != NULL) {
@@ -1285,13 +1390,13 @@ static void vk_frame_end(void) {
             }
             SDL_zero(ct);
             SDL_zero(dt);
-            ct.texture = sTgCol[d->target];
+            ct.texture = replay ? sScreenCol : sTgCol[d->target];
             ct.load_op = gsTargets[d->target].cleared ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
             ct.store_op = SDL_GPU_STOREOP_STORE;
             cts[1] = ct;
-            cts[1].texture = sTgAux[d->target];
+            cts[1].texture = replay ? sScreenAux : sTgAux[d->target];
             if (getenv("ZENKAIPOWER_GPU_MAGENTA") != NULL) { ct.clear_color.r = 1.0f; ct.clear_color.b = 1.0f; ct.clear_color.a = 1.0f; }
-            dt.texture = sTgDep[d->target];
+            dt.texture = replay ? sScreenDep : sTgDep[d->target];
             dt.load_op = gsTargets[d->target].cleared ? SDL_GPU_LOADOP_LOAD : SDL_GPU_LOADOP_CLEAR;
             dt.store_op = SDL_GPU_STOREOP_STORE;
             /* Shadow batches stay in this pass. The mask has no use after it, so avoid
@@ -1310,7 +1415,7 @@ static void vk_frame_end(void) {
             lastBlend = -1.0f;
         }
         if (bound != (d->vu != 0)) {
-            vb.buffer = d->vu ? sVuVbuf : sVbuf;
+            vb.buffer = replay ? sScreenVbuf : d->vu ? sVuVbuf : sVbuf;
             vb.offset = 0;
             SDL_BindGPUVertexBuffers(pass, 0, &vb, 1);
             if (d->vu) {
@@ -1331,7 +1436,7 @@ static void vk_frame_end(void) {
         /* the alpha bytes: kept where they are read later, left alone elsewhere (aux_plan) */
         pipe = (int)d->pipeline;
         split = 0;
-        if (aux_plan_on() && (sPipes[pipe].key >> 16 & SDL_GPU_COLORCOMPONENT_A)) {
+        if (!replay && aux_plan_on() && (sPipes[pipe].key >> 16 & SDL_GPU_COLORCOMPONENT_A)) {
             const int16_t *r = sAuxNeed[n];
             if (r[2] <= r[0]) {
                 pipe = pipe_no_aux(pipe);
@@ -1357,6 +1462,7 @@ static void vk_frame_end(void) {
         memset(&fu, 0, sizeof(fu));
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
+        if (replay && fu.misc[3] > 0) fu.misc[3] = 0;
         memcpy(fu.rect, d->rect, sizeof(fu.rect));
         memcpy(fu.orig, d->orig, sizeof(fu.orig));
         fu.extra[0] = d->vu ? (gsVuUni[d->uniform].misc[2] > 0.0f ? gsVuUni[d->uniform].misc[2] : 0.0f) : gsZMax;
@@ -1373,6 +1479,10 @@ static void vk_frame_end(void) {
         }
         if (!haveScissor || memcmp(d->scissor, lastScissor, sizeof(d->scissor)) != 0) {
             SDL_Rect r = { d->scissor[0], d->scissor[1], d->scissor[2], d->scissor[3] };
+            if (replay) {
+                int scissor[4]; GsScreenText_Scissor(d->scissor, scissor, sScreenW, sScreenH);
+                r = (SDL_Rect){scissor[0], scissor[1], scissor[2], scissor[3]};
+            }
             SDL_SetGPUScissor(pass, &r);
             memcpy(lastScissor, d->scissor, sizeof(lastScissor));
             haveScissor = 1;
@@ -1408,7 +1518,10 @@ static void vk_frame_end(void) {
     }
     if (pass != NULL) {
         SDL_EndGPURenderPass(pass);
+        pass = NULL;
     }
+    }
+    free(screenVertices);
     /* Show the frame's own buffer: the one sceGsSwapDBuff set up for this frame. (Guessing "the buffer with the most
        draws" showed the shadow buffer, a grey fighter on black, on frames where it happened to receive more.) */
     best = gGsMainFbp >= 0 ? GsDraw_TargetGet((uint32_t)gGsMainFbp, 0) : -1;
@@ -1425,18 +1538,18 @@ static void vk_frame_end(void) {
         bl.source.texture = sTgCol[best];
         bl.source.w = 512 * SCALE;
         bl.source.h = 448 * SCALE;
+        if (screenSaved && best == screenTarget) {
+            bl.source.texture = sScreenCol;
+            bl.source.w = sScreenW; bl.source.h = sScreenH;
+        }
         bl.destination.texture = swap;
         {
             /* The picture keeps its shape whatever the window's: 4:3, or 16:9 in widescreen, centred, the rest
                black. (The 512 x 448 buffer is not square-pixelled: it always fills a 4:3 or 16:9 screen.) */
             extern int Port_PageAspectMilli(void); /* plat_stub.c: 4:3 while the menus run, if asked for */
-            float want = (float)Port_PageAspectMilli() / 1000.0f;
-            Uint32 w = sw, h = sh;
-            if ((float)sw > (float)sh * want) {
-                w = (Uint32)((float)sh * want + 0.5f);
-            } else {
-                h = (Uint32)((float)sw / want + 0.5f);
-            }
+            int pictureWidth, pictureHeight;
+            GsScreenText_Size(sw, sh, Port_PageAspectMilli(), &pictureWidth, &pictureHeight);
+            Uint32 w = (Uint32)pictureWidth, h = (Uint32)pictureHeight;
             bl.destination.x = (sw - w) / 2;
             bl.destination.y = (sh - h) / 2;
             bl.destination.w = w;

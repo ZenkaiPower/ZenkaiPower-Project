@@ -22,9 +22,9 @@ code=r'''
 '''+structure+r'''
 static TboLine sLines[TBO_TEXT_SLOTS];
 static pthread_mutex_t sLock=PTHREAD_MUTEX_INITIALIZER;
-static int scale=2,antialias=1;
+static int scale=2;
 int MenuText_RasterScale(int internal) {(void)internal;return scale;}
-uint32_t MenuText_RasterKey(void) {return scale*2+antialias;}
+uint32_t MenuText_RasterKey(void) {return scale;}
 uint8_t *MenuText_RenderWiiLabel(const char *text,int style,int raster,int *w,int *h) {
     (void)text;*w=512*raster;*h=(style==2 ? 64:32)*raster;
     return calloc((size_t)*w**h,4);
@@ -40,7 +40,7 @@ int main(void) {
     for(int kind=3;kind<=5;kind++) {
         line->kind=kind;line->h=kind==5 ? 128:64;
         uint32_t previous=0;
-        for(scale=2;scale<=4;scale++) {
+        for(scale=2;scale<=8;scale++) {
             uint32_t version,w,h;
             uint32_t *pixels=TboText_Pixels(TBO_TEXT_BASE,&version,&w,&h);
             assert(pixels && w==512u*scale && h==(unsigned)line->h*scale/2);
@@ -48,7 +48,6 @@ int main(void) {
             previous=version;free(pixels);
             assert(line->w==1024); /* the layout and UV measurements stay unchanged */
         }
-        antialias=0;assert(TboText_Version(TBO_TEXT_BASE)!=previous);antialias=1;
     }
     puts("Options captions: output raster scale, stable layout and cache refresh passed");
 }

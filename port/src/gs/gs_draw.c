@@ -1727,7 +1727,7 @@ void Port_WallMesh(const void *key, int second, int culled, const float *screen,
 /* Two draws can be merged into one call when everything they need is the same. `scissor` is compared as
    four ints (the scissor a draw has recorded). */
 static int same_state(const GsDraw *a, const GsDraw *b) {
-    return !a->native && a->vu == b->vu && a->wall == b->wall && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
+    return !a->native && a->vu == b->vu && a->wall == b->wall && a->screenText == b->screenText && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
            memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->misc[1] == b->misc[1] &&
            a->misc[2] == b->misc[2] && a->misc[3] == b->misc[3] && a->blendc == b->blendc &&
            memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 && memcmp(a->orig, b->orig, sizeof(a->orig)) == 0 &&
@@ -1864,6 +1864,9 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     uint32_t tboId = (uint32_t)((t0 >> 37) & 0x3FFF);
     int generatedText = (tbo && tboId >= TBO_TEXT_BASE && tboId < TBO_TEXT_BASE + TBO_TEXT_SLOTS) ||
         (!d.tex_is_target && sLast != NULL && sLast->tex == d.tex && sLast->replaced >= 2);
+    /* Battle announcements also keep their display-resolution pass when using
+       original artwork or a texture-pack font instead of generated lettering. */
+    d.screenText = generatedText || battleText;
     if (type == 6 || fst) {
         d.sampler &= 7; /* 2D art: never the smaller copies of a replacement */
     }
@@ -1889,11 +1892,10 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
             d.misc[3] = (float)SCALE;
         }
     }
-    if (generatedText) {
+    if (generatedText || battleText) {
         /* Font edge filtering is independent of the artwork's 2D filter.
            Sampling mip levels makes small generated Options captions blurry. */
-        d.sampler &= ~(1 | 8);
-        if (MenuText_Antialias()) d.sampler |= 1;
+        d.sampler = (d.sampler & ~8) | 1;
     }
     date_snapshot(&d);
     for (i = 0; i < n; i++) {

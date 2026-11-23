@@ -19,6 +19,7 @@
 #include <string.h>
 #include "gs_internal.h"
 #include "gs_draw.h"
+#include "gs_screen_text.h"
 #include "shaders.h"
 #include "ui.h"
 
@@ -377,6 +378,48 @@ static const char *sDclutSamplers[3] = {"depthTex", "auxTex", "clutTex"};
 typedef struct Pipe { uint32_t key, bkey, wmask; int ztst, zwrite, topo, vu, fx, nz, wb, shadow; } Pipe;
 static Pipe sPipes[1024];
 static int sPipeCount;
+static GLuint sScreenCol, sScreenAux, sScreenDep, sScreenFbo;
+static int sScreenW, sScreenH, sScreenReplay;
+static uint32_t screen_pipe_key(int index) { return sPipes[index].key; }
+
+static int screen_target(int w, int h) {
+    if (sScreenFbo && sScreenW == w && sScreenH == h) return 1;
+    glDeleteTextures(1, &sScreenCol); glDeleteTextures(1, &sScreenAux); glDeleteTextures(1, &sScreenDep);
+    glDeleteFramebuffers(1, &sScreenFbo);
+    sScreenFbo = 0;
+    glGenTextures(1, &sScreenCol);
+    glBindTexture(GL_TEXTURE_2D, sScreenCol);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glGenTextures(1, &sScreenAux);
+    glBindTexture(GL_TEXTURE_2D, sScreenAux);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_R8, w, h, 0, GL_RED, GL_UNSIGNED_BYTE, NULL);
+    glGenTextures(1, &sScreenDep);
+    glBindTexture(GL_TEXTURE_2D, sScreenDep);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH32F_STENCIL8, w, h, 0, GL_DEPTH_STENCIL, GL_FLOAT_32_UNSIGNED_INT_24_8_REV, NULL);
+    glGenFramebuffers(1, &sScreenFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, sScreenFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sScreenCol, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, sScreenAux, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, sScreenDep, 0);
+    sScreenW = w; sScreenH = h;
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) return 1;
+    glDeleteFramebuffers(1, &sScreenFbo); sScreenFbo = 0;
+    return 0;
+}
+
+static void screen_capture(int target) {
+    glDisable(GL_SCISSOR_TEST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, sTgFbo[target]);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sScreenFbo);
+    for (int attachment = 0; attachment < 2; attachment++) {
+        GLenum buffer = GL_COLOR_ATTACHMENT0 + attachment;
+        glReadBuffer(buffer); glDrawBuffers(1, &buffer);
+        glBlitFramebuffer(0, 0, 512*SCALE, 448*SCALE, 0, 0, sScreenW, sScreenH, GL_COLOR_BUFFER_BIT,
+                          attachment ? GL_NEAREST : GL_LINEAR);
+    }
+    glBlitFramebuffer(0, 0, 512*SCALE, 448*SCALE, 0, 0, sScreenW, sScreenH, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    glEnable(GL_SCISSOR_TEST);
+}
 
 static void target_ensure(int i);
 static void target_drop(int i);
@@ -637,9 +680,9 @@ static void set_textures(GLuint t0, int s0, GLuint t1, int s1, GLuint t2, int s2
 
 static void bind_target(int i, int clear) {
     GLenum bufs[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-    glBindFramebuffer(GL_FRAMEBUFFER, sTgFbo[i]);
+    glBindFramebuffer(GL_FRAMEBUFFER, sScreenReplay ? sScreenFbo : sTgFbo[i]);
     glDrawBuffers(2, bufs);
-    glViewport(0, 0, GS_W * SCALE, GS_H * SCALE);
+    glViewport(0, 0, sScreenReplay ? sScreenW : GS_W * SCALE, sScreenReplay ? sScreenH : GS_H * SCALE);
     if (clear) {
         /* as the Vulkan back end clears: colour and alpha 0 (alpha 1 only with the magenta aid), the alpha byte 0 */
         float col[4] = {0.0f, 0.0f, 0.0f, 0.0f}, aux[4] = {0.0f, 0.0f, 0.0f, 0.0f}, dep = 0.0f;
@@ -806,6 +849,9 @@ static void frame_end(void) {
     uint32_t n;
     struct { int32_t mode[4]; float misc[4]; float rect[4]; float orig[4]; float extra[4]; } fu, lastFu;
     int haveFu = 0;
+    int screenStart = -1, screenSaved = 0, screenTarget = -1, outputW = 0, outputH = 0, pictureW, pictureH;
+    Vtx *screenVertices = NULL;
+    sScreenReplay = 0;
 
     GsGpu_TitlePoll();
     PortInput_NativeKeyboardUpdate();
@@ -882,6 +928,20 @@ static void frame_end(void) {
     }
     gGsFbUploads = 0;
 
+    SDL_GetWindowSizeInPixels(sWindow, &outputW, &outputH);
+    GsGpu_OutputSize(outputW, outputH);
+    { extern int Port_PageAspectMilli(void);
+      GsScreenText_Size(outputW, outputH, Port_PageAspectMilli(), &pictureW, &pictureH); }
+    screenTarget = gGsMainFbp >= 0 ? GsDraw_TargetGet((uint32_t)gGsMainFbp, 0) : gsTargetCount ? 0 : -1;
+    if (screenTarget < 0 && gsTargetCount) screenTarget = 0;
+    if (screenTarget >= 0 && Port_Setting("text_screen_size", 1) &&
+        (pictureW > 512*SCALE || pictureH > 448*SCALE)) {
+        screenStart = GsScreenText_Start(screenTarget, screen_pipe_key);
+        if (screenStart >= 0) {
+            screenVertices = GsScreenText_Vertices();
+            if (!screenVertices || !screen_target(pictureW, pictureH)) screenStart = -1;
+        }
+    }
     glBindVertexArray(sVaoGs);
     sCurPipe = -1;
     sCurProgram = 0;
@@ -893,8 +953,21 @@ static void frame_end(void) {
        back on for the frame's own draws, or every partial scissor (the split screen's halves, the HUD, the
        fighters' shadows) is ignored and the two views overlap across the whole screen. */
     glEnable(GL_SCISSOR_TEST);
-    for (n = 0; n < gsDrawCount; n++) {
+    /* Keep the original framebuffer for game reads. Only presentation uses
+       the second, display-resolution replay of the UI suffix. */
+    for (int replay = 0; replay < (screenSaved ? 2 : 1); replay++) {
+    if (replay) {
+        sScreenReplay = 1;
+        glBindBuffer(GL_ARRAY_BUFFER, sVboGs);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, (GLsizeiptr)(gsVertCount * sizeof(Vtx)), screenVertices);
+        cur = -1; sCurPipe = -1; haveFu = haveScissor = 0; lastBlendc = -1;
+    }
+    for (n = replay ? (unsigned)screenStart : 0; n < gsDrawCount; n++) {
         const GsDraw *d = &gsDraws[n];
+        if (!replay && (int)n == screenStart && gsTargets[screenTarget].cleared) {
+            screen_capture(screenTarget);
+            screenSaved = 1; cur = -1; haveScissor = 0;
+        }
         int shadowStart;
         if (d->native >= 100) {
             GLenum one[1] = {GL_COLOR_ATTACHMENT0};
@@ -995,6 +1068,7 @@ static void frame_end(void) {
         memset(&fu, 0, sizeof(fu));
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
+        if (replay && fu.misc[3] > 0) fu.misc[3] = 0;
         memcpy(fu.rect, d->rect, sizeof(fu.rect));
         memcpy(fu.orig, d->orig, sizeof(fu.orig));
         fu.extra[0] = d->vu ? (gsVuUni[d->uniform].misc[2] > 0.0f ? gsVuUni[d->uniform].misc[2] : 0.0f) : gsZMax;
@@ -1006,13 +1080,19 @@ static void frame_end(void) {
         }
         set_textures((GLuint)d->tex, d->sampler, sDateCopy, 6, 0, 6);
         if (d->blendc != lastBlendc) { glBlendColor(d->blendc, d->blendc, d->blendc, d->blendc); lastBlendc = d->blendc; }
-        set_scissor(d->scissor);
+        if (replay) {
+            int scissor[4]; GsScreenText_Scissor(d->scissor, scissor, sScreenW, sScreenH);
+            set_scissor(scissor);
+        } else set_scissor(d->scissor);
         if (d->vu) {
             glDrawElements(GL_TRIANGLES, (GLsizei)d->count, GL_UNSIGNED_INT, (const void *)(uintptr_t)(d->first * sizeof(uint32_t)));
         } else {
             glDrawArrays(sPipes[d->pipeline].topo == 0 ? GL_TRIANGLES : sPipes[d->pipeline].topo == 1 ? GL_LINES : GL_POINTS, (GLint)d->first, (GLsizei)d->count);
         }
     }
+    }
+    free(screenVertices);
+    sScreenReplay = 0;
 
     /* the shown buffer: the one sceGsSwapDBuff set up for this frame, else the first target */
     best = gGsMainFbp >= 0 ? GsDraw_TargetGet((uint32_t)gGsMainFbp, 0) : -1;
@@ -1032,9 +1112,8 @@ static void frame_end(void) {
         glEnable(GL_SCISSOR_TEST);
         if (best >= 0 && gsTargets[best].cleared) {
             extern int Port_PageAspectMilli(void); /* plat_stub.c: 4:3 while the menus run, if asked for */
-            float want = (float)Port_PageAspectMilli() / 1000.0f;
-            int w = sw, h = sh, dx, dy;
-            if ((float)sw > (float)sh * want) { w = (int)((float)sh * want + 0.5f); } else { h = (int)((float)sw / want + 0.5f); }
+            int w, h, dx, dy;
+            GsScreenText_Size(sw, sh, Port_PageAspectMilli(), &w, &h);
             dx = (sw - w) / 2;
             dy = (sh - h) / 2;
             if (getenv("ZENKAIPOWER_GS_VERBOSE") != NULL) {
@@ -1055,12 +1134,19 @@ static void frame_end(void) {
             glDisable(GL_DEPTH_TEST);
             glDisable(GL_BLEND);
             glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+            if (screenSaved && best == screenTarget) {
+                glBindFramebuffer(GL_READ_FRAMEBUFFER, sScreenFbo);
+                glReadBuffer(GL_COLOR_ATTACHMENT0);
+                glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+                glBlitFramebuffer(0, 0, sScreenW, sScreenH, dx, dy, dx+w, dy+h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+            } else {
             glUseProgram(sPresentProg);
             glBindVertexArray(sVaoGs); /* core profile needs a bound VAO to draw (the present uses no attributes) */
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, sTgCol[best]);
             glBindSampler(0, sSamplers[7]); /* linear, clamped */
             glDrawArrays(GL_TRIANGLES, 0, 3);
+            }
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
     }

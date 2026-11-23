@@ -17,11 +17,10 @@ int MenuText_IsBattleTexture(const uint8_t *rgba, int width, int height, int ind
 int MenuText_MayHaveBattleTexture(int width, int height, int indexed);
 /* Physical output pixels and the active picture aspect, supplied by either renderer. */
 void MenuText_OutputSize(int width, int height, int aspect);
-/* Text raster quality follows the display by default (2..4x). The internal
+/* Text raster quality follows the display by default (2..8x). The internal
    text_screen_size setting can restore the internal-resolution-based choice. */
 int MenuText_RasterScale(int internalScale);
-int MenuText_Antialias(void); /* internal text_antialias setting, default on */
-uint32_t MenuText_RasterKey(void); /* screen raster scale and antialiasing for generated textures */
+uint32_t MenuText_RasterKey(void); /* screen raster scale for generated textures */
 /* For the renderer's texture cache: changes with font settings, raster scale, or a newly made label catalog.
    The catalog change refreshes Battle texture classification even when all fonts are Original. */
 uint32_t MenuText_TexKey(int width, int height, int indexed, int tbp, int cbp, int scale);

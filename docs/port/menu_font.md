@@ -233,7 +233,7 @@ Added song and stage names share the corresponding fill and outline colors.
 - `port/tools/menu_font.py`: an edited `labels.json` into the files the game reads; `--compare-styles` renders a PNG.
   `--out` names the folder.
 - `port/src/gs/menu_text.c`: the font check, the drawing and the list of fonts, for Vulkan and OpenGL. Text is
-  rasterized at 2–4 times the PS2 resolution; the game's internal resolution setting separately allows 1–8 times.
+  rasterized at 2–8 times the PS2 resolution; the game's internal resolution setting separately allows 1–8 times.
 - `port/src/gs/ui.cpp`: the three settings, and the names of added songs and stages.
 - `src/battle/col_c.c` `Font_UploadTexture`: under `#ifdef PORT`, hands the game's glyph table to the renderer.
 - `port/tests/menu_font/fuzz.c`: damaged font files against the font check, with the sanitizers.
@@ -242,13 +242,18 @@ Added song and stage names share the corresponding fill and outline colors.
 
 The internal `text_screen_size` setting defaults to `1` and chooses shared UI glyph and label raster quality
 from the displayed picture's physical pixel size, including letterboxing, independently of the Resolution option.
-It keeps the existing 2–4x font raster limits and refreshes cached textures after resizing. Setting it to `0`
-restores resolution-based raster quality. Text placement and the final scene render resolution remain unchanged.
+Font raster quality uses the larger of the horizontal and vertical pixel ratios, with a 2–8x limit, and refreshes
+cached textures after resizing. Setting it to `0` restores the old resolution-based 2–4x raster quality.
 Generated in-game Options captions also use this raster scale while keeping their layout measurements fixed.
 
-The internal `text_antialias` setting defaults to `1`. It enables smooth glyph coverage and linear sampling for
-generated text independently of the artwork's 2D filtering option. Setting it to `0` uses binary glyph coverage
-and nearest sampling. Font and generated-caption caches refresh when it changes.
+Vulkan/SDL GPU and OpenGL compose the final UI draws containing generated text into a separate buffer at the
+displayed picture's physical resolution. Battle font announcements are included, both generated lettering and
+recognized original or texture-pack artwork. The selected Resolution still controls the scene. Scene color, depth
+and alpha are copied before the first eligible text draw; text and subsequent UI keep their original order and
+scissors. Draws that read framebuffers, destination-alpha snapshots, shadows and native effects keep their original
+passes. The regular framebuffer is also rendered normally for cross-fades, screenshots and game readbacks.
+
+Generated text always uses smooth glyph coverage and linear sampling independently of the artwork's 2D filtering option.
 
 Texture-pack replacements take precedence over the font settings. They do not touch the game's state: an online
 match is the same with any font on either side. `ZENKAIPOWER_FONT_LOG=1` prints every decoded texture and the time the
