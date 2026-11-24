@@ -16,6 +16,7 @@ assert items == 0
 words = struct.unpack_from('<QQQ', save, 0xC10)
 assert sum(word << (64 * i) for i, word in enumerate(words)) == (1 << 161) - 1
 assert struct.unpack_from('<Q', save, 0xC28)[0] == (1 << 35) - 1
+assert struct.unpack_from('<I', save, 0xC30)[0] == ((1 << 20) - 1) | (0x1F << 26)
 assert struct.unpack_from('<II', save, 0x208) == (1, 20)
 assert not any(save[0x28C:0x778])  # mission and Survival records stay empty
 assert struct.unpack_from('<I', save, 0x100C)[0] == 5
@@ -25,7 +26,7 @@ assert save[0x3EF0:0x3EF8] == b'SPK\x01\0\0\0\0'
 for saga, count in enumerate(EPISODE_COUNTS):
     assert struct.unpack_from('<4I', save, 0x10 + saga * 16) == (3, (1 << count)-1, 0, (1 << count)-1)
 base, _ = dragon_history_save()
-allowed = set(range(8)) | set(range(0x208,0x210)) | set(range(0xC10,0xC30)) | set(range(0x100C,0x1010))
+allowed = set(range(8)) | set(range(0x208,0x210)) | set(range(0xC10,0xC34)) | set(range(0x100C,0x1010))
 assert all(a == b or i in allowed for i,(a,b) in enumerate(zip(save,base)))
 assert verify_envelope(seal_save(bytes(save)), check_starter_roster=False) == bytes(save)
 with tempfile.TemporaryDirectory() as directory:
