@@ -1,6 +1,7 @@
 #include "../port_save.h"
 #include "../zenkai_crypto.h"
 #include "../../../include/sys/port_zenkai_pack.h"
+#include "../../../include/menu/port_build_flags.h"
 /*
  * Online play, first step: two copies of the game kept in step by exchanging the pads' input (branch netplay).
  *
@@ -73,7 +74,8 @@ enum { T_HELLO = 1, T_HELLO_ACK = 2, T_INPUT = 3, T_BYE = 4, T_PING = 5, T_PONG 
    start a match (the input packets changed with version 2: times for the ping were added; a copy that read them
    the old way took them for input). 1 was releases 0.1.8 and 0.1.9, which said no version. */
 /* 12: bots can select transformed fighters; both peers must use the same selection RNG. */
-enum { NET_VERSION = 12, IN_HEAD = 44 }; /* 3 (0.1.15): the host's battle rules travel with its choices.
+/* 13: both source saves negotiate Sparking! Changes before simulation starts. */
+enum { NET_VERSION = 13, IN_HEAD = 44 }; /* 3 (0.1.15): the host's battle rules travel with its choices.
    4 (0.1.34): a session's start-up no longer follows the player's "Skip logos" / "Skip intro video" (0.1.32 and
    0.1.33 with either on computed another start-up than the other side and the two never agreed again: such a copy
    must not be let into a match); the input packets carry the sender's check value (sync_*, below), 12 bytes more
@@ -295,6 +297,8 @@ int Port_NetSideOptions(int *camera, int *shake) {
    game is "120% on the PAL version in Dolphin"; on this (the USA) version's scale the players settled on 114%
    after trying the sliders of 0.1.30 (told by the maintainer, 2026-10-12). */
 #define RULE_FAST 0x1000u
+#define RULE_SPARKING 0x2000u
+#define CAP_SPARKING 8u
 #define RULE_SPEED_SHIFT 16
 #define CAP_MARK 0x43410000u
 #define NET_SPEED_STANDARD 114
@@ -306,7 +310,7 @@ static uint32_t speed_bits(int percent) {
 
 void Port_NetRulesSet(int type, int dp, int time) {
     sRules = (uint32_t)(type < 0 || type > 2 ? 0 : type) | (uint32_t)(dp < 0 || dp > 2 ? 0 : dp) << 4 | (uint32_t)(time < 0 || time > 4 ? 3 : time) << 8 |
-             speed_bits(sWantSpeed);
+             speed_bits(sWantSpeed) | (sRules & RULE_SPARKING);
 }
 
 void Port_NetSpeedSet(int percent) {
@@ -468,6 +472,13 @@ static void restore_custom(int player) {
 /* The loaded save before ZENKAIPOWER_SAVES switches to the isolated online folder. */
 static int sSourceZenkai;
 static int sSourceClassic;
+static int sPeerSparking;
+int Port_NetSaveSparkingChanges(void) {return ZENKAIPOWER_ONLINE_SPARKING_CHANGES && sSourceZenkai && !sSourceClassic;}
+int Port_NetSparkingChanges(void) {return ZENKAIPOWER_ONLINE_SPARKING_CHANGES && Port_NetActive() && sConnected && (sRules&RULE_SPARKING)!=0;}
+static uint32_t sparking_rules(uint32_t rules,int local,int peer) {
+    return (rules&~RULE_SPARKING) | (ZENKAIPOWER_ONLINE_SPARKING_CHANGES && local && peer ? RULE_SPARKING:0);
+}
+
 int Port_NetClassicMode(void) {
     if (getenv("ZENKAIPOWER_SAVES")) return sSourceClassic;
     return Port_ZenkaiEnabled() && (Port_ZenkaiPackFlags(gSaveData) & PORT_ZENKAI_PACK_DISABLED) != 0;
@@ -976,6 +987,8 @@ static int receive(void) {
             if (n >= 24) {
                 memcpy(&sRules, pkt + 20, 4);
             }
+            if(!sConnected && (sRules&RULE_SPARKING)) continue; /* wait for the host's eligibility greeting */
+            if((sRules&RULE_SPARKING) && (!Port_NetSaveSparkingChanges() || !sPeerSparking)) {sVersionBad=1;continue;}
             if (n >= 24 + NAME_LEN) {
                 memcpy(sNames[0], pkt + 24, NAME_LEN);
                 sNames[0][NAME_LEN - 1] = '\0';
@@ -1020,7 +1033,7 @@ static int receive(void) {
         } else if (type == T_HELLO && sMode == 1) {
             uint32_t ack[9 + NAME_LEN / 4 + NET_UNLOCK_WORDS] = {MAGIC, T_HELLO_ACK, (uint32_t)sDelay, (uint32_t)sRollMax, NET_VERSION, sRules};
             ack[7 + NAME_LEN / 4] = sSeed;
-            ack[8 + NAME_LEN / 4] = getenv("ZENKAIPOWER_NET_BOT") != NULL ? (4u | ((uint32_t)bot_setting_env() << 8)) : 0u;
+            ack[8 + NAME_LEN / 4] = (Port_NetSaveSparkingChanges() ? CAP_SPARKING:0) | (getenv("ZENKAIPOWER_NET_BOT") != NULL ? (4u | ((uint32_t)bot_setting_env() << 8)) : 0u);
             memcpy(&ack[6], sMyName, NAME_LEN);
             ack[6 + NAME_LEN / 4] = sOpts[0];
             if (n >= (5 + NAME_LEN / 4 + NET_UNLOCK_WORDS) * 4) {
@@ -1053,6 +1066,8 @@ static int receive(void) {
                 if (!(cap & 1)) {
                     sRules &= ~RULE_FAST;
                 }
+                sPeerSparking=(cap&CAP_SPARKING)!=0;
+                sRules=sparking_rules(sRules,Port_NetSaveSparkingChanges(),sPeerSparking);
                 ack[5] = sRules;
             }
             memcpy(sNames[0], sMyName, NAME_LEN);
@@ -1094,6 +1109,13 @@ static int receive(void) {
                     sBotSetting = ((hostBot >> 8) & 7) <= 4 ? (int)((hostBot >> 8) & 7) : 2;
                 } else {
                     sBotSetting = bot_setting_env();
+                }
+                if(n>=36+NAME_LEN) {
+                    uint32_t hostCaps;memcpy(&hostCaps,pkt+32+NAME_LEN,4);
+                    sPeerSparking=(hostCaps&CAP_SPARKING)!=0;
+                }
+                if((sRules&RULE_SPARKING) && (!Port_NetSaveSparkingChanges() || !sPeerSparking)) {
+                    sVersionBad=1;continue;
                 }
                 if (sBotSide >= 0)
                     fprintf(stderr, "zenkaipower: net: playing as CPU at level %d/5\n", sBotSetting + 1);
@@ -1202,7 +1224,7 @@ static void net_start(int role, const char *host, const char *join) {
     uint32_t i;
 
     sMode = role;
-    sConnected = 0;
+    sConnected = 0;sPeerSparking=0;sRules &= ~RULE_SPARKING;
     sCustomReceived = sCustomAcked = 0;
     sBotSide = -1;
     sBotSetting = 2;
@@ -1357,7 +1379,7 @@ static void net_start(int role, const char *host, const char *join) {
             uint32_t hello[5 + NAME_LEN / 4 + NET_UNLOCK_WORDS] = {MAGIC, T_HELLO, NET_VERSION};
             memcpy(&hello[3], sMyName, NAME_LEN);
             hello[3 + NAME_LEN / 4] = sOpts[1];
-            hello[4 + NAME_LEN / 4] = CAP_MARK | 3 |
+            hello[4 + NAME_LEN / 4] = CAP_MARK | 3 | (Port_NetSaveSparkingChanges() ? CAP_SPARKING:0) |
                 (getenv("ZENKAIPOWER_NET_BOT") != NULL ? (4u | ((uint32_t)bot_setting_env() << 8)) : 0u);
             memcpy(&hello[5 + NAME_LEN / 4], sUnlocks[1], sizeof(sUnlocks[1]));
             fprint_send(&sPeer);

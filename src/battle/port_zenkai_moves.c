@@ -9,15 +9,13 @@
 #include "sys/port_zenkai.h"
 #include "sys/save.h"
 
-/* Runtime guards below restrict the replacement moveset to offline ZENKAI. */
+/* Runtime guards use the offline save or the shared online battle rules. */
 #ifndef PORT_ZENKAI_SSJ2_MOVESET
 #define PORT_ZENKAI_SSJ2_MOVESET 1
 #endif
 
 extern void *memcpy(void *, const void *, u32);
 extern void *memset(void *, s32, u32);
-extern int Port_NetSession(void);
-extern int Port_NetActive(void);
 
 #define ZENKAI_OBJECTS 12
 #define SUPER_BYTES 0x244
@@ -225,7 +223,7 @@ static u16 *make_text(const u16 *target, s32 language) {
 static s32 has_moves(void *object) {
     BObj *obj = object;
     s32 i;
-    if (!PORT_ZENKAI_SSJ2_MOVESET || obj == NULL || !sMovesReady || !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive()) return 0;
+    if (!PORT_ZENKAI_SSJ2_MOVESET || obj == NULL || !sMovesReady || !Port_ZenkaiPackEnabled()) return 0;
     for (i = 0; i < ZENKAI_OBJECTS; i++) if (obj->mdl.unk914 == sSuper[i]) return 1;
     return 0;
 }
@@ -260,7 +258,7 @@ int Port_ZenkaiGreatApeMoonBind(void *object, int giant) {
     u32 *pack;
     s32 form, i, j;
     if (!PORT_ZENKAI_GREAT_APE_MOON || !obj || giant < 0 || giant > 1 ||
-        !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive() || !BtlStage_HasMoon()) return 0;
+        !Port_ZenkaiPackEnabled() || !BtlStage_HasMoon()) return 0;
     if (!sGreatApeMoon[0][0]) {
         for (form = 0; form < 2; form++) {
             pack = File_LoadSync(0x598 + (80 + form) * 10, NULL, 0);
@@ -301,7 +299,7 @@ int Port_ZenkaiCellTransformBind(void *object, int character, int target) {
     u32 *pack;
     s32 i, actor;
     if (!PORT_ZENKAI_CELL_TRANSFORMATION || !obj || character != 107 || target != 108 ||
-        !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive()) return 0;
+        !Port_ZenkaiPackEnabled()) return 0;
     for (actor = 0; actor < ZENKAI_OBJECTS; actor++) {
         if (!sCellTransformActors[actor] || sCellTransformActors[actor] == obj) break;
     }
@@ -433,7 +431,7 @@ static void bind_future_gohan_grab(BObj *obj, s32 chara, s32 type) {
     u32 *pack;
     s32 i;
     if (!PORT_ZENKAI_FUTURE_GOHAN_GRAB || !obj || type != 0 || chara != 159 ||
-        !Port_ZenkaiPackEnabled() || Port_NetSession() || Port_NetActive()) return;
+        !Port_ZenkaiPackEnabled()) return;
     if (!sFutureGohanGrab[0]) {
         pack = File_LoadSync(0x598 + 160 * 10, NULL, 0);
         if (!pack) return;
@@ -474,7 +472,7 @@ void Port_ZenkaiMovesBind(void *object, s32 id, s32 chara, s32 type) {
     if (!PORT_ZENKAI_SSJ2_MOVESET) return;
     original = obj->mdl.unk914;
     if (type != 0 || chara != 5 || id < 0 || id >= ZENKAI_OBJECTS || !Port_ZenkaiPackEnabled() ||
-        Port_NetSession() || Port_NetActive() || original == NULL) return;
+        original == NULL) return;
     if (((s16 *)(original + 0x18))[0] != 300 || ((s16 *)(original + 0x18))[2] != 602) return;
     if (!sMovesReady) {
         if (!load_move(0, 6, 2, 301) || !load_move(1, 4, 4, 603)) { clear_ssj2_moves(); return; }

@@ -62,7 +62,7 @@ static int sStatsRunning;
 static struct {
     char session[40], key[40], uid[40], accountToken[65];
     unsigned round;
-    int host, active, ranked, totalsReady, classicMode;
+    int host, active, ranked, totalsReady, classicMode, sparkingChanges;
     int totals[2][2][3], rankPoints[2];
     int scoringReady, startPoints[2], tolerance, finalReady, finalDelta[2];
     Uint64 refreshAt;
@@ -781,6 +781,7 @@ static int http_post_once(const char *what, const char *json, char *out, size_t 
 }
 
 extern int Port_NetClassicMode(void);
+extern int Port_NetSaveSparkingChanges(void);
 static int http_post(const char *what, const char *json, char *out, size_t size) {
     char authenticated[4096], botBody[4608], versioned[4700], token[65];
     int ok;
@@ -1259,8 +1260,9 @@ void Port_NetStatsStartFull(const int *characters, const int *items, const int *
     /* Capture on the game thread for this battle, never in an account request
      * or later from a worker after the player may have changed saves. */
     sStats.classicMode = Port_NetClassicMode();
-    SDL_snprintf(body, sizeof(body), "{\"uid\":\"%s\",\"key\":\"%s\",\"classic_mode\":%s}",
-                 sStats.uid, sStats.key, sStats.classicMode ? "true" : "false");
+    sStats.sparkingChanges=Port_NetSaveSparkingChanges();
+    SDL_snprintf(body, sizeof(body), "{\"uid\":\"%s\",\"key\":\"%s\",\"classic_mode\":%s,\"sparking_changes\":%s}",
+                 sStats.uid, sStats.key, sStats.classicMode ? "true" : "false", sStats.sparkingChanges ? "true":"false");
     stats_enqueue("battle/save", body);
     SDL_UnlockMutex(sStatsLock);
 }
@@ -1280,8 +1282,8 @@ void Port_NetStatsStart(const int *characters) {
 static void stats_connection(void) {
     char connection[1024], body[1280];
     if (Port_NetConnectionJson(connection, sizeof(connection))) {
-        SDL_snprintf(body, sizeof(body), "{\"uid\":\"%s\",\"key\":\"%s\",\"classic_mode\":%s,\"connection\":%s}",
-                     sStats.uid, sStats.key, sStats.classicMode ? "true" : "false", connection);
+        SDL_snprintf(body, sizeof(body), "{\"uid\":\"%s\",\"key\":\"%s\",\"classic_mode\":%s,\"sparking_changes\":%s,\"connection\":%s}",
+                     sStats.uid, sStats.key, sStats.classicMode ? "true" : "false", sStats.sparkingChanges ? "true":"false", connection);
         stats_enqueue("battle/connection", body);
     }
 }

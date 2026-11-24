@@ -61,11 +61,11 @@ int BtlSkill_GetFlags(BtlActChr *c,int slot) {return 0x180;}
 int BtlSkill_GetBlastCost(BtlActChr *c,int slot) {return BtlMember_HasAbility(c,0x15) ? 200000:300000;}
 int BtlChar_TestMemberUnk70(BtlActChr *c) {return 0;}
 int BtlMember_HasBlast(BtlActChr *c,int amount) {return c->members[c->active].vitals.blast>=amount;}
-static int classic,zenkai=1,stopped,damageCalls,ends,mode;
+static int classic,zenkai=1,stopped,damageCalls,ends,mode,onlineSparking;
 int gPortTrainingHealthRegeneration=1,gPortTrainingKiRegeneration=1,gPortTrainingBlastRegeneration=1,gPortTrainingSwitchRegeneration=1;
 static u32 motionFlags;
 int Port_ZenkaiEnabled(void) {return zenkai;}
-int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && !classic; }
+int Port_ZenkaiPackEnabled(void) { return onlineSparking || (Port_ZenkaiEnabled() && !classic); }
 void Port_SpiritBombRemember(void *fighter) {}
 BtlActMember *BtlMember_GetActive(BtlActChr *c) {return &c->members[c->active];}
 BtlActMember *BtlMember_Get(BtlActChr *c,int i) {return &c->members[i];}
@@ -157,6 +157,11 @@ static void setup(BtlActChr *c) {
 static void tier(BtlActChr *c,int bit) {c->members[c->active].ability[bit>>5]|=1u<<(bit&31);}
 int main(void) {
  BtlActChr c;
+ /* Negotiated changes use an isolated online save with no offline Zenkai flag. */
+ setup(&c);zenkai=0;onlineSparking=1;c.flags[0x98]=1;
+ Port_BtlHpDrainTick(&c,1);
+ assert(c.members[0].vitals.hp==30000-(PORT_ZENKAI_KAIOKEN ? 50:0));
+ onlineSparking=0;
  /* Native activation refills Ki in both modes, with its original drain rate. */
  for(zenkai=0;zenkai<=1;zenkai++) {
   setup(&c);c.members[0].vitals.blast=300000;c.ki=0;assert(BtlAct_CanUseSkill(&c,1));

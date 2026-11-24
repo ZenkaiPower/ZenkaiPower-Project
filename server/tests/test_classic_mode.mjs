@@ -20,6 +20,17 @@ for (const invalid of [0, 1, 'true', [], {}]) {
 }
 await assert.rejects(service.battle('save', {uid: 'battle', key: 'join', classic_mode: true}, user, Date.now()), ApiError);
 console.log('Cloudflare battle-only Classic Mode checks passed');
+service.row = async () => ({p1_sparking_changes: null, p2_sparking_changes: 1});
+await service.battle('save', {uid:'battle',key:'host',sparking_changes:true}, user, Date.now());
+assert.equal(writes[0].sql, 'UPDATE battles SET p1_sparking_changes=? WHERE uid=? AND p1_sparking_changes IS NULL');
+assert.deepEqual(writes[0].args,[1,5]);
+assert.equal(writes[1].sql, 'UPDATE battles SET battle_nature=CASE WHEN p1_sparking_changes=1 AND p2_sparking_changes=1 THEN 1 ELSE 0 END WHERE uid=?');
+for(const value of [0,1,'true',[],{}])
+    await assert.rejects(service.battle('save',{uid:'battle',key:'host',sparking_changes:value},user,Date.now()),ApiError);
+service.row=async()=>({p1_sparking_changes:1,p2_sparking_changes:1});
+await assert.rejects(service.battle('save',{uid:'battle',key:'host',sparking_changes:false},user,Date.now()),ApiError);
+console.log('Cloudflare authenticated battle nature reporting checks passed');
+
 
 service.accountLimits = service.botAccess = async () => {};
 service.nextId = async () => 7;

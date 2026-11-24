@@ -6,7 +6,8 @@
 #include <string.h>
 static SaveData save, disk;
 SaveData *gSaveData=&save;
-static int active=1,online;
+static int active=1,online,onlineSparking;
+int Port_NetSparkingChanges(void) {return online && onlineSparking;}
 int Port_ZenkaiEnabled(void) {return active;}
 int Port_NetSession(void) {return online;}
 int Port_NetActive(void) {return online;}
@@ -45,7 +46,10 @@ int main(void) {
     assert(Port_ZenkaiPackFlags(&save)&PORT_ZENKAI_PACK_EARNED_ZENI);
     memset(&save,0,sizeof(save));Port_ZenkaiPackInit(&save);
     active=0;assert(!Port_ZenkaiPackEnabled() && !Port_ZenkaiPackDisable());active=1;
-    online=1;assert(!Port_ZenkaiPackEnabled() && !Port_ZenkaiPackDisable());online=0;
+    online=1;assert(!Port_ZenkaiPackEnabled() && !Port_ZenkaiPackDisable());
+    onlineSparking=1;assert(Port_ZenkaiPackEnabled() && !Port_ZenkaiPackDisable());
+    active=0;assert(Port_ZenkaiPackEnabled()); /* isolated online save is not the source save */
+    active=1;onlineSparking=0;online=0;
     assert(Port_ZenkaiPackDisable());
     assert(!Port_ZenkaiPackEnabled() && !Port_ZenkaiPackCanDisable() && !Port_ZenkaiPackDisable());
     for(i=n=0;i<SAVE_CHARA_COUNT;i++) if(SAVE_CHARA_WORD(&save,i)&((u64)1<<(i%64))) n++;

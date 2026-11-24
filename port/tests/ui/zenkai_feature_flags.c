@@ -9,6 +9,7 @@ SaveData *gSaveData;
 int Port_ZenkaiEnabled(void) {return 1;}
 int Port_NetSession(void) {return 0;}
 int Port_NetActive(void) {return 0;}
+int Port_NetSparkingChanges(void) {return 0;}
 static unsigned state=17;
 u32 Rand_Range(u32 n) {assert(n);state=state*1664525u+1013904223u;return (state>>8)%n;}
 int ChrTbl_GetCost(int chara) {return 3;}

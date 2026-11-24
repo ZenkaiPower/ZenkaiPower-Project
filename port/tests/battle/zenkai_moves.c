@@ -7,12 +7,12 @@
 #include <stdlib.h>
 extern s32 memcmp(const void *, const void *, u32);
 static const char *directory;
-static int active, online, allocations, moon, classic;
+static int active, online, allocations, moon, classic, onlineSparking;
 s32 BtlStage_HasMoon(void) {return moon;}
 static SaveData save;
 SaveData *gSaveData = &save;
 int Port_ZenkaiEnabled(void) { return active; }
-int Port_ZenkaiPackEnabled(void) { return Port_ZenkaiEnabled() && !classic; }
+int Port_ZenkaiPackEnabled(void) { return online ? onlineSparking : Port_ZenkaiEnabled() && !classic; }
 int Port_NetSession(void) { return online; }
 int Port_NetActive(void) { return online; }
 void *Heap_Alloc(s32 size, u32 align, s32 tail, s32 heap) {
@@ -279,7 +279,10 @@ int main(int argc, char **argv) {
         const u16 *oldText;
         setup(&obj, &target, language); oldText = obj.mdl.unkA4;
         if (!oldText) continue;
+        /* Negotiated Sparking rules also load donors with the isolated online save. */
+        active = 0; online = onlineSparking = 1;
         Port_ZenkaiMovesBind(&obj, 0, 5, 0);
+        active = 1; online = onlineSparking = 0;
         assert(sMovesReady && obj.mdl.unk914 == sSuper[0]);
         params = obj.mdl.unk914;
         assert(((s16 *)(params + 0x18))[0] == 301);

@@ -106,6 +106,47 @@ class ResultSecurity(unittest.TestCase):
             self.assertNotIn('classic_mode', {row[1] for row in migrated.execute('PRAGMA table_info(accounts)')})
             columns = {row[1] for row in migrated.execute('PRAGMA table_info(battles)')}
             self.assertTrue({'p1_classic_mode', 'p2_classic_mode'} <= columns)
+            self.assertTrue({'battle_nature', 'p1_sparking_changes', 'p2_sparking_changes'} <= columns)
+
+    def test_battle_nature_all_combinations_and_report_orders(self):
+        for host in (False, True):
+            for join in (False, True):
+                for order in ((1, 2), (2, 1)):
+                    uid = 10 + int(host) * 4 + int(join) * 2 + order[0]
+                    wire = f'00000000-0000-4000-8000-{uid:012d}'
+                    with self.subTest(host=host, join=join, order=order):
+                        with closing(self.service.connect()) as db, db:
+                            db.execute("INSERT INTO battles(uid,start_datetime,player1,player2,player1_uid,player2_uid,battle_type) VALUES(?,1,'user1','user2',1,2,1)", (uid,))
+                            db.execute('INSERT INTO battle_sessions(uid,wire_uid,host_hash,join_hash,started,request_id) VALUES(?,?,?,?,?,?)',
+                                       (uid, wire, digest('host'), digest('join'), self.now, wire))
+                        self.assertEqual(self.request(action='get', uid=wire)['battle']['battle_nature'], 0)
+                        for side in order:
+                            self.request(side, action='save', uid=wire, sparking_changes=host if side == 1 else join)
+                        self.assertEqual(self.request(action='get', uid=wire)['battle']['battle_nature'], int(host and join))
+        self.service = Matchmaking(self.path)
+        self.assertEqual(self.request(action='get', uid=wire)['battle']['battle_nature'], 1)
+
+    def test_battle_nature_requires_both_sparking_saves(self):
+        self.assertEqual(self.request(action='get')['battle']['battle_nature'], 0)
+        self.request(action='save', sparking_changes=True)
+        self.assertEqual(self.request(action='get')['battle']['battle_nature'], 0)
+        self.request(side=2, action='save', sparking_changes=True)
+        self.assertEqual(self.request(action='get')['battle']['battle_nature'], 1)
+        self.request(side=2, action='save', sparking_changes=True)  # idempotent
+        with self.assertRaises(ApiError):
+            self.request(side=2, action='save', sparking_changes=False)
+
+    def test_battle_nature_mixed_saves_and_validation(self):
+        self.request(side=2, action='save', sparking_changes=False)
+        self.request(action='save', sparking_changes=True)
+        self.assertEqual(self.request(action='get')['battle']['battle_nature'], 0)
+        for invalid in (0, 1, 'true', [], {}):
+            with self.assertRaises(ApiError):
+                self.request(action='save', sparking_changes=invalid)
+        with self.assertRaises(ApiError):
+            self.request(action='save', sparking_changes=True, account_token='2' * 64)
+        with closing(self.service.connect()) as db:
+            self.assertEqual(db.execute('SELECT battle_nature FROM battles WHERE uid=1').fetchone()[0], 0)
 
     def test_host_alone_cannot_award_points(self):
         self.request()

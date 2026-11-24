@@ -13,6 +13,7 @@ void Port_ZenkaiPackInit(void *save) {
     if (save && pack_offline()) Port_ZenkaiPackWriteFlags(save, 0);
 }
 int Port_ZenkaiPackEnabled(void) {
+    if(Port_NetSession() || Port_NetActive()) return Port_NetSparkingChanges();
     return pack_offline() && !(Port_ZenkaiPackFlags(gSaveData) & PORT_ZENKAI_PACK_DISABLED);
 }
 int Port_ZenkaiPackCanDisable(void) {

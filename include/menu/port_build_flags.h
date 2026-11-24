@@ -1,6 +1,10 @@
 /* Build-time feature switches. Override with compiler -DNAME=0/1. */
 #ifndef PORT_BUILD_FLAGS_H
 #define PORT_BUILD_FLAGS_H
+/* Both peers must allow Sparking! Changes; otherwise online battles use Classic. */
+#ifndef ZENKAIPOWER_ONLINE_SPARKING_CHANGES
+#define ZENKAIPOWER_ONLINE_SPARKING_CHANGES 1
+#endif
 #ifndef ZENKAIPOWER_NATIVE_ELEMENTS
 #define ZENKAIPOWER_NATIVE_ELEMENTS 0
 #endif

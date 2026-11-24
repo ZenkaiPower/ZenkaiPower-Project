@@ -905,7 +905,7 @@ void Port_BtlHpDrainTick(void *fighter,int kaioken) {
     BtlMemberChr *chr=(BtlMemberChr *)fighter;
     s32 rate,amount;
     s32 tier=Port_BtlKaiokenTier(chr);
-    if(!Port_ZenkaiEnabled()) return;
+    if(!Port_ZenkaiEnabled() && !Port_ZenkaiPackEnabled()) return;
     kaioken = kaioken && PORT_ZENKAI_KAIOKEN && Port_ZenkaiPackEnabled();
     rate=Port_HpDrainRate(BtlMember_HasAbility(chr,PORT_ABILITY_HP_DRAIN_50),
         BtlMember_HasAbility(chr,PORT_ABILITY_HP_DRAIN_100),

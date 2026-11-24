@@ -319,6 +319,16 @@ export class FullService {
                 if (typeof body.classic_mode !== 'boolean') throw new ApiError('invalid classic mode');
                 writes.push(this.stmt(`UPDATE battles SET ${field}=? WHERE uid=? AND ${field} IS NULL`, Number(body.classic_mode), session.uid));
             }
+            if (body.sparking_changes !== undefined && body.sparking_changes !== null) {
+                if (typeof body.sparking_changes !== 'boolean') throw new ApiError('invalid sparking changes');
+                const sparkingField = `p${host ? 1 : 2}_sparking_changes`;
+                const value = Number(body.sparking_changes);
+                if (row[sparkingField] !== undefined && row[sparkingField] !== null && row[sparkingField] !== value)
+                    throw new ApiError('save rules already reported', 409);
+                writes.push(this.stmt(`UPDATE battles SET ${sparkingField}=? WHERE uid=? AND ${sparkingField} IS NULL`, value, session.uid));
+                // This batch sees both authenticated reports; missing/legacy reports stay Classic.
+                writes.push(this.stmt('UPDATE battles SET battle_nature=CASE WHEN p1_sparking_changes=1 AND p2_sparking_changes=1 THEN 1 ELSE 0 END WHERE uid=?', session.uid));
+            }
             if (action === 'save') {
                 await this.commit(writes);
                 return {uid: wire};

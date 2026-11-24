@@ -546,4 +546,10 @@ Classic Mode is stored only on battles, as `p1_classic_mode` and `p2_classic_mod
 
 Apply D1 migration `0006_battle_classic_modes.sql`. LAN SQLite adds the two battle columns automatically. Classic Mode is client-reported battle metadata, not a matchmaking rule or account state.
 
+Online protocol 13 negotiates Sparking! Changes only when both source saves enable them. Original saves and Zenkai saves with Classic Mode selected use Classic battle rules with either opponent. Both peers must update; isolated online saves do not determine eligibility.
+
+The compilation flag `ZENKAIPOWER_ONLINE_SPARKING_CHANGES` defaults to `1` in `include/menu/port_build_flags.h`. Setting it to `0` on either peer disables its Sparking eligibility advertisement and report, forcing both peers to use Classic rules and the server to record `battle_nature=0`.
+
+Apply D1 migration `0008_battle_nature.sql` before deploying the updated service. LAN SQLite upgrades automatically. Authenticated `battle/save` and fallback `battle/connection` reports include a boolean `sparking_changes` captured from the participant's source save. Each battle stores immutable first reports in `p1_sparking_changes` and `p2_sparking_changes` (NULL until reported). The server derives `battle_nature`: `1` only when both reports are `1`, otherwise `0`. Historical battles default to `0`; rematches collect fresh reports. These fields are client-reported metadata, not save attestation.
+
 Battles store immutable `p1_game_version` and `p2_game_version` snapshots of the accounts? reported releases when participants are attached to a new battle, including rematches. Battle get responses include both fields. Existing battles and unreported releases remain NULL. Apply D1 migration `0005_battle_game_versions.sql` after `0004`; LAN upgrades automatically. Database triggers cover both server implementations and preserve snapshots on start retries.

@@ -9,6 +9,9 @@ extern "C" {
 int Port_ZenkaiEnabled(void);
 /* Per-save Classic Mode. Disabling the pack does not change save selection. */
 int Port_ZenkaiPackEnabled(void);
+/* Online rules negotiated from both source saves, independent of session saves. */
+int Port_NetSparkingChanges(void);
+int Port_NetSaveSparkingChanges(void);
 int Port_ZenkaiGreatApeMoonBind(void *object, int giant);
 int Port_ZenkaiCellTransformBind(void *object, int character, int target);
 void Port_ZenkaiCellTransformPresent(void *object, int on);

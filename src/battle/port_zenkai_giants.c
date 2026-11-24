@@ -6,14 +6,12 @@
 #include "battle/battle.h"
 #include "battle/btl_script.h"
 extern f32 sqrtf(f32);
-extern int Port_NetSession(void);
-extern int Port_NetActive(void);
 extern s32 EftCam_IsActive(void);
 
 float Port_ZenkaiGiantScale(int type, const void *param) {
 #if PORT_ZENKAI_GIANTS
     if (type == 0 && param != NULL && ((const u8 *)param)[2] == 4 &&
-        Port_ZenkaiPackEnabled() && !Port_NetSession() && !Port_NetActive()) {
+        Port_ZenkaiPackEnabled()) {
         return 2.5f;
     }
 #endif

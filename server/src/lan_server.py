@@ -254,6 +254,11 @@ BEGIN
     WHERE uid=NEW.uid;
 END;""")
                 session_columns = {row["name"] for row in db.execute("PRAGMA table_info(battle_sessions)")}
+                if "battle_nature" not in battle_columns:
+                    db.execute("ALTER TABLE battles ADD COLUMN battle_nature INTEGER NOT NULL DEFAULT 0 CHECK(battle_nature IN (0,1))")
+                for field in ("p1_sparking_changes", "p2_sparking_changes"):
+                    if field not in battle_columns:
+                        db.execute(f"ALTER TABLE battles ADD COLUMN {field} INTEGER CHECK({field} IN (0,1))")
                 for field in ("p1_classic_mode", "p2_classic_mode"):
                     if field not in battle_columns:
                         db.execute(f"ALTER TABLE battles ADD COLUMN {field} INTEGER CHECK({field} IN (0, 1))")
@@ -986,6 +991,15 @@ END;""")
                 field = f"p{1 if host else 2}_classic_mode"
                 db.execute(f"UPDATE battles SET {field}=? WHERE uid=? AND {field} IS NULL",
                            (int(classic), session["uid"]))
+            sparking = body.get("sparking_changes")
+            if sparking is not None:
+                if not isinstance(sparking, bool):
+                    raise ApiError("invalid sparking changes")
+                field = f"p{1 if host else 2}_sparking_changes"
+                if row[field] is not None and row[field] != int(sparking):
+                    raise ApiError("save rules already reported", 409)
+                db.execute(f"UPDATE battles SET {field}=? WHERE uid=? AND {field} IS NULL", (int(sparking), session["uid"]))
+                db.execute("UPDATE battles SET battle_nature=CASE WHEN p1_sparking_changes=1 AND p2_sparking_changes=1 THEN 1 ELSE 0 END WHERE uid=?", (session["uid"],))
             if action == "save":
                 return {"uid": uid}
         if action == "connection":
