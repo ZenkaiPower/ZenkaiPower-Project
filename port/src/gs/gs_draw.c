@@ -25,6 +25,7 @@
 #include <SDL3/SDL.h>   /* the one window both back ends share */
 #include "gs_internal.h"
 #include "gs_draw.h"
+#include "gs_native_elements.h"
 #include "../../../include/menu/port_render_scale.h"
 #include "video_driver.h"
 #include "ui.h"         /* PortVideo and the window helpers */
@@ -141,6 +142,7 @@ int gsGlowPercent = GLOW_DEFAULT;
 int gsGlarePercent = GLOW_DEFAULT;
 int gsSharpBlur = 1; /* the setting "Sharp stage blur" (sharp_blur): see draw_state */
 static int sGlowIsGlare; /* the glow chain under way is the sky's glare (gfxm_a.c GfxPost_DrawGlow: see below) */
+static int sNativeShape; /* isolated procedural HUD pipeline */
 static int sBlockSample; /* the draw being set up reads a work buffer at the GS's 1x (orig.x): pipeline_get, key bit 25 */
 static int sTexPackOn = 1; /* the setting: use the texture pack (if one was found) */
 int gsAnchor;
@@ -182,6 +184,7 @@ typedef struct Tex {
     GsTex tex;
     unsigned last; /* frame last used */
     int replaced;  /* 1: texture pack, 2: vector menu labels, 3: packed shared glyphs */
+    int nativeHud; /* procedural shape identity, 0 keeps the original texture */
     int battleText; /* the source texture has Battle font artwork, even with Original selected */
     uint32_t ow, oh, rw, rh; /* then: the original's size and the replacement's */
     uint32_t amax;           /* and the largest alpha byte of the original */
@@ -993,7 +996,7 @@ static GsTex texture_get(int ctx) {
     uint64_t tex_t0;
     TexPackImage pack;
     uint32_t packMaxAlpha = 255, rw = tw, rh = th, *menuTextIdentity = NULL;
-    int replaced = 0, menuText = 0, sharedText = 0, battleText = 0, packWait = -1;
+    int replaced = 0, menuText = 0, sharedText = 0, battleText = 0, nativeHud = 0, packWait = -1;
 
     if (tw > 1024) { tw = 1024; }
     if (th > 1024) { th = 1024; }
@@ -1014,6 +1017,7 @@ static GsTex texture_get(int ctx) {
     if (sTexPackOn && TexPack_Count() != 0) {
         gen ^= 0x5BD1E995u; /* with the pack and without it are different textures: switching it takes effect at once */
     }
+    if (bits<=8 && th==64 && (tw==64 || tw==256) && ZenkaiNative_HudShapes()) gen^=0x5A4E4801u;
     if (sLast != NULL && sLast->tex0 == t0 && sLast->texa == texa && sLast->gen == gen) {
         if (sLast->pack >= 0 && sLast->last != gGsFrame) {
             pack_arrived(sLast);
@@ -1124,7 +1128,9 @@ static GsTex texture_get(int ctx) {
         free(px);
         px = NULL;
     }
-    if (!replaced && px != NULL) {
+    if (!replaced && px != NULL && ZenkaiNative_HudShapes())
+        nativeHud = ZenkaiNative_Identify((const uint8_t *)px, (int)tw, (int)th, bits <= 8);
+    if (!nativeHud && !replaced && px != NULL) {
         int mw, mh;
         uint64_t font_t0 = gpu_now();
         int textScale = MenuText_RasterScale(SCALE);
@@ -1152,7 +1158,7 @@ static GsTex texture_get(int ctx) {
     free(menuTextIdentity);
     gGpuTexNs += gpu_now() - tex_t0;
     t = &sTex[gsTexCount];
-    t->tex = replaced ? pack_texture(&pack) : sBackend->texCreate(rw, rh, GS_TEXFMT_RGBA8, 1);
+    t->tex = replaced ? pack_texture(&pack) : sBackend->texCreate(nativeHud ? (nativeHud==1 ? 1 : 48) : rw, nativeHud ? 1 : rh, GS_TEXFMT_RGBA8, 1);
     if (t->tex == 0) {
         free(px);
         return gsWhite;
@@ -1169,7 +1175,12 @@ static GsTex texture_get(int ctx) {
                 fclose(df);
             }
         }
-        sBackend->texUpload(t->tex, 0, rw, rh, GS_TEXFMT_RGBA8, px, rw * rh * 4);
+        if (nativeHud) {
+            uint32_t colors[48];
+            int count=ZenkaiNative_Palette(px,nativeHud,colors);
+            memcpy(px,colors,(size_t)count*sizeof(*px));
+            sBackend->texUpload(t->tex,0,count,1,GS_TEXFMT_RGBA8,px,count*sizeof(*px));
+        } else sBackend->texUpload(t->tex, 0, rw, rh, GS_TEXFMT_RGBA8, px, rw * rh * 4);
     }
     gsTexCount++;
     {
@@ -1180,7 +1191,7 @@ static GsTex texture_get(int ctx) {
         sTexBucket[h] = (uint16_t)gsTexCount;
     }
     gGpuNewTex++;
-    gGpuNewTexPixels += rw * rh;
+    gGpuNewTexPixels += nativeHud ? (nativeHud==1 ? 1 : 48) : rw * rh;
     sLast = t;
     t->tex0 = t0;
     t->texa = texa;
@@ -1188,6 +1199,7 @@ static GsTex texture_get(int ctx) {
     t->last = gGsFrame;
     t->replaced = replaced ? 1 : sharedText ? 3 : menuText ? 2 : 0;
     t->battleText = battleText;
+    t->nativeHud = nativeHud;
     t->ow = tw;
     t->oh = th;
     t->rw = rw;
@@ -1301,6 +1313,7 @@ static int pipeline_get(int ctx, int topo, int vu, int shadow) {
             }
         }
     }
+    if (sNativeShape && vu==0) key |= GS_PIPE_NATIVE_HUD;
     if (vu == 4) { /* asked for by depth_clut: the table pass, which only depends on blending and the write mask */
         key = bkey | wmask << 16 | 1u << 22;
     }
@@ -1619,7 +1632,9 @@ static int draw_state(int ctx, int topo, int sprite, int vu, GsDraw *d, float *u
     if (d->tex != 0 && sLast != NULL && sLast->tex == d->tex && sLast->replaced) {
         d->sampler |= 1 | 8; /* (GsGpu_Draw takes the 8 off again for 2D art) */
     }
+    sNativeShape=tme && !d->tex_is_target && sLast && sLast->tex==d->tex && sLast->nativeHud;
     d->pipeline = pipeline_get(ctx, topo, vu, 0);
+    sNativeShape=0;
     sBlockSample = 0;
     d->mode[0] = !tme ? 0 : d->tex_is_target ? 2 : 1; /* 2: a frame buffer as texture, its alpha is already rescaled */
     /* (ZENKAIPOWER_TEX_ALPHA=0 switches the replacement's alpha treatment off, for telling which one a fault comes from) */
@@ -1727,7 +1742,7 @@ void Port_WallMesh(const void *key, int second, int culled, const float *screen,
 /* Two draws can be merged into one call when everything they need is the same. `scissor` is compared as
    four ints (the scissor a draw has recorded). */
 static int same_state(const GsDraw *a, const GsDraw *b) {
-    return !a->native && a->vu == b->vu && a->wall == b->wall && a->screenText == b->screenText && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
+    return !a->native && a->vu == b->vu && a->wall == b->wall && a->sceneResolution == b->sceneResolution && a->screenText == b->screenText && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
            memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->misc[1] == b->misc[1] &&
            a->misc[2] == b->misc[2] && a->misc[3] == b->misc[3] && a->blendc == b->blendc &&
            memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 && memcmp(a->orig, b->orig, sizeof(a->orig)) == 0 &&
@@ -1955,6 +1970,14 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         d.wall = 1;
         sWallUs = us;
         sWallVs = vs;
+    }
+    if (d.mode[0] == 1 && !d.tex_is_target && sLast && sLast->tex == d.tex && sLast->nativeHud) {
+        d.mode[0] = 4; /* procedural shader, original UVs and GS tests */
+        d.orig[0] = tw; d.orig[1] = th;
+        d.orig[2] = (float)sLast->nativeHud; d.orig[3] = sSmooth2d ? 0.0f : 1.0f;
+        d.misc[3] = -(float)SCALE; /* retain the 2D interpolation tag; native shader bypasses grid sampling */
+        d.sceneResolution = 1;
+        d.screenText = 0; /* native HUD follows the game resolution, independently of text */
     }
     d.first = gsVertCount;
     if (type == 6) { /* sprite: two corners, flat colour and depth of the second vertex */

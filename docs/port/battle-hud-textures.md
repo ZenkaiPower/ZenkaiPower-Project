@@ -223,6 +223,91 @@ Plain rectangles, runtime color tint, animated fills, font-rendered names, conne
 do not have one independent static PNG each. The original bank previews also differ from the enhanced Menu/Battle
 font replacements; that path is described in [Menu font](menu_font.md).
 
+## Zenkai native elements
+
+**Zenkai native elements** groups optional procedural replacements. Its first member, **HUD shapes**, draws
+R0:3's two timer panels and R0:8's health/Ki atlas directly in the fragment shader. Polygon edges have pixel-sized
+antialiasing, and gradients use a small set of color stops rather than sampled images. Both OpenGL and Vulkan
+support it, including Android. The source images are identified after decoding, but are not uploaded as GPU
+artwork. Gauge draws use a 48x1 runtime color palette (192 bytes), extracted from the decoded source;
+the timer panels need only a neutral 1x1 binding. These are color stops, not shape bitmaps, and no exported PNG files are needed.
+
+| Compilation flag | Default | Scope |
+| --- | --- | --- |
+| `ZENKAIPOWER_NATIVE_ELEMENTS` | `1` | Master switch for every member of this collection |
+| `ZENKAIPOWER_NATIVE_HUD_SHAPES` | `1` | Timer panels, health and Ki shapes, stock chevron, remaining-bar markers and backing shapes |
+
+Set either flag to `0` at compilation to restore the original HUD textures. Both must be enabled
+for procedural HUD shapes. Future collection members must also check the master switch.
+Defaults are in `include/menu/port_build_flags.h`; override with compiler `-DNAME=0/1` switches.
+They are not runtime environment variables, saved settings or game Options entries.
+For example, build Windows with original HUD shapes:
+
+```powershell
+$env:ZENKAIPOWER_PORT_CFLAGS='-DZENKAIPOWER_NATIVE_HUD_SHAPES=0'
+.\port\release\build.ps1 win
+```
+
+The build forwards these compiler options into Docker and includes them in the build-cache signature.
+Alternatively edit the default definitions in the header, including for Android builds.
+
+The green, red, gold, yellow and blue health variants (R0:8 with palettes 9-13) and the base shadow atlas are
+recognized separately. Cropping, mirroring, game tint/opacity, animation, scissor and destination-alpha masks
+still follow the game's draw commands. Native shapes retain game-resolution sampling and respect 2D filtering: smooth mode uses analytic edge coverage and interpolated gradients; sharp mode uses source-texel steps, nearest gradient stops and crisp silhouettes. A mixed-resolution UI pass keeps them on the game's pixel
+grid while allowing informational text to remain sharp, with the original draw order and masks preserved.
+
+Native shapes use their own `nativehud.frag` pipeline (key bit 27). The ordinary GS, menu, VU/model and
+work-buffer shaders contain no native geometry or palette arrays. The native material is compiled lazily only
+when needed; palette lookup uses two texel fetches rather than indexing a large local GLSL constant array.
+This avoids multiplying native shader compilation and register costs across every scene/menu pipeline.
+
+Exact decoded identities prevent unrelated textures in reused VRAM slots from being replaced. Unrecognized or
+modified artwork and explicit texture-pack replacements retain the original texture path.
+
+Palette-only previews (P:38-46 and R0:1-2/9-13) are **color lookup tables**, not standalone screen elements.
+The R0:9-13 colors are represented by the native gauge gradients. R0:1-2 still color the original timer digits,
+and P:38-46 still color their associated auxiliary artwork; this member does not redraw those digits or pause
+artwork. Disabling the collection does not affect the separate Menu/Battle font replacement settings.
+
+Validation: `python3 port/tests/render/native_elements.py --file path/to/00005.bin` checks all compiled master/individual combinations,
+all seven recognized identities and fallback for changed artwork. `python3 port/tests/render/screen_text_build.py --gpu`
+checks the actual Vulkan and OpenGL shaders, shape parts, palette colors, opacity and transparent atlas regions.
+
+## Compare originals with native rendering
+
+Run the comparison tool from the repository root:
+
+```powershell
+python port/tools/compare_native_hud.py
+```
+
+Windows automatically uses Docker and builds a cached `zenkaipower-hud-compare` tools image from the existing
+`zenkaipower:latest` image. It does not build or install the Android app. Linux can use `--no-docker` with a C
+compiler, `pkg-config`/SDL3 development files, Pillow, Mesa and, when headless, Xvfb plus xauth.
+`--docker-image <name>` reuses an already prepared tools image when using Docker.
+
+The default input is `port/build/battle-hud-reference/source/00005.bin`; choose another extracted common HUD
+entry with `--file <path>`. `--out <folder>` changes the output directory. `--scale 1..8` selects the output size
+(default 4x); `--filter linear|nearest` selects filtering for the original texture (default linear).
+
+Open [`port/build/native-hud-comparison/index.html`](../../port/build/native-hud-comparison/index.html) after
+running it. All seven variants have source PNGs, original and native GPU renders, checkerboard comparisons,
+50% overlays and difference heatmaps. `report.json` records the source/shader hashes, renderer, filter, scale
+and numerical metrics. Generated images remain under ignored `port/build` by default.
+
+The capture helper compiles the **actual current GS fragment shader and OpenGL backend**, rendering both paths
+with identical UVs, viewport and GS alpha conversion. There is no Python approximation of the native geometry.
+It forces the procedural path for comparison regardless of saved flags, and captures an isolated, neutrally
+tinted atlas rather than a battle screenshot. Its `--scale` is only for inspection and does not override the
+game resolution setting. This report checks OpenGL; the separate rendering regression
+checks above cover both backends.
+
+Color errors use premultiplied RGB (appearance over black), with alpha reported separately. Averages cover the
+union of visible pixels, so empty atlas space does not dilute them and invisible RGB does not count. Lower MAE
+and RMSE mean closer results; silhouette IoU compares masks at alpha >= 16/255, with 1 meaning identical masks.
+Heatmaps show the largest RGB/alpha error amplified by four. Native antialiasing intentionally differs from
+bitmap filtering, so these metrics are diagnostics, not a claim of exact matching or a pass/fail threshold.
+
 ## Regenerate the reference
 
 The PNGs, raw source file and manifest live under ignored `port/build/battle-hud-reference/`; the document and

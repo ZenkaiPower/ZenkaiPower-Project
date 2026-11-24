@@ -360,6 +360,7 @@ static GLuint make_present_program(void) {
 /* ---- state -------------------------------------------------------------------------------------- */
 static SDL_Window *sWindow;
 static SDL_GLContext sCtx;
+static GLuint sNativeProg; /* lazy, isolated from menus and scene materials */
 static GLuint sMainProg[9]; /* gs.vert / vu0 / vu4 / vu6 + gs.frag; 4..7: the same with gsnz.frag (key bit 23); 8: gs.vert + gswb.frag (bit 25) */
 static GLuint sOutlineProg, sKeyProg, sDclutProg, sPresentProg;
 static GLuint sVaoGs, sVaoVu, sVboGs, sVboVu, sIboVu;
@@ -378,7 +379,7 @@ static const char *sDclutSamplers[3] = {"depthTex", "auxTex", "clutTex"};
 typedef struct Pipe { uint32_t key, bkey, wmask; int ztst, zwrite, topo, vu, fx, nz, wb, shadow; } Pipe;
 static Pipe sPipes[1024];
 static int sPipeCount;
-static GLuint sScreenCol, sScreenAux, sScreenDep, sScreenFbo, sScreenDate;
+static GLuint sScreenCol, sScreenAux, sScreenDep, sScreenFbo, sScreenDate, sScreenDateRead, sScreenDateDraw;
 static int sScreenW, sScreenH, sScreenReplay;
 static uint32_t screen_pipe_key(int index) { return sPipes[index].key; }
 
@@ -387,6 +388,7 @@ static int screen_target(int w, int h) {
     glDeleteTextures(1, &sScreenCol); glDeleteTextures(1, &sScreenAux); glDeleteTextures(1, &sScreenDep);
     glDeleteTextures(1, &sScreenDate);
     glDeleteFramebuffers(1, &sScreenFbo);
+    glDeleteFramebuffers(1, &sScreenDateRead); glDeleteFramebuffers(1, &sScreenDateDraw);
     sScreenFbo = 0;
     glGenTextures(1, &sScreenCol);
     glBindTexture(GL_TEXTURE_2D, sScreenCol);
@@ -400,6 +402,10 @@ static int screen_target(int w, int h) {
     glGenTextures(1, &sScreenDep);
     glBindTexture(GL_TEXTURE_2D, sScreenDep);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH32F_STENCIL8, w, h, 0, GL_DEPTH_STENCIL, GL_FLOAT_32_UNSIGNED_INT_24_8_REV, NULL);
+    glGenFramebuffers(1, &sScreenDateRead);
+    glGenFramebuffers(1, &sScreenDateDraw);
+    glBindFramebuffer(GL_FRAMEBUFFER, sScreenDateDraw);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sScreenDate, 0);
     glGenFramebuffers(1, &sScreenFbo);
     glBindFramebuffer(GL_FRAMEBUFFER, sScreenFbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sScreenCol, 0);
@@ -422,6 +428,15 @@ static void screen_capture(int target) {
                           attachment ? GL_NEAREST : GL_LINEAR);
     }
     glBlitFramebuffer(0, 0, 512*SCALE, 448*SCALE, 0, 0, sScreenW, sScreenH, GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+    /* A text suffix may begin inside a DATE run after a game-resolution HUD
+       draw. Preserve its saved mask, rather than the now-modified scene alpha. */
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, sScreenDateRead);
+    glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                          sDateCopy ? sDateCopy : sTgAux[target], 0);
+    glReadBuffer(GL_COLOR_ATTACHMENT0);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, sScreenDateDraw);
+    GLenum one=GL_COLOR_ATTACHMENT0; glDrawBuffers(1,&one);
+    glBlitFramebuffer(0, 0, 512*SCALE, 448*SCALE, 0, 0, sScreenW, sScreenH, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glEnable(GL_SCISSOR_TEST);
 }
 
@@ -602,7 +617,9 @@ static void set_pipe(int pipe) {
     sCurPipe = pipe;
     p = &sPipes[pipe];
     {
-        GLuint prog = p->fx ? sDclutProg : p->wb ? sMainProg[8] : sMainProg[p->vu + (p->nz ? 4 : 0)];
+        if((p->key & GS_PIPE_NATIVE_HUD) && !sNativeProg)
+            sNativeProg=make_program(kGsVertGlsl,kNativehudFragGlsl,"native HUD",sGsSamplers,2);
+        GLuint prog = (p->key & GS_PIPE_NATIVE_HUD) ? sNativeProg : p->fx ? sDclutProg : p->wb ? sMainProg[8] : sMainProg[p->vu + (p->nz ? 4 : 0)];
         if (sCurProgram != prog) { sCurProgram = prog; glUseProgram(prog); }
     }
     apply_blend(p->bkey);
@@ -1078,6 +1095,12 @@ static void frame_end(void) {
         memcpy(fu.orig, d->orig, sizeof(fu.orig));
         fu.extra[0] = d->vu ? (gsVuUni[d->uniform].misc[2] > 0.0f ? gsVuUni[d->uniform].misc[2] : 0.0f) : gsZMax;
         fu.extra[1] = (sPipes[d->pipeline].key & (1u << 9)) ? 1.0f : 0.0f; /* the source scaled by its alpha */
+        fu.extra[2]=fu.extra[3]=0;
+        if(replay && d->sceneResolution) {
+            fu.misc[3]=0;
+            fu.extra[2]=(float)sScreenW/(512*SCALE);
+            fu.extra[3]=(float)sScreenH/(448*SCALE);
+        }
         if (!haveFu || memcmp(&fu, &lastFu, sizeof(fu)) != 0) {
             set_params(&fu, sizeof(fu));
             memcpy(&lastFu, &fu, sizeof(fu));

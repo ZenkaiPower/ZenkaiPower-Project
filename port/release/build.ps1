@@ -106,7 +106,7 @@ try {
             $dockerArgs += @('-e', 'ZENKAIPOWER_JOBS')
         }
         foreach ($name in @(
-            'ZENKAIPOWER_FULL_REBUILD', 'ZENKAIPOWER_ZIP_LEVEL', 'ZENKAIPOWER_BUILD_KEY',
+            'ZENKAIPOWER_PORT_CFLAGS', 'ZENKAIPOWER_FULL_REBUILD', 'ZENKAIPOWER_ZIP_LEVEL', 'ZENKAIPOWER_BUILD_KEY',
             'ZENKAIPOWER_RELEASE_TAG', 'ZENKAIPOWER_DOLPHIN_SOURCE_URL', 'GITHUB_REPOSITORY'
         )) {
             $dockerArgs += @('-e', $name)

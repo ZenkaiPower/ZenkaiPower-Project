@@ -35,7 +35,7 @@ static SDL_Window *sWindow; /* the shared window (GsDraw_WindowCreate) */
 static SDL_GPUDevice *sDev;
 static SDL_GPUTextureFormat sDepthFormat = SDL_GPU_TEXTUREFORMAT_D32_FLOAT;
 static int sShadowStencil;
-static SDL_GPUShader *sVs, *sFs, *sFsNz, *sFsWb; /* (Nz: gs.frag without its depth output, key bit 23; Wb: and with the glow chain's sampling, bit 25) */
+static SDL_GPUShader *sVs, *sFs, *sFsNz, *sFsWb, *sFsNative; /* (Nz: gs.frag without its depth output, key bit 23; Wb: and with the glow chain's sampling, bit 25) */
 static SDL_GPUBuffer *sVbuf;
 static SDL_GPUTransferBuffer *sVxfer;
 static SDL_GPUSampler *sSamplers[16]; /* bit 0 filtered, bit 1 / 2 clamped in u / v, bit 3 with the smaller copies (mip levels) */
@@ -111,6 +111,13 @@ static void screen_capture(SDL_GPUCommandBuffer *cmd, int target) {
     SDL_BindGPUFragmentSamplers(pass, 0, sources, 3);
     SDL_DrawGPUPrimitives(pass, 3, 1, 0, 0);
     SDL_EndGPURenderPass(pass);
+    /* Carry the saved DATE mask across a game-resolution/native HUD boundary. */
+    SDL_GPUBlitInfo mask={0};
+    mask.source.texture=sDateCopy ? sDateCopy : sTgAux[target];
+    mask.source.w=512*SCALE;mask.source.h=448*SCALE;
+    mask.destination.texture=sScreenDate;mask.destination.w=sScreenW;mask.destination.h=sScreenH;
+    mask.load_op=SDL_GPU_LOADOP_DONT_CARE;mask.filter=SDL_GPU_FILTER_NEAREST;
+    SDL_BlitGPUTexture(cmd,&mask);
 }
 
 /* textures created this frame, to upload in the copy pass */
@@ -399,7 +406,8 @@ static void blend_from_key(uint32_t bkey, SDL_GPUColorTargetBlendState *b) {
 /* Creates the pipeline of a key (everything a pipeline depends on is in the key):
    bits 0..9 blend, 10..11 depth test, 12 depth write, 13..14 topology, 16..19 colour write mask,
    20..21 vertices: 0 GS vertices, 1 program 0, 2 program 4, 3 program 6, 23 gs.frag without its depth output,
-   24 the flat-shadow stencil test, 25 gswb.frag, 26 the alpha byte left alone (aux_plan). */
+   24 the flat-shadow stencil test, 25 gswb.frag, 26 the alpha byte left alone (aux_plan),
+   27 the isolated native HUD fragment shader. */
 static int pipeline_create(uint32_t key, int remember) {
     int ztst = (int)((key >> 10) & 3), zwrite = (int)((key >> 12) & 1), topo = (int)((key >> 13) & 3), vu = (int)((key >> 20) & 3);
     int fx = (int)((key >> 22) & 1); /* a full-screen table pass (dclut.frag): no vertices, no depth attachment */
@@ -434,7 +442,9 @@ static int pipeline_create(uint32_t key, int remember) {
         at[2].format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT4; at[2].offset = 32;
     }
     ci.vertex_shader = vu == 3 ? sVu6Vs : vu == 2 ? sVu4Vs : vu ? sVu0Vs : sVs;
-    ci.fragment_shader = (key >> 25) & 1 ? sFsWb : (key >> 23) & 1 ? sFsNz : sFs;
+    if((key & GS_PIPE_NATIVE_HUD) && !sFsNative)
+        sFsNative=shader(SHADER_CODE(kNativehudFrag),SDL_GPU_SHADERSTAGE_FRAGMENT,2,1);
+    ci.fragment_shader = (key & GS_PIPE_NATIVE_HUD) ? sFsNative : (key >> 25) & 1 ? sFsWb : (key >> 23) & 1 ? sFsNz : sFs;
     ci.vertex_input_state.vertex_buffer_descriptions = &vb;
     ci.vertex_input_state.num_vertex_buffers = 1;
     ci.vertex_input_state.vertex_attributes = at;
@@ -480,7 +490,11 @@ static int pipeline_create(uint32_t key, int remember) {
     sPipes[sPipeCount].key = key;
     t0 = gpu_now();
     sPipes[sPipeCount].p = SDL_CreateGPUGraphicsPipeline(sDev, &ci);
-    gGpuPipeNs += gpu_now() - t0;
+    uint64_t compileNs=gpu_now()-t0;
+    gGpuPipeNs += compileNs;
+    if(compileNs>=250000000ull)
+        fprintf(stderr,"zenkaipower: slow %s pipeline %08x: %.1f ms\n",
+                (key & GS_PIPE_NATIVE_HUD) ? "native HUD" : "scene",key,(double)compileNs/1e6);
     if (sPipes[sPipeCount].p == NULL) {
         fprintf(stderr, "zenkaipower: pipeline %08x: %s\n", key, SDL_GetError());
         return 0;
@@ -1470,6 +1484,12 @@ static void vk_frame_end(void) {
         memcpy(fu.orig, d->orig, sizeof(fu.orig));
         fu.extra[0] = d->vu ? (gsVuUni[d->uniform].misc[2] > 0.0f ? gsVuUni[d->uniform].misc[2] : 0.0f) : gsZMax;
         fu.extra[1] = (sPipes[d->pipeline].key & (1u << 9)) ? 1.0f : 0.0f; /* the source scaled by its alpha */
+        fu.extra[2]=fu.extra[3]=0;
+        if(replay && d->sceneResolution) {
+            fu.misc[3]=0;
+            fu.extra[2]=(float)sScreenW/(512*SCALE);
+            fu.extra[3]=(float)sScreenH/(448*SCALE);
+        }
         if (!haveFu || memcmp(&fu, &lastFu, sizeof(fu)) != 0) {
             SDL_PushGPUFragmentUniformData(cmd, 0, &fu, sizeof(fu));
             memcpy(&lastFu, &fu, sizeof(fu));

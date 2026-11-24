@@ -20,6 +20,7 @@ extern GsRenderScale gsScale;
 #define SCALE gsScale
 #define GS_W 1024
 #define GS_H 1024
+#define GS_PIPE_NATIVE_HUD (1u << 27)
 
 #define MAX_VERTS (1 << 20)
 #define MAX_DRAWS (1 << 16)
@@ -91,6 +92,7 @@ typedef struct GsDraw {
     float blendc;
     int scissor[4]; /* x, y, width, height, at SCALE */
     int wall;       /* triangles of the wall at the edge of the map (gs_draw.c, Port_WallMesh): in-between pictures draw it anew */
+    int sceneResolution; /* procedural HUD stays at game resolution during UI replay */
     int screenText; /* generated lettering or Battle font artwork; display-resolution UI composition */
 } GsDraw;
 

@@ -1,6 +1,7 @@
 /* Actual OpenGL composition helpers/shaders; screen_text_build.py --gpu. */
 #include "../../src/gs/gs_gl.c"
 #include <assert.h>
+#include "native_hud_checks.h"
 int gsScale=1;
 unsigned gsVertCount;
 Vtx *gsVerts;
@@ -23,9 +24,17 @@ int main(void) {
     sHasIndexed=glEnablei && glColorMaski;
     sMainProg[0]=make_program(kGsVertGlsl,kGsFragGlsl,"screen text",sGsSamplers,2);assert(sMainProg[0]);
     target_ensure(0);bind_target(0,1);
-    float color[4]={.25f,.25f,.25f,1},aux[4]={.3f,0,0,1},depth=.8f;
+    float color[4]={.25f,.25f,.25f,1},aux[4]={.8f,0,0,1},depth=.8f;
     glClearBufferfv(GL_COLOR,0,color);glClearBufferfv(GL_COLOR,1,aux);glClearBufferfv(GL_DEPTH,0,&depth);
+    /* The cached DATE mask differs from the current scene alpha. */
+    unsigned char *mask=malloc(GS_W*GS_H);assert(mask);memset(mask,77,GS_W*GS_H);
+    glGenTextures(1,&sDateCopy);glBindTexture(GL_TEXTURE_2D,sDateCopy);
+    glTexImage2D(GL_TEXTURE_2D,0,GL_R8,GS_W,GS_H,0,GL_RED,GL_UNSIGNED_BYTE,mask);free(mask);
     assert(screen_target(1280,720));screen_capture(0);sScreenReplay=1;bind_target(0,0);
+    glActiveTexture(GL_TEXTURE0+1);glBindTexture(GL_TEXTURE_2D,sScreenDate);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    glActiveTexture(GL_TEXTURE0);
     Vtx original[18];quad(original,0,0,512,448,.7f,255,0,0);
     quad(original+6,100.2f,100,100.8f,200,.9f,255,255,255);
     quad(original+12,90,125,110,145,.95f,0,255,0);
@@ -38,7 +47,7 @@ int main(void) {
     glEnableVertexAttribArray(2);glVertexAttribPointer(2,3,GL_FLOAT,GL_FALSE,sizeof(Vtx),(void *)16);
     glGenBuffers(1,&sUboParams);glBindBuffer(GL_UNIFORM_BUFFER,sUboParams);
     glBufferData(GL_UNIFORM_BUFFER,96,NULL,GL_STREAM_DRAW);glBindBufferBase(GL_UNIFORM_BUFFER,1,sUboParams);
-    struct {int mode[4];float misc[4],rect[4],orig[4],extra[4];} params={0};params.extra[0]=16777215;
+    struct {int mode[4];float misc[4],rect[4],orig[4],extra[4];} params={0};params.extra[0]=16777215;params.misc[1]=1;
     set_pipe(pipe_get((2u<<10)|(1u<<12)|(15u<<16)));set_params(&params,sizeof(params));
     int logical[4]={0,100,512,50},clip[4];GsScreenText_Scissor(logical,clip,1280,720);
     set_scissor(clip);glDrawArrays(GL_TRIANGLES,0,18);
@@ -50,6 +59,27 @@ int main(void) {
     assert(PIXEL(251,217,0)<5 && PIXEL(251,217,1)>250);
     assert(PIXEL(500,177,0)>60 && PIXEL(500,177,0)<70);
     assert(PIXEL(251,300,0)>60 && PIXEL(251,300,0)<70);
+    /* The same shader must draw shapes without reading the bound scene image. */
+    quad(original,0,0,512,448,.9f,128,128,128);
+    for(int i=0;i<6;i++) { original[i].s=original[i].x/512; original[i].t=original[i].y/448; }
+    native=GsScreenText_Vertices();assert(native);
+    glBindBuffer(GL_ARRAY_BUFFER,sVboGs);glBufferSubData(GL_ARRAY_BUFFER,0,6*sizeof(Vtx),native);free(native);
+    int full[4]={0,0,1280,720};set_scissor(full);
+    params.mode[0]=4;params.mode[1]=1;params.mode[2]=1;params.misc[3]=0;
+    set_pipe(pipe_get((2u<<10)|(1u<<12)|(15u<<16)|GS_PIPE_NATIVE_HUD));
+    assert(sNativeProg && sCurProgram==sNativeProg && sNativeProg!=sMainProg[0]);
+    for(int sharp=0;sharp<=1;sharp++) for(int kind=1;kind<=7;kind++) {
+        params.orig[3]=(float)sharp;
+        GsTex palette=tex_create(48,1,GS_TEXFMT_RGBA8,1);
+        tex_upload(palette,0,48,1,GS_TEXFMT_RGBA8,native_test_palette(kind),48*4);
+        glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,(GLuint)palette);
+        params.orig[0]=kind==1 ? 64 : 256;params.orig[1]=64;params.orig[2]=kind;
+        set_params(&params,sizeof(params));glDrawArrays(GL_TRIANGLES,0,6);
+        glReadPixels(0,0,1280,720,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+        if(!sharp) native_hud_check(pixels,kind);
+        native_hud_filter_check(pixels,kind,sharp);tex_destroy(palette);
+    }
+    puts("OpenGL native HUD: timer panels, six palettes, atlas parts and transparent regions passed");
     assert(glGetError()==GL_NO_ERROR);free(pixels);
     SDL_GL_DestroyContext(sCtx);SDL_DestroyWindow(sWindow);SDL_Quit();
     puts("OpenGL screen text: native detail, scene depth, ordering and clipping passed");
