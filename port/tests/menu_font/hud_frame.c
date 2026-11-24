@@ -1,11 +1,13 @@
 /* Disc-dependent integration test: hud-frame-test /path/to/extracted/gamedata. */
 #include "../../src/gs/menu_labels.h"
+#include "../../src/gs/gs_draw.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 const char *Port_FileRoot(void) { return "gamedata"; }
 int PortSongs_JapaneseSoundtrack(void) { return 0; }
 int Port_NetSession(void) { return 0; }
+GsRenderScale gsScale = 2;
 int main(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s /path/to/extracted/gamedata\n", argv[0]);

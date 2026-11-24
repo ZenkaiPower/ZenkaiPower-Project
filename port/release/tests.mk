@@ -48,9 +48,11 @@ port/build/bot-battle-log-test: port/tests/bot/battle_log.cpp port/src/gs/bot_ba
 HUD_NAME_SOURCES := port/tests/menu_font/hud_name.c port/src/gs/menu_text.c port/src/gs/tbo_text.c \
     port/src/gs/menu_labels.c port/src/gs/menu_translation.c port/src/gs/ui_text_extract.c \
     port/src/gs/ui_text_translate.c port/src/plat_settings.c port/src/plat_zenkai.c
+HUD_NAME_HEADERS := port/src/gs/menu_text.h port/src/gs/gs_draw.h port/src/gs/text_resolution.h \
+    include/menu/port_build_flags.h include/menu/port_text_resolution.h port/src/port_pack.h
 .PHONY: hud-name-test
 hud-name-test: port/build/hud-name-test
-port/build/hud-name-test: $(HUD_NAME_SOURCES) port/src/gs/menu_text.h port/src/port_pack.h port/release/tests.mk
+port/build/hud-name-test: $(HUD_NAME_SOURCES) $(HUD_NAME_HEADERS) port/release/tests.mk
 	$(CC) -O1 -DUI_TEXT_HOST_ALLOC -Iport/src/gs $(HUD_NAME_SOURCES) -lm -lpthread -lSDL3 -o $@.tmp
 	mv $@.tmp $@
 
@@ -58,7 +60,7 @@ port/build/hud-name-test: $(HUD_NAME_SOURCES) port/src/gs/menu_text.h port/src/p
 HUD_FRAME_SOURCES := port/tests/menu_font/hud_frame.c $(filter-out port/tests/menu_font/hud_name.c,$(HUD_NAME_SOURCES))
 .PHONY: hud-frame-test
 hud-frame-test: port/build/hud-frame-test
-port/build/hud-frame-test: $(HUD_FRAME_SOURCES) port/src/gs/menu_labels.h port/src/port_pack.h port/release/tests.mk
+port/build/hud-frame-test: $(HUD_FRAME_SOURCES) $(HUD_NAME_HEADERS) port/src/gs/menu_labels.h port/release/tests.mk
 	$(CC) -O1 -DUI_TEXT_HOST_ALLOC -Iport/src/gs $(HUD_FRAME_SOURCES) -lm -lpthread -lSDL3 -o $@.tmp
 	mv $@.tmp $@
 

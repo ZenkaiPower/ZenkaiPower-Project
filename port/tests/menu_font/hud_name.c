@@ -1,6 +1,8 @@
 /* Run from a release folder with fonts.pak. Checks the actual native text-texture path. */
 #include "../../src/gs/menu_text.h"
 #include "../../src/gs/menu_labels.h"
+#include "../../src/gs/gs_draw.h"
+#include "../../src/gs/text_resolution.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -11,6 +13,8 @@ extern uint32_t *TboText_Pixels(uint32_t, uint32_t *, uint32_t *, uint32_t *);
 const char *Port_FileRoot(void) { return "gamedata"; }
 int PortSongs_JapaneseSoundtrack(void) { return 0; }
 int Port_NetSession(void) { return 0; }
+/* Standalone text tests do not link the renderer that owns this value. */
+GsRenderScale gsScale = 2;
 int main(void) {
     int id = PortTbo_TextId("Zen", 6);
     assert(id >= 0);
@@ -44,5 +48,26 @@ int main(void) {
     id = PortTbo_TextId("SparkingBot", 6);
     px = TboText_Pixels(id, &version, &w, &h);
     assert(px); free(px);
+    /* Exercise the styled Options path that depends on the render scale. */
+    for (int kind = 3; kind <= 5; kind++) {
+        id = PortTbo_TextId("Video Settings", kind);
+        assert(id >= 0);
+        gsScale = 2;
+        MenuText_SceneScale(2);
+        px = TboText_Pixels(id, &version, &w, &h);
+        assert(px && w > 0 && h > 0);
+        uint32_t oldVersion = version, oldWidth = w, oldHeight = h;
+        free(px);
+        gsScale = 4;
+        MenuText_SceneScale(4);
+        px = TboText_Pixels(id, &version, &w, &h);
+        assert(px);
+        if (PortText_FollowsResolution(0)) {
+            assert(version != oldVersion && w == oldWidth * 2 && h == oldHeight * 2);
+        } else {
+            assert(version == oldVersion && w == oldWidth && h == oldHeight);
+        }
+        free(px);
+    }
     puts("PASS: native Anton names, GS alpha and visible glyph bounds");
 }
