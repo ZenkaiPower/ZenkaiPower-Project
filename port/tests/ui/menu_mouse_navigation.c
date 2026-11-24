@@ -14,7 +14,7 @@ s32 gPortScreen;
 static PortMenuMouse pending;
 static int focus[8];
 static int hitRow = -1, hitArrow, moves, confirms, cancels;
-void PortMenuMouse_Read(PortMenuMouse *mouse) { *mouse = pending; memset(&pending, 0, sizeof(pending)); }
+void PortMenuMouse_ReadScroll(PortMenuMouse *mouse) { *mouse = pending; memset(&pending, 0, sizeof(pending)); }
 int Port_FlashMainMouseRow(float x, float y) { (void)x; (void)y; return hitRow; }
 int Port_FlashMainMouseArrow(float x, float y) { (void)x; (void)y; return hitArrow; }
 u32 Rand_Range(u32 n) { (void)n; return 0; }
@@ -42,9 +42,14 @@ int main(void) {
     hitRow = 0; /* A stationary pointer must not override a key. */
     gPad[0].gameRepeat = 4; MainMenu_Input(&result); CHECK(menu.cursor == 3);
     gPad[0].gameRepeat = 0; MainMenu_Input(&result); CHECK(menu.cursor == 3);
-    pending.wheel = 1; MainMenu_Input(&result); CHECK(menu.cursor == 3 && menu.top == 1);
+    pending.wheel = 1; MainMenu_Input(&result); CHECK(menu.cursor == 0 && menu.top == 1);
+    CHECK(focus[2] && !focus[5]); /* initial plate stays focused while list moves */
     menu.cursor = 0; pending.wheel = -1;
     MainMenu_Input(&result); CHECK(menu.cursor == 0 && menu.top == 0);
+    menu.top=10;pending.wheel=1;MainMenu_Input(&result);
+    CHECK(menu.cursor==0 && menu.top==0); /* forward wrap */
+    pending.wheel=-1;MainMenu_Input(&result);CHECK(menu.cursor==0 && menu.top==10);
+    menu.top=0;
     hitArrow = -1; pending.confirm = 1;
     MainMenu_Input(&result); CHECK(menu.cursor == 0 && menu.top == 10 && !confirms);
     hitArrow = 1; menu.cursor = 3; pending.confirm = 1;
@@ -61,9 +66,12 @@ int main(void) {
     pending.confirm = 1; hitRow = 1; /* Select and enter the clicked row in one frame. */
     MainMenu_Input(&result); CHECK(menu.cursor == 1 && confirms == 1 && progress.mode == 33);
     CHECK(menu.flags & MAINMENU_LEAVING);
+    menu.flags=MAINMENU_STARTED;pending.confirm=1;pending.x=400;hitRow=-1;
+    MainMenu_Input(&result);CHECK(confirms==2 && (menu.flags&MAINMENU_LEAVING));
+    pending.x=0;
     menu.flags = MAINMENU_STARTED; pending.cancel = 1;
     MainMenu_Input(&result); CHECK(result == 0 && cancels == 1);
     menu.flash[0].flags = 0; pending.confirm = 1;
-    MainMenu_Input(&result); CHECK(confirms == 1); /* Opening/scroll animation gates input. */
+    MainMenu_Input(&result); CHECK(confirms == 2); /* Opening/scroll animation gates input. */
     return 0;
 }

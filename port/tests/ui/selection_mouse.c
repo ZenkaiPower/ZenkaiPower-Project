@@ -6,6 +6,8 @@ typedef int s32;
 typedef float f32;
 #define PADG_CROSS 0x200
 #define PADG_TRIANGLE 0x400
+#define PADG_LEFT 1
+#define PADG_RIGHT 2
 #define PADG_UP 8
 #define PADG_DOWN 4
 static struct { int gamePressed,gameRepeat; } gPad[2];
@@ -28,6 +30,14 @@ int main(void) {
     calls=0;mouse.wheel=1;
     assert(Port_SelectionMouseHit(&mouse,11,"mc_chara_chip_%03d",0,7,32,32,0)==-1 && calls==0);
     Port_SelectionMouseButtons(&mouse,0,0);assert(gPad[0].gameRepeat==PADG_DOWN);
+    gPad[0].gameRepeat=0;mouse.swipeAxis=1;
+    Port_SelectionMouseButtons(&mouse,0,0);assert(gPad[0].gameRepeat==PADG_RIGHT);
+    gPad[0].gameRepeat=0;mouse.wheel=-1;
+    Port_SelectionMouseButtons(&mouse,0,0);assert(gPad[0].gameRepeat==PADG_LEFT);
+    PortMouseNetNav swipeNav={0};PortMouseNetView swipeView={.state=9};
+    Port_SelectionNetTarget(&mouse,&swipeNav,&swipeView);assert(swipeNav.action==0x80);
+    mouse.wheel=1;Port_SelectionNetTarget(&mouse,&swipeNav,&swipeView);assert(swipeNav.action==0x20);
+    mouse.swipeAxis=0;
     mouse.wheel=0;mouse.moved=0;mouse.confirm=1;
     assert(Port_SelectionMouseHit(&mouse,11,"mc_chara_chip_%03d",0,7,32,32,0)==3);
     Port_SelectionMouseButtons(&mouse,1,0);assert(gPad[1].gamePressed==0);

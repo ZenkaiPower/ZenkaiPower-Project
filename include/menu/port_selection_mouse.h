@@ -21,7 +21,8 @@ static s32 Port_SelectionMusicHit(PortMenuMouse *mouse, s32 grid) {
 static void Port_SelectionMouseButtons(PortMenuMouse *mouse, s32 pad, s32 hit) {
     if (mouse->confirm && hit) gPad[pad].gamePressed |= PADG_CROSS;
     if (mouse->cancel) gPad[pad].gamePressed |= PADG_TRIANGLE;
-    if (mouse->wheel) gPad[pad].gameRepeat |= mouse->wheel < 0 ? PADG_UP : PADG_DOWN;
+    if (mouse->wheel) gPad[pad].gameRepeat |= mouse->swipeAxis == 1 ?
+        (mouse->wheel < 0 ? PADG_LEFT : PADG_RIGHT) : (mouse->wheel < 0 ? PADG_UP : PADG_DOWN);
 }
 /* Only character/stage/music selectors opt in. Navigation controls consume
    confirm before reaching here so a tap never both navigates and accepts. */

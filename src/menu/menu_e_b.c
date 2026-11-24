@@ -1551,7 +1551,7 @@ f32 TeamSel_Input(s32 *result) {
 #ifdef PORT
     PortMenuMouse mouse;
     memset(&mouse, 0, sizeof(mouse));
-    if (!Port_NetActive()) PortMenuMouse_Read(&mouse);
+    if (!Port_NetActive()) PortMenuMouse_ReadScroll(&mouse);
 #endif
     if (!(gTeamSel->flash[0].flags & MFLASH_PAD)) {
         return;

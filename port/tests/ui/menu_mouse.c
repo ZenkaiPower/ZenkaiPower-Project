@@ -13,6 +13,7 @@ extern int gPortOverlayOpen, gPortInputCapture, gPortChatTyping;
 volatile int gUiPresentX = 200, gUiPresentY = 100, gUiPresentW = 1600, gUiPresentH = 1200;
 static int focused = 1, mouseSupport = 1;
 int Port_Setting(const char *name, int fallback) { (void)name; (void)fallback; return mouseSupport; }
+int GsDraw_OutputSize(int *w,int *h) { *w=2000;*h=1400;return 1; }
 SDL_Window *GsDraw_Window(void) { return (SDL_Window *)1; }
 SDL_WindowFlags SDL_GetWindowFlags(SDL_Window *window) { (void)window; return focused ? SDL_WINDOW_INPUT_FOCUS : 0; }
 bool SDL_GetWindowSize(SDL_Window *window, int *w, int *h) { (void)window; *w = 1000; *h = 700; return true; }

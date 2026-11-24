@@ -300,6 +300,36 @@ void PortMenuMouse_Read(PortMenuMouse *out) {
     pthread_mutex_unlock(&sMenuMouseLock);
 }
 
+void PortMenuMouse_ReadScroll(PortMenuMouse *out) {
+    static int active, axis;
+    static float lastX,lastY,remainder;
+    PortMenuMouse_Read(out);
+    if(out->dragStart || (!active && out->dragHeld)) {
+        active=1;axis=0;remainder=0;
+        lastX=out->dragX;lastY=out->dragY;
+    }
+    if(active && (out->dragHeld || out->dragEnd)) {
+        float dx=lastX-out->x,dy=lastY-out->y;
+        /* Game coordinates keep the distance consistent across device sizes.
+           Lock to the dominant direction after one row's worth of movement. */
+        if(!axis && (fabsf(dx)>=24 || fabsf(dy)>=24)) axis=fabsf(dx)>fabsf(dy) ? 1:2;
+        if(axis) {
+            float delta=axis==1 ? -dx:dy;
+            if(delta*remainder<0) remainder=0;
+            remainder+=delta;
+            lastX=out->x;lastY=out->y;
+            if(fabsf(remainder)>=24) {
+                out->wheel=remainder>0 ? 1:-1;
+                out->swipeAxis=axis;
+                remainder=fmodf(remainder,24);
+            }
+        }
+        /* A swipe must never hover-select a different item or confirm it. */
+        out->moved=out->confirm=0;
+    }
+    if(!out->dragHeld || out->cancel) {active=0;axis=0;remainder=0;}
+}
+
 int PortInput_AnyButtonPressed(void) {
     int pressed;
     pthread_mutex_lock(&sMenuMouseLock);
@@ -354,7 +384,7 @@ void PortMenuMouse_NetSample(unsigned char *pad) {
        gPortOverlayOpen || gPortInputCapture || gPortChatTyping) {
         memset(&sNetMouse,0,sizeof(sNetMouse));return;
     }
-    PortMenuMouse_Read(&mouse);
+    PortMenuMouse_ReadScroll(&mouse);
     /* Keyboard/controller input takes ownership over a pending pointer target. */
     if(pad[0]!=255 || pad[1]!=255 || pad[2]<100 || pad[2]>155 ||
        pad[3]<100 || pad[3]>155 || pad[4]<100 || pad[4]>155 || pad[5]<100 || pad[5]>155) {

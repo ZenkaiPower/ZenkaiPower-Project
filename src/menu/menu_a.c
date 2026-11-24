@@ -442,9 +442,9 @@ void MainMenu_Update(void) {
 void MainMenu_Input(s32 *result) {
 #ifdef PORT
     PortMenuMouse mouse;
-    s32 row, arrow;
+    s32 row, arrow, wheelScroll = 0;
     u32 repeat = gPad[0].gameRepeat, pressed = gPad[0].gamePressed;
-    PortMenuMouse_Read(&mouse);
+    PortMenuMouse_ReadScroll(&mouse);
 #endif
     if (!(gMainMenu->flash[0].flags & MFLASH_PAD)) {
         return;
@@ -481,8 +481,11 @@ void MainMenu_Input(s32 *result) {
         }
         if (mouse.cancel) pressed = 0x400;
         else if (mouse.confirm && arrow) repeat = arrow < 0 ? 8 : 4;
-        else if (mouse.confirm && row >= 0 && row < MAINMENU_ROWS) pressed = 0x200;
-        else if (mouse.wheel) repeat = mouse.wheel < 0 ? 8 : 4;
+        else if (mouse.confirm && ((row >= 0 && row < MAINMENU_ROWS) || (row < 0 && mouse.x >= 256))) pressed = 0x200;
+        else if (mouse.wheel) {
+            repeat = mouse.wheel < 0 ? 8 : 4;
+            wheelScroll = 1;
+        }
     }
 #else
 #define repeat (gPad[0].gameRepeat)
@@ -492,7 +495,11 @@ void MainMenu_Input(s32 *result) {
         MainMenu_PlateGoto(0, "fl_off_start");
         gMainMenu->iconTimer = 0;
         gMainMenu->iconFrame = 0;
+#ifdef PORT
+        gMainMenu->cursor = wheelScroll ? -1 : gMainMenu->cursor - 1;
+#else
         gMainMenu->cursor--;
+#endif
         if (gMainMenu->cursor < 0) {
             gMainMenu->cursor = 0;
             Flash_GotoLabel(&gMainMenu->flash[0], "fl_menu_down", 1);
@@ -507,9 +514,17 @@ void MainMenu_Input(s32 *result) {
         MainMenu_PlateGoto(0, "fl_off_start");
         gMainMenu->iconTimer = 0;
         gMainMenu->iconFrame = 0;
+#ifdef PORT
+        gMainMenu->cursor = wheelScroll ? MAINMENU_ROWS : gMainMenu->cursor + 1;
+#else
         gMainMenu->cursor++;
+#endif
         if (gMainMenu->cursor >= MAINMENU_ROWS) {
+#ifdef PORT
+            gMainMenu->cursor = wheelScroll ? 0 : MAINMENU_ROWS - 1;
+#else
             gMainMenu->cursor = MAINMENU_ROWS - 1;
+#endif
             Flash_GotoLabel(&gMainMenu->flash[0], "fl_menu_up", 1);
             gMainMenu->extra = gMainMenu->top;
             gMainMenu->top++;

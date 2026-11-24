@@ -51,7 +51,7 @@ static void Port_SelectionNetTarget(PortMenuMouse *mouse,PortMouseNetNav *nav,Po
         }
     }
     nav->target=hit;
-    if(mouse->wheel) nav->action=mouse->wheel<0 ? ((state==1 || state==5) ? 0x80:0x10):((state==1 || state==5) ? 0x20:0x40);
+    if(mouse->wheel) nav->action=mouse->swipeAxis==1 ? (mouse->wheel<0 ? 0x80:0x20):mouse->wheel<0 ? ((state==1 || state==5) ? 0x80:0x10):((state==1 || state==5) ? 0x20:0x40);
     if(hit<0 && mouse->confirm) {
         s32 up=Port_SelectionMouseHit(mouse,scope,"mc_yajirusi_up",0,1,32,32,pivot);
         s32 down=Port_SelectionMouseHit(mouse,scope,"mc_yajirusi_down",0,1,32,32,pivot);

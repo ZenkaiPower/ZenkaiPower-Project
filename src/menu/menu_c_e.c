@@ -1370,7 +1370,7 @@ void CharSel_Input(s32 *running) {
 #ifdef PORT
     PortMenuMouse mouse;
     memset(&mouse, 0, sizeof(mouse));
-    if (!Port_NetActive()) PortMenuMouse_Read(&mouse);
+    if (!Port_NetActive()) PortMenuMouse_ReadScroll(&mouse);
 #endif
     if (!(gCharSel->flash[0].flags & MFLASH_PAD)) {
         return;

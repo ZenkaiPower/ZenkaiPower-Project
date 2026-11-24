@@ -525,7 +525,7 @@ void ModeMenu_PlateGoto(s32 movie, s32 kind, char *label) {
 /* Narration accepts Start rather than Cross; also handle the delay between lines. */
 static void ModeMenu_MouseScriptInput(void) {
     PortMenuMouse mouse;
-    PortMenuMouse_Read(&mouse);
+    PortMenuMouse_ReadScroll(&mouse);
     if (mouse.confirm) {
         if (gModeMenu->step >= MODEMENU_STEP_NARR_INIT &&
             gModeMenu->step <= MODEMENU_STEP_NARR_END) {
@@ -542,7 +542,7 @@ static void ModeMenu_MouseInput(void) {
     PortMenuMouse mouse;
     s32 hit = -1, i;
     char name[32];
-    PortMenuMouse_Read(&mouse);
+    PortMenuMouse_ReadScroll(&mouse);
     if (gModeMenu->focus == 0) {
         if ((mouse.moved || mouse.confirm) && !mouse.wheel) {
             for (i = 0; i < 3 && gModeMenu->top + i <= gModeMenu->bottom; ++i) {

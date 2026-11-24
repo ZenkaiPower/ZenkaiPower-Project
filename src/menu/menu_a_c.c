@@ -257,7 +257,7 @@ void Title_Input(s32 *result) {
     PortMenuMouse mouse;
     s32 row;
     s32 anyButton = PortInput_AnyButtonPressed();
-    PortMenuMouse_Read(&mouse);
+    PortMenuMouse_ReadScroll(&mouse);
     if (gPortOverlayOpen) {
         return;
     }

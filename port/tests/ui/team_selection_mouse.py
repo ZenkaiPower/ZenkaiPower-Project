@@ -16,6 +16,8 @@ typedef int s32;typedef float f32;
 #define TEAMSEL_CLIP_TEAM 1
 #define PADG_CROSS 0x200
 #define PADG_TRIANGLE 0x400
+#define PADG_LEFT 1
+#define PADG_RIGHT 2
 #define PADG_UP 8
 #define PADG_DOWN 4
 static struct {int gamePressed,gameRepeat;} gPad[2];

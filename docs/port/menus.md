@@ -319,3 +319,14 @@ Focused checks: `port/tests/ui/menu_mouse_geometry.c`,
 and `python3 port/tests/ui/pause_mouse.py`.
 
 View Skills supports tapping its scrollbar track and dragging its thumb with a mouse or touchscreen. Scrolling stays within the active tab and keeps the selected skill visible.
+
+Touchscreen swipes on the main/title and mode menus, and character/stage/music selectors
+(including team and online selection), use the existing mouse-wheel navigation path.
+The gesture locks to its dominant axis after 24 game-coordinate pixels and emits at most
+one navigation step per input read; a held finger does not auto-repeat. Swiping suppresses
+hover selection and confirmation. Short taps keep their existing behavior. Other menus
+retain their dedicated scrollbar dragging, and battle camera gestures remain separate.
+
+Main-menu wheel and swipe scrolling rotates the list with focus kept on the initial plate (`cursor=0`). Keyboard/controller navigation and direct pointer selection retain their existing behavior.
+
+Tapping/clicking the empty right half of the main menu confirms its current focus. Character/stage selection keeps the swipe axis: horizontal swipes navigate columns (left swipe moves left, right swipe moves right); vertical swipes retain mouse-wheel row navigation. Online selection sends the same ordinary directional pad inputs.
