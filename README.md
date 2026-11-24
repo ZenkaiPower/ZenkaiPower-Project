@@ -66,7 +66,12 @@ The *Disc Fusion* game modes can be unlocked and played.
 
 <div style="display: flex; align-items: center; gap: 8px;">
   <span>With Autosave enabled, the game saves your progress automatically. The icon shown here appears while saving.</span>
-  <img src="./figs/autosave-crop.gif" alt="Animated saving indicator" width="32" data-carousel-caption="Automatic saving when this icon is shown."/>
+  <img
+    src="./figs/autosave-crop.gif"
+    alt="Animated saving indicator"
+    width="32"
+    style="background: white; padding: 2px; border-radius: 4px;"
+    data-carousel-caption="Automatic saving when this icon is shown."/>
 </div>
 
 ### Higher 3D Resolutions
@@ -149,6 +154,8 @@ Online play allows players to connect over the internet for casual or ranked mat
 
 ⚠️ Keep your username and user code somewhere safe, as both are required to log in to online mode. Do not share your user code or `savegame/net_account.dat` file.
 
+⚡ For [**Sparking! Changes**](#sparking-changes), both players must use saves with the changes enabled. Otherwise, the battle uses **Classic Mode** for both players.
+
 <img src="./figs/dragon-net-battle.gif" width="320" data-carousel-caption="Dragon Net Battle LAN and online mode."/>
 
 Online mode includes:
@@ -165,9 +172,9 @@ Online mode includes:
 
 <img src="./figs/dragon-net-battle-menu.gif" width="320" data-carousel-caption="Online ranking battle and global ranking leaderboard."/>
 
-Ranked mode uses the game's native scoring system.
+Ranked mode is based on the original game's scoring system.
 
-<img src="./figs/ranking-points.gif" width="320" data-carousel-caption="Ranked battles use the original scoring system."/>
+<img src="./figs/ranking-points.gif" width="320" data-carousel-caption="Ranked battles are based on the original game's scoring system."/>
 
 ## Mobile Version
 
@@ -194,9 +201,29 @@ The virtual gamepad uses original game artwork for the buttons.
 
 Gamepad support is available for Android devices, allowing players to use a controller instead of the touchscreen.
 
+## Original-Game Fixes
+
+The original game contains some bugs and glitches, including missing electrical auras after rematches, unavailable fighter slots that can still be selected, incorrect CPU behavior, and audio and text errors. **ZENKAI Power!** corrects these issues and adds safeguards against crashes and memory corruption, as listed below.
+
+| Area | Fix |
+|---|---|
+| Mission 100 team selection | Prevents selecting unavailable fighter slots when moving backward from Done, including the fifth slot in four-fighter missions. |
+| Electrical auras | Restores missing lightning effects after Duel rematches. |
+| Team switching | Allows CPU and player teammate switches in Duel when transformations are disabled, while preserving the other switching requirements. |
+| Character AI | Applies each character's correct default AI when initializing equipped items. |
+| Random number generation | Restores a missing step in the original random number generator. |
+| Sound effects | Prevents play and stop commands from being dropped when the sound queue fills. |
+| Battle memory | Prevents battle memory allocations from overflowing into neighboring memory. |
+| File loading | Prevents a crash when the file-request queue fills. |
+| Stereo music | Preserves left/right separation instead of collapsing stereo BGM to mono. |
+| English text | Corrects dialogue grammar, Frieza/Nuova Shenron/Super Saiyan spelling, the Kaioken Kamehameha and Gigantic Rock Throw move names, and a duplicated phrase in Super Saiyan 4 Gogeta's biography. |
+| Mission 100 missing BGM | Mission 80, Mission 100 and Survival's third course now play the opening Super Survival (Instrumental) theme as looping battle music. 🎵 |
+
+🎵 Both **Sparking! METEOR** and **Budokai Tenkaichi 3** use 24 built-in battle BGM slots, numbered **0–23**, although the Western music selection exposes only 20. Slots 20–23 contain **Super Survivor** variations in the Japanese release but silent audio in the Western release. Mission 80 and Survival’s third course select slot 21, while Mission 100 selects slot 20, leaving these battles without music. Although the original developers’ intent is unknown, **ZENKAI Power!** treats this omission as an oversight and plays the existing Super Survivor instrumental opening theme as looping battle music in those missions, without adding a selectable BGM entry in other modes. Installing the Japanese disc content and selecting **Sparking! METEOR** edition mode plays the corresponding Japanese tracks instead.
+
 ## Sparking! Changes
 
-The features above bring the original game to modern platforms, with native controls for menus and battles and content from its different editions brought together in one definitive version. **Classic Mode** preserves this experience, retaining the original gameplay and progression.
+The features above bring the original game to modern platforms, with native controls for menus and battles and content from its different editions brought together in one definitive version, along with fixes for original game bugs and glitches. **Classic Mode** preserves this experience, retaining the original gameplay and progression.
 
 ⚡ **Sparking! Changes** goes a step further, introducing small additions and refinements to the classic game while staying true to the spirit of the *Sparking! / Budokai Tenkaichi* franchise. These changes are optional and enabled by default. To disable them, turn **Classic Mode** on under **Options > More Options > General Settings** at the start of a new save. This choice is permanent for that save and disables all the features below.
 
@@ -204,7 +231,7 @@ The features above bring the original game to modern platforms, with native cont
 
 Add a pause menu to the training mode, allowing players to adjust training settings like health, ki and blast stock auto regeneration.
 
-<img src="./figs/training-settings.gif" width="320" data-carousel-caption="Training mode with team battle. Enable or disable health, ki, and blast stock regeneration in training."/>
+<img src="./figs/training-settings.gif" width="320" data-carousel-sparking="true" data-carousel-caption="Training mode with team battles and health, ki, and blast stock regeneration toggles."/>
 
 ### Difficulty
 
@@ -224,13 +251,13 @@ Characters that previously required Power Ball to transform into a Great Ape now
 
 Based on Sparking! NEO / Budokai Tenkaichi 2, Goku (Mid)'s Genkidama / Spirit Bomb now appears above the stage after gathering energy and grows with each of its three charges. The Ultimate's ball size reflects the energy gathered.
 
-<img src="./figs/genkidama.gif" alt="Goku (Mid)'s growing Genkidama" width="320" data-carousel-caption="Goku (Mid)'s Genkidama grows above the stage as he gathers energy."/>
+<img src="./figs/genkidama.gif" alt="Goku (Mid)'s growing Genkidama" width="320" data-carousel-sparking="true" data-carousel-caption="Goku (Mid)'s Genkidama grows above the stage as he gathers energy."/>
 
 **Perfect Cell's Transformation**
 
 Perfect Cell's transformation into Super Perfect Cell now includes a sequence showing Semi-Perfect Cell self-destructing.
 
-<img src="./figs/cell-transformation.gif" alt="Cell's self-destruct transformation" width="320" data-carousel-caption="A new sequence for Super Perfect Cell Transformation."/>
+<img src="./figs/cell-transformation.gif" alt="Cell's self-destruct transformation" width="320" data-carousel-sparking="true" data-carousel-caption="A new sequence for Super Perfect Cell Transformation."/>
 
 ### Starting Characters and Stages
 
@@ -240,13 +267,13 @@ Inspired by other Dragon Ball games that start with a limited roster and require
 
 Stages follow a similar progression: you begin with 15 stage entries unlocked instead of the original 27. The other 12 starting entries now unlock by completing specific Dragon History episodes. The remaining 8 entries in the full selection of 35 retain their original unlock requirements.
 
-<img src="./figs/initial-characters.gif" width="320" data-carousel-caption="Start with 10 characters and 15 stages. Unlock more through Dragon History."/>
+<img src="./figs/initial-characters.gif" width="320" data-carousel-sparking="true" data-carousel-caption="Start with 10 characters and 15 stages. Unlock more through Dragon History."/>
 
 ### Manual Lock-On
 
 You can now manually unlock from an opponent. Automatic lock-on and searching stay disabled until you choose to resume searching.
 
-<img src="./figs/lock-on.gif" alt="Manual lock-on control" width="320" data-carousel-caption="Manually unlock from your opponent and choose when to resume searching."/>
+<img src="./figs/lock-on.gif" alt="Manual lock-on control" width="320" data-carousel-sparking="true" data-carousel-caption="Manually unlock from your opponent and choose when to resume searching."/>
 
 ### *Dragon World Tour*
 
@@ -268,7 +295,7 @@ Kaioken now has three tiers: Kaioken, Kaioken x3, and Kaioken x4. Activation sel
 
 *Body Change* now selects Goku (Mid), Kid Gohan, Krillin, or Vegeta (Scouter). While Ginyu's self-injury power-up is active, the choices change to Super Saiyan Goku (Mid), Piccolo (Early), or Frieza (Final Form).
 
-<img src="./figs/body-change.gif" alt="Ginyu's revised Body Change" width="320" data-carousel-caption="Use Ginyu's self-injury power-up to change which bodies Body Change can select."/>
+<img src="./figs/body-change.gif" alt="Ginyu's revised Body Change" width="320" data-carousel-sparking="true" data-carousel-caption="Use Ginyu's self-injury power-up to change which bodies Body Change can select."/>
 
 ## Installation
 

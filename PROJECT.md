@@ -2,15 +2,17 @@
 
 This is the repository for the ZENKAI Power! project, including the source code, assets, and tools for building and releasing.
 
+### Build & Release
+
 The following instructions are for buiding and releasing a new version.
 
-### Setup
+#### Setup
 
 Requires `Docker`.
 
 See [DOCKER.md](DOCKER.md) for image build and publishing instructions.
 
-### Prepare
+#### Prepare
 
 Set `version` in [game-info.json](game-info.json) without a `v` prefix. 
 
@@ -22,7 +24,7 @@ Use three version numbers: `major.minor.patch` (for example, `1.2.3`).
 
 Confirm `source` points to this project's GitHub repository.
 
-### Build 
+#### Build 
 
 Build game for all platforms. The build scripts currently require the local
 `zenkaipower` alias; point it at the published image and disable local image rebuilding.
@@ -37,7 +39,7 @@ $env:ZENKAIPOWER_RELEASE_TAG = "v$version"
 .\port\release\build.ps1 android -Release
 ```
 
-### Sign 
+#### Sign 
 
 Add [online signature](server/data/game_data_signature.json) to the builds.
 ```powershell
@@ -62,7 +64,7 @@ if ($policy.scheme -ne 'zenkaipower-binaries-v2' -or
 }
 ```
 
-### Deploy
+#### Deploy
 
 Deploy changes to the matchmaking server.
 ```powershell
@@ -71,7 +73,7 @@ docker run --rm -it --platform linux/amd64 --entrypoint python3 `
   server/tools/deploy_portable.py
 ```
 
-### Release
+#### Release
 
 Create a new tag in GitHub with the same version as in `game-info.json`. The tag name must be prefixed with `v`.
 ![](figs/new_tag.png)
@@ -141,7 +143,9 @@ docker run --rm -it --platform linux/amd64 --entrypoint python3 `
 
 Copy the [bot.local.json](server/bot.local.json) to the same directory as the bot executable. The bot will read the credential from this file.
 
-### Server Credentials ⚠️
+### Server Managment
+
+#### Server Credentials ⚠️
 
 Server credentials are stored in `server/cloudflare.local.json`. This file is not included in the repository for security reasons. To deploy the server, you must create this file with the following structure:
 
@@ -153,7 +157,7 @@ Server credentials are stored in `server/cloudflare.local.json`. This file is no
 }
 ```
 
-### Factory Reset Server ⚠️
+#### Factory Reset Server ⚠️
 
 ```Powershell
 docker run --rm -it --platform linux/amd64 --entrypoint python3 `
@@ -161,8 +165,9 @@ docker run --rm -it --platform linux/amd64 --entrypoint python3 `
   server/tools/clear_d1.py
 ```
 
-### Preview the website 
+### Website
 
+Preview the website.
 ```Powershell
 docker ps -q --filter "ancestor=zenkaipower/zenkaipower:latest" --filter "publish=4000" | ForEach-Object { docker stop $_ }; docker ps -q --filter "name=^/zenkaipower-pages-preview$" | ForEach-Object { docker stop $_ }; docker run --rm --name zenkaipower-pages-preview --platform linux/amd64 -p 4000:4000 -v "${PWD}:/work" --entrypoint python3 zenkaipower/zenkaipower:latest -u web/preview.py
 ```

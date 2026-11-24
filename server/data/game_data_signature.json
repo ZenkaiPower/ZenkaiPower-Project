@@ -25,6 +25,18 @@
     "69b2d63ddaf577b1c05cb68b185f28fbabcc4517f9f3f21574ddd3ac730cbe73": {
       "version": "1.1.0",
       "platform": "windows-x64"
+    },
+    "39b8008c7111a677e895e4739f7e090d4cfaafe210a21d55d909e4ec47b44a7a": {
+      "version": "1.1.1",
+      "platform": "android-arm64"
+    },
+    "46158803b8d7ff1a9e2e91a6ebe8b83d32112d5845bf83feb22ee6d53f0f84b8": {
+      "version": "1.1.1",
+      "platform": "linux-x64"
+    },
+    "e2874f75f3303bce9de653903c401b7e5967319e6f7677bf3cb926b4cb3f9816": {
+      "version": "1.1.1",
+      "platform": "windows-x64"
     }
   }
 }
