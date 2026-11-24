@@ -13,6 +13,9 @@ c=ui.index('static SDL_SpinLock sNativeVideoLock;')
 d=ui.index('static void video_tab(',c)
 source=r'''
 #include <assert.h>
+#include <time.h>
+#include "port_async_save.h"
+#define PORT_HOST
 #include <string.h>
 #include <map>
 #include <string>
@@ -79,12 +82,23 @@ static int applied;
 void GsGpu_GetSettings(PortVideo *v) { *v=video; }
 void GsGpu_SetSettings(const PortVideo *v) { video=*v;applied++; }
 static unsigned char optionsDisk[PORT_OPTIONS_FILE_BYTES];
-static int optionsFileState,optionsWriteOk=1,optionsWrites;
+static int optionsFileState,optionsWriteOk=1,optionsWrites,cacheCommits;
+static pthread_mutex_t commitGate=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t commitCondition=PTHREAD_COND_INITIALIZER;
+static int blockCommit,commitStarted,releaseCommit;
+extern "C" void Port_SettingsGameCommit(void) {cacheCommits++;}
+extern "C" int Port_NetActive(void) {return 0;}
 extern "C" int Port_OptionsFileRead(void *payload) {
     if(optionsFileState==1) memcpy(payload,optionsDisk,sizeof(optionsDisk));
     return optionsFileState;
 }
 extern "C" int Port_OptionsFileWrite(const void *payload) {
+    pthread_mutex_lock(&commitGate);
+    if(blockCommit) {
+        commitStarted=1;pthread_cond_broadcast(&commitCondition);
+        while(!releaseCommit) pthread_cond_wait(&commitCondition,&commitGate);
+    }
+    pthread_mutex_unlock(&commitGate);
     if(!optionsWriteOk) return 0;
     memcpy(optionsDisk,payload,sizeof(optionsDisk));optionsFileState=1;optionsWrites++;return 1;
 }
@@ -497,11 +511,29 @@ int main(void) {
     Port_OptionsVideoDefaults();native_video_apply();
     assert(Port_OptionsVideoGet(PORT_FPS_OPTION_ROW)==0);
     int count=applied;Port_OptionsVideoChange(PORT_OPTION_SETTING_COUNT,1);assert(applied==count);
+    Port_OptionsSaveSync(save);blockCommit=1;
+    int writesBefore=optionsWrites;
+    assert(Port_OptionsSaveCommitAsync()==-1);
+    pthread_mutex_lock(&commitGate);
+    while(!commitStarted) pthread_cond_wait(&commitCondition,&commitGate);
+    pthread_mutex_unlock(&commitGate);
+    for(int frame=0;frame<120;frame++) assert(Port_OptionsSaveCommitAsync()==-1 && cacheCommits==0);
+    memset(sOptionsSnapshot,0,sizeof(sOptionsSnapshot)); /* worker owns a separate snapshot */
+    pthread_mutex_lock(&commitGate);releaseCommit=1;pthread_cond_broadcast(&commitCondition);pthread_mutex_unlock(&commitGate);
+    struct timespec pause={0,1000000};int commitStatus=-1;
+    for(int i=0;i<5000 && commitStatus<0;i++) {commitStatus=Port_OptionsSaveCommitAsync();if(commitStatus<0)nanosleep(&pause,NULL);}
+    assert(commitStatus==1 && cacheCommits==1 && optionsWrites==writesBefore+1);
+    int committed[PORT_OPTION_SETTING_COUNT];assert(Port_OptionsFileDecode(optionsDisk,committed));
+    Port_OptionsSaveSync(save);optionsWriteOk=0;blockCommit=0;
+    assert(Port_OptionsSaveCommitAsync()==-1);commitStatus=-1;
+    for(int i=0;i<5000 && commitStatus<0;i++) {commitStatus=Port_OptionsSaveCommitAsync();if(commitStatus<0)nanosleep(&pause,NULL);}
+    assert(commitStatus==0 && cacheCommits==1); /* failed companion never publishes settings */
+
     return 0;
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     src=Path(tmp)/'video.cpp';src.write_text(source);exe=Path(tmp)/'video'
-    subprocess.run(['c++','-std=c++17','-fsanitize=undefined','-I'+str(root/'include'),str(src),'-o',str(exe)],check=True)
+    subprocess.run(['c++','-std=c++17','-fsanitize=undefined','-I'+str(root/'include'),'-I'+str(root/'port/src'),'-pthread',str(src),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 print('Native Video navigation and settings bridge checks passed')

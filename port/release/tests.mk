@@ -70,3 +70,9 @@ release-logging-test: port/build/release-logging-test
 port/build/release-logging-test: port/tests/logging.c port/src/plat_log.c port/src/port_log.h port/release/tests.mk
 	$(CC) -std=gnu99 -O1 -Wall -Wextra -Werror $< $$(pkg-config --cflags --libs sdl3) -pthread -o $@.tmp
 	mv $@.tmp $@
+
+.PHONY: async-save-test
+async-save-test: port/build/async-save-test
+port/build/async-save-test: port/tests/save/async_card.c port/src/plat_mc.c port/src/port_async_save.h port/src/port_save.h port/release/tests.mk
+	$(CC) -std=gnu11 -O1 -Iinclude -ffunction-sections -fdata-sections $< -Wl,--gc-sections -pthread -o $@.tmp
+	mv $@.tmp $@

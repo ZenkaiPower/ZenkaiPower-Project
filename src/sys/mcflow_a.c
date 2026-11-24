@@ -272,6 +272,13 @@ extern s32 gMcCardCmd, gMcCardStep;                 /* src/battle/stgm_a_b.c: th
 extern void Port_UiSaving(int state);               /* gs/ui.cpp: the save icon (1 saving, 0 saved, -1 the window took over) */
 static s32 sMcQuick;
 static s32 sMcManual;
+static s32 sMcCommitPending;
+static void McFlow_FinishSave(void) {
+    s32 result=Port_OptionsSaveCommitAsync();
+    sMcCommitPending=result<0;
+    if(result>=0) { MCF_GO(result ? 0x10:0x11); }
+}
+
 static s32 sMcQuickState, sMcQuickPolled; /* the state of the frame before; its card check has answered */
 
 /* The step's minimum time: a step that asks the card for its state first (MCF_POLL) is over once the card has
@@ -639,16 +646,19 @@ void McFlow_UpdateSave(void) {
             }
             break;
         }
+#ifdef PORT
+        if(sMcCommitPending) {McFlow_FinishSave();break;}
+#endif
         if (McCard_WriteSave(0, gSaveData, 0x4000, &gMcFlow->req) == 0) {
             if (MCF_CARD.result < 0) {
                 MCF_GO(0x11);
             }
         } else {
 #ifdef PORT
-            if(!Port_OptionsSaveCommit()) { MCF_GO(0x11);break; }
-            Port_SettingsGameCommit();
-#endif
+            McFlow_FinishSave();
+#else
             MCF_GO(0x10);
+#endif
         }
         break;
     case 6:
@@ -1618,16 +1628,19 @@ void McFlow_UpdateNewSave(void) {
             }
             break;
         }
+#ifdef PORT
+        if(sMcCommitPending) {McFlow_FinishSave();break;}
+#endif
         if (McCard_WriteSave(0, gSaveData, 0x4000, &gMcFlow->req) == 0) {
             if (MCF_CARD.result < 0) {
                 MCF_GO(0x11);
             }
         } else {
 #ifdef PORT
-            if(!Port_OptionsSaveCommit()) { MCF_GO(0x11);break; }
-            Port_SettingsGameCommit();
-#endif
+            McFlow_FinishSave();
+#else
             MCF_GO(0x10);
+#endif
         }
         break;
     case 6:
@@ -2909,6 +2922,7 @@ void McFlow_StartManual(s32 mode) {
 void McFlow_Start(s32 mode) {
     gMcFlow->mode = mode;
 #ifdef PORT
+    sMcCommitPending=0;
     if (mode == MCFLOW_MODE_NEW_SAVE || mode == MCFLOW_MODE_LOAD || mode == MCFLOW_MODE_BOOT_LOAD)
         Port_ZenkaiSelect();
     /* 1: without the window, 2: the window with its questions, without the waits */

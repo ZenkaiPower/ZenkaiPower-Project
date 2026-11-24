@@ -8,7 +8,7 @@
  * requests succeed for the original save state machine, without producing host files.
  *
  * The library is asynchronous: a call only starts a request and returns 0; sceMcSync reports the request's number
- * and its result. Here every request is carried out at once and sceMcSync hands the stored result over.
+ * and its result. Write-mode opens, writes and closes run on a host worker; sceMcSync polls completion without blocking.
  * Results follow libmc (what src/battle/stgm_a_b.c and src/sys/mcflow_a.c test):
  *     sceMcGetInfo   0 = the card seen last time, -1 = a formatted card seen for the first time, -10 = no card;
  *                    type 2 = a PS2 card, free = free clusters of 1 KB, format 1 = formatted
@@ -41,10 +41,47 @@ static int sSeen;             /* slot 1 was reported once: later sceMcGetInfo ca
    the position. The host's own file object is beside it (not state) and is brought in line when it is used, so a
    frame that is run again after the state was restored finds the files as that state says. */
 #include "port_host.h"
+#include "port_async_save.h"
 extern void Port_StateTouch(void *p, unsigned long n); /* gs/state.c */
 static struct { int open, mode; long pos; char path[600]; } sMc[MC_FILES];
 PORT_HOST static FILE *sHost[MC_FILES] = {NULL};
 PORT_HOST static char sHostPath[MC_FILES][600] = {{0}};
+
+/* Host-owned asynchronous libmc writes. The caller keeps drawing and polls
+   sceMcSync; only completion on the game thread publishes emulated card state. */
+static int zenkai_path(const char *path);
+/* Online session cards keep their deterministic synchronous behavior. */
+extern int Port_NetActive(void) __attribute__((weak));
+static int mc_async_allowed(void) {return !Port_NetActive || !Port_NetActive();}
+
+PORT_HOST static PortAsyncSave sMcIoJob;
+PORT_HOST static struct {
+    int operation,fd,mode,size,result;
+    long position;
+    char path[600];
+    FILE *file;
+    void *bytes;
+} sMcIo;
+static int mc_io_work(void *unused) {
+    (void)unused;
+    if(sMcIo.operation==2) {
+        sMcIo.file=zenkai_path(sMcIo.path) ? Port_ZenkaiOpen(sMcIo.path,sMcIo.mode) :
+            fopen(sMcIo.path,"r+b");
+        if(!sMcIo.file && (sMcIo.mode&0x200) && !zenkai_path(sMcIo.path)) sMcIo.file=fopen(sMcIo.path,"w+b");
+        sMcIo.result=sMcIo.file ? sMcIo.fd:-4;
+    } else if(sMcIo.operation==3) {
+        sMcIo.result=fclose(sMcIo.file)==0 ? 0:-4;
+    } else {
+        sMcIo.result=-4;
+        if(!fseek(sMcIo.file,sMcIo.position,SEEK_SET)) {
+            int n=(int)fwrite(sMcIo.bytes,1,(size_t)sMcIo.size,sMcIo.file);
+            if(!fflush(sMcIo.file) && (!zenkai_path(sMcIo.path) || Port_ZenkaiFlush(sMcIo.path,sMcIo.file)))
+                sMcIo.result=n;
+        }
+        free(sMcIo.bytes);sMcIo.bytes=NULL;
+    }
+    return 1;
+}
 
 /* Only presentation metadata is virtual; gameplay/replay data still uses real files. */
 static int icon_path(const char *path) {
@@ -105,6 +142,7 @@ int func_002A1A48(void) { return 0; } /* sceMcInit */
 
 /* sceMcGetInfo: the outputs are filled when the request completes. */
 int func_002A25B8(int port, int slot, int *type, int *freeClusters, int *format) {
+    if(sMcIoJob.busy) return -200;
     char path[600];
     int card = slot == 0 && host_path(port, "", path, sizeof(path));
 
@@ -123,6 +161,7 @@ int func_002A25B8(int port, int slot, int *type, int *freeClusters, int *format)
 
 /* sceMcOpen */
 int func_002A1E58(int port, int slot, char *name, int mode) {
+    if(sMcIoJob.busy) return -200;
     char path[600];
     FILE *f;
     int fd;
@@ -134,6 +173,12 @@ int func_002A1E58(int port, int slot, char *name, int mode) {
     }
     if (fd == MC_FILES) {
         return request(2, -7); /* too many open files */
+    }
+    if((mode&2) && mc_async_allowed() && !icon_path(path) && sHost[fd]==NULL) {
+        memset(&sMcIo,0,sizeof(sMcIo));sMcIo.operation=2;sMcIo.fd=fd;sMcIo.mode=mode;
+        snprintf(sMcIo.path,sizeof(sMcIo.path),"%s",path);
+        if(!PortAsyncSave_Start(&sMcIoJob,mc_io_work,NULL)) return request(2,-4);
+        sLastCmd=0;return 0;
     }
     f = icon_path(path) ? NULL : zenkai_path(path) ? Port_ZenkaiOpen(path, mode) :
         fopen(path, (mode & 2) ? "r+b" : "rb");
@@ -162,6 +207,7 @@ int func_002A1E58(int port, int slot, char *name, int mode) {
 
 /* sceMcMkdir */
 int func_002A1F80(int port, int slot, char *name) {
+    if(sMcIoJob.busy) return -200;
     char path[600];
 
     if (slot != 0 || !host_path(port, name, path, sizeof(path))) {
@@ -173,8 +219,14 @@ int func_002A1F80(int port, int slot, char *name) {
 
 /* sceMcClose */
 int func_002A1FB8(int fd) {
+    if(sMcIoJob.busy) return -200;
     if (fd < 0 || fd >= MC_FILES || !sMc[fd].open) {
         return request(3, -4);
+    }
+    if(sHost[fd]!=NULL && (sMc[fd].mode&2) && mc_async_allowed()) {
+        memset(&sMcIo,0,sizeof(sMcIo));sMcIo.operation=3;sMcIo.fd=fd;sMcIo.file=sHost[fd];
+        if(!PortAsyncSave_Start(&sMcIoJob,mc_io_work,NULL)) return request(3,-4);
+        sLastCmd=0;return 0;
     }
     if (sHost[fd] != NULL) {
         fclose(sHost[fd]);
@@ -186,6 +238,7 @@ int func_002A1FB8(int fd) {
 
 /* sceMcSeek: origin 0 = start, 1 = current, 2 = end */
 int func_002A2078(int fd, int offset, int origin) {
+    if(sMcIoJob.busy) return -200;
     FILE *f;
     if (fd >= 0 && fd < MC_FILES && sMc[fd].open && icon_path(sMc[fd].path)) {
         sMc[fd].pos = origin == 0 ? offset : sMc[fd].pos + offset;
@@ -202,6 +255,7 @@ int func_002A2078(int fd, int offset, int origin) {
 
 /* sceMcRead */
 int func_002A2208(int fd, void *buf, int size) {
+    if(sMcIoJob.busy) return -200;
     FILE *f;
     int n;
     if (fd >= 0 && fd < MC_FILES && sMc[fd].open && icon_path(sMc[fd].path)) {
@@ -219,7 +273,7 @@ int func_002A2208(int fd, void *buf, int size) {
 
 /* sceMcWrite */
 int func_002A2320(int fd, void *buf, int size) {
-    int n;
+    if(sMcIoJob.busy) return -200;
 
     FILE *f;
     if (fd >= 0 && fd < MC_FILES && sMc[fd].open && icon_path(sMc[fd].path)) {
@@ -229,16 +283,29 @@ int func_002A2320(int fd, void *buf, int size) {
     if (fd < 0 || fd >= MC_FILES || !sMc[fd].open || (f = host_file(fd)) == NULL) {
         return request(6, -4);
     }
-    fseek(f, sMc[fd].pos, SEEK_SET);
-    n = (int)fwrite(buf, 1, (size_t)size, f);
-    if (fflush(f) || (zenkai_path(sMc[fd].path) && !Port_ZenkaiFlush(sMc[fd].path, f))) return request(6, -4);
-    sMc[fd].pos += n;
-    return request(6, n);
+    if(size<0 || (size && !buf)) return request(6,-4);
+    if(!mc_async_allowed()) {
+        if(fseek(f,sMc[fd].pos,SEEK_SET)) return request(6,-4);
+        int n=(int)fwrite(buf,1,(size_t)size,f);
+        if(fflush(f) || (zenkai_path(sMc[fd].path) && !Port_ZenkaiFlush(sMc[fd].path,f))) return request(6,-4);
+        sMc[fd].pos+=n;return request(6,n);
+    }
+    memset(&sMcIo,0,sizeof(sMcIo));sMcIo.operation=6;sMcIo.fd=fd;sMcIo.file=f;
+    sMcIo.size=size;sMcIo.position=sMc[fd].pos;
+    snprintf(sMcIo.path,sizeof(sMcIo.path),"%s",sMc[fd].path);
+    sMcIo.bytes=malloc(size ? (size_t)size:1);
+    if(!sMcIo.bytes) return request(6,-4);
+    if(size) memcpy(sMcIo.bytes,buf,(size_t)size);
+    if(!PortAsyncSave_Start(&sMcIoJob,mc_io_work,NULL)) {
+        free(sMcIo.bytes);sMcIo.bytes=NULL;return request(6,-4);
+    }
+    sLastCmd=0;return 0;
 }
 
 /* sceMcGetDir: the number of entries matching `name` ("*" = everything in the root, otherwise one name). The
    table is not filled: nothing in the game reads it. */
 int func_002A27A8(int port, int slot, char *name, int mode, int maxent, void *table) {
+    if(sMcIoJob.busy) return -200;
     char path[600];
     struct stat st;
     int n = 0;
@@ -270,13 +337,28 @@ int func_002A27A8(int port, int slot, char *name, int mode, int maxent, void *ta
 
 /* sceMcFormat: the folder is always "formatted"; nothing is erased. */
 int func_002A2AC8(int port, int slot) {
+    if(sMcIoJob.busy) return -200;
     (void)slot;
     return request(16, port == 0 ? 0 : -10);
 }
 
 /* sceMcSync: 1 = the request has finished (its number and result are returned), -1 = nothing was pending. */
 int func_002A2498(int mode, int *cmd, int *result) {
-    (void)mode;
+    if(sMcIoJob.busy) {
+        /* Native save states use mode 1 (poll). Preserve explicit blocking
+           mode 0 for callers which deliberately request it. */
+        if(mode==0) {pthread_join(sMcIoJob.thread,NULL);sMcIoJob.busy=0;}
+        else if(PortAsyncSave_Poll(&sMcIoJob)<0) return 0;
+        int fd=sMcIo.fd;
+        if(sMcIo.operation==2 && sMcIo.result>=0) {
+            sHost[fd]=sMcIo.file;
+            snprintf(sHostPath[fd],sizeof(sHostPath[fd]),"%s",sMcIo.path);
+            sMc[fd].open=1;sMc[fd].mode=sMcIo.mode;sMc[fd].pos=0;
+            snprintf(sMc[fd].path,sizeof(sMc[fd].path),"%s",sMcIo.path);
+        } else if(sMcIo.operation==3) {sHost[fd]=NULL;sMc[fd].open=0;}
+        else if(sMcIo.operation==6 && sMcIo.result>=0) sMc[fd].pos+=sMcIo.result;
+        sLastCmd=sMcIo.operation;sLastResult=sMcIo.result;
+    }
     if (sLastCmd == 0) {
         return -1;
     }

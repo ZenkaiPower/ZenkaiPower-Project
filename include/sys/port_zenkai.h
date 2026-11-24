@@ -61,6 +61,8 @@ void Port_ZenkaiFinish(void);
 void Port_OptionsSaveLoad(void *save);
 int Port_OptionsSaveSync(void *save);
 int Port_OptionsSaveCommit(void);
+/* -1 pending, 0 failure, 1 saved (including startup cache publication). */
+int Port_OptionsSaveCommitAsync(void);
 int Port_OptionsFileRead(void *payload);
 int Port_OptionsFileWrite(const void *payload);
 void Port_SettingsGameCommit(void);

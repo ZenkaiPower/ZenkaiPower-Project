@@ -294,7 +294,16 @@ The boot language selector runs before the first game save and before normal Opt
 
 `Port_OptionsSaveLoad` runs after successful game loading and mode commit. It restores native Options before `SndOpt_Apply` and queues port settings for the render thread. If the companion is absent, legacy native fields and valid embedded `ZOP1`/`ZOP2` More Options records supply migration values. Unknown or corrupt companions are ignored without overwriting them during loading. A recognized embedded block is cleared when preparing a later save, before the native checksum. Original mode and isolated online-session cards never read or write the companion.
 
-`Port_OptionsSaveSync` stages a separate snapshot and marks Options dirty when native or port settings change. It never writes the full Options record. The existing native Options exit flow controls the Save question or Autosave; returning through submenus does not save. After the main save succeeds, `Port_OptionsSaveCommit` writes the full companion. A companion write failure enters the existing save-error flow and does not publish the startup cache. The main save and full companion are individually atomic, not a single filesystem transaction; keep them together when copying saves. The early language-only record is the exception: it supports startup selection before a game save exists.
+`Port_OptionsSaveSync` stages a separate snapshot and marks Options dirty when native or port settings change. It never writes the full Options record. The existing native Options exit flow controls the Save question or Autosave; returning through submenus does not save. After the main save succeeds, `Port_OptionsSaveCommit` writes the full companion. A companion write failure enters the existing save-error flow and does not publish the startup cache. Offline save writes run on background workers. The memory-card flow polls completion each frame,
+so saving screens and the saving indicator continue updating while storage is busy. Write-mode opens,
+writes and closes use the asynchronous libmc request path; write buffers are copied before handoff.
+After the main save completes, `Port_OptionsSaveCommitAsync` writes an independent Options snapshot
+and publishes the startup cache. It returns pending until both are done, and companion failures enter
+the existing save-error flow. The state machine does not restart the main write while waiting.
+Settings-cache disk writes release the mutex used by rendering to read settings. Explicit blocking
+libmc sync calls and online-session card behavior remain synchronous.
+
+The main save and full companion are individually atomic, not a single filesystem transaction; keep them together when copying saves. The early language-only record is the exception: it supports startup selection before a game save exists.
 
 During ZENKAI play, numeric keys owned by More Options use a runtime overlay in `plat_settings.c`. After both saves succeed, `Port_SettingsGameCommit` publishes that overlay to the startup cache. This cache supplies startup/backend choices before a game is loaded; the companion is authoritative on load. Graphics API still requires a restart. Cancelling an inline edit restores its initial value; Confirm keeps it pending for the normal save flow.
 

@@ -19,11 +19,13 @@
 #include <string.h>
 
 #define MAX_SETTINGS 200
-static struct { char name[24]; int value; } sSet[MAX_SETTINGS];
+typedef struct { char name[24]; int value; } PortSetting;
+static PortSetting sSet[MAX_SETTINGS];
 /* Legacy string settings follow numeric records. ZENKAI stores its menu
    language and online player name only in the encrypted .options companion. */
 #define MAX_TEXTS 8
-static struct { char name[24]; char value[64]; } sText[MAX_TEXTS];
+typedef struct { char name[24]; char value[64]; } PortTextSetting;
+static PortTextSetting sText[MAX_TEXTS];
 static int sTextCount;
 /* ZENKAI's menu language belongs to the selected .options companion, not
    settings.dat. Cache it so a choice made before saving is also used in-game. */
@@ -108,7 +110,7 @@ static int read_u32(FILE *fp, uint32_t *v) {
     return 1;
 }
 /* Fixed-size records avoid compiler padding and host byte-order dependencies. */
-static int write_file(void) {
+static int write_file_data(const PortSetting *set,int count,const PortTextSetting *text,int textCount) {
     const char *target = path();
     char temporary[4096];
     FILE *fp;
@@ -116,16 +118,19 @@ static int write_file(void) {
     if (!target || snprintf(temporary,sizeof(temporary),"%s.part",target) >= (int)sizeof(temporary)) return 0;
     fp = fopen(temporary,"wb");
     if (!fp) return 0;
-    ok = fwrite("BT3SET01",1,8,fp)==8 && write_u32(fp,sCount) && write_u32(fp,sTextCount);
-    for (i=0; ok && i<sCount; i++)
-        ok = fwrite(sSet[i].name,1,24,fp)==24 && write_u32(fp,(uint32_t)sSet[i].value);
-    for (i=0; ok && i<sTextCount; i++)
-        ok = fwrite(sText[i].name,1,24,fp)==24 && fwrite(sText[i].value,1,64,fp)==64;
+    ok = fwrite("BT3SET01",1,8,fp)==8 && write_u32(fp,count) && write_u32(fp,textCount);
+    for (i=0; ok && i<count; i++)
+        ok = fwrite(set[i].name,1,24,fp)==24 && write_u32(fp,(uint32_t)set[i].value);
+    for (i=0; ok && i<textCount; i++)
+        ok = fwrite(text[i].name,1,24,fp)==24 && fwrite(text[i].value,1,64,fp)==64;
     if (fclose(fp)) ok=0;
     if (ok) ok=SDL_RenamePath(temporary,target);
     if (!ok) remove(temporary);
     return ok;
 }
+static int write_file(void) {return write_file_data(sSet,sCount,sText,sTextCount);}
+static pthread_mutex_t sWriteLock=PTHREAD_MUTEX_INITIALIZER;
+
 static void load(void) {
     const char *target = path();
     FILE *fp = target ? fopen(target,"rb") : NULL;
@@ -335,10 +340,21 @@ void Port_SettingTextSave(const char *name, const char *value) {
 }
 
 void Port_SettingsWrite(void) {
+    PortSetting set[MAX_SETTINGS];PortTextSetting text[MAX_TEXTS];
+    int count,textCount,dirty;
     pthread_once(&sOnce, load);
+    /* Disk access never holds the mutex used by render-thread setting reads. */
+    pthread_mutex_lock(&sWriteLock);
     pthread_mutex_lock(&sLock);
-    if (sDirty && write_file()) sDirty=0;
+    dirty=sDirty;count=sCount;textCount=sTextCount;
+    memcpy(set,sSet,sizeof(set));memcpy(text,sText,sizeof(text));
     pthread_mutex_unlock(&sLock);
+    if(dirty && write_file_data(set,count,text,textCount)) {
+        pthread_mutex_lock(&sLock);
+        if(count==sCount && textCount==sTextCount && !memcmp(set,sSet,sizeof(set)) && !memcmp(text,sText,sizeof(text))) sDirty=0;
+        pthread_mutex_unlock(&sLock);
+    }
+    pthread_mutex_unlock(&sWriteLock);
 }
 
 /* Called only after a successful ZENKAI game-save operation, never on cancel. */
@@ -353,6 +369,6 @@ void Port_SettingsGameCommit(void) {
         if(j==sCount) snprintf(sSet[sCount++].name,sizeof(sSet[0].name),"%s",sGameSet[i].name);
         sSet[j].value=sGameSet[i].value;sDirty=1;
     }
-    if(sDirty && write_file()) sDirty=0;
     pthread_mutex_unlock(&sLock);
+    Port_SettingsWrite();
 }

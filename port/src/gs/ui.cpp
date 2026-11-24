@@ -1,4 +1,6 @@
 #include "../port_pack.h"
+#include "../port_async_save.h"
+#include "../port_host.h"
 // The settings window of the PC build: Dear ImGui over the finished picture. F1 opens and closes it, or START + SELECT
 // of a controller, or the key and button of its Controls list (gs_input.c: PortInput_Hotkey).
 // Everything it shows lives elsewhere (ui.h): the renderer's settings in gs_gpu.c, the bindings in gs_input.c.
@@ -1747,24 +1749,50 @@ extern "C" int Port_OptionsSaveSync(void *save) {
         memset((unsigned char *)save+PORT_OPTIONS_SAVE_OFFSET,0,PORT_OPTIONS_SAVE_BYTES);
     return changed;
 }
-extern "C" int Port_OptionsSaveCommit(void) {
+static int options_save_prepare(unsigned char *snapshot) {
     int values[PORT_OPTION_SETTING_COUNT];
-    if(!Port_ZenkaiEnabled()) return 1;
-    if(!Port_OptionsFileDecode(sOptionsSnapshot,values)) return 0;
+    memcpy(snapshot,sOptionsSnapshot,sizeof(sOptionsSnapshot));
+    if(!Port_OptionsFileDecode(snapshot,values)) return 0;
     /* A language change can arrive after the last Options sync. */
     char locale[PORT_OPTIONS_LOCALE_BYTES];
     Port_SettingText("menu_lang","",locale,sizeof(locale));
-    if(locale[0]) Port_OptionsFileSetLanguage(sOptionsSnapshot,locale);
+    if(locale[0]) Port_OptionsFileSetLanguage(snapshot,locale);
     /* Keep a recent Visual Settings change even if this save reached commit
        without another render-thread sync of the native options. */
     const int promptRow=PORT_VISUAL_OPTION_OFFSET+2;
-    unsigned char *zop=sOptionsSnapshot+8;
+    unsigned char *zop=snapshot+8;
     int prompt=Port_Setting("language_prompt_always",1)!=0;
     zop[8+2*promptRow]=(unsigned char)(zop[3]=='1' ? !prompt:prompt);
     zop[9+2*promptRow]=0;
-    sOptionsSnapshot[7]=PORT_OPTIONS_PROMPT_SET|(prompt ? PORT_OPTIONS_PROMPT_ON:0);
-    return Port_OptionsFileWrite(sOptionsSnapshot);
+    snapshot[7]=PORT_OPTIONS_PROMPT_SET|(prompt ? PORT_OPTIONS_PROMPT_ON:0);
+    memcpy(sOptionsSnapshot,snapshot,sizeof(sOptionsSnapshot));
+    return 1;
 }
+extern "C" int Port_OptionsSaveCommit(void) {
+    unsigned char snapshot[PORT_OPTIONS_FILE_BYTES];
+    if(!Port_ZenkaiEnabled()) return 1;
+    return options_save_prepare(snapshot) && Port_OptionsFileWrite(snapshot);
+}
+PORT_HOST static PortAsyncSave sOptionsCommitJob;
+PORT_HOST static unsigned char sOptionsCommitBytes[PORT_OPTIONS_FILE_BYTES];
+static int options_commit_work(void *payload) {
+    if(!Port_OptionsFileWrite(payload)) return 0;
+    Port_SettingsGameCommit();
+    return 1;
+}
+/* -1 while saving; the game keeps drawing and returns to poll next frame. */
+extern "C" int Port_OptionsSaveCommitAsync(void) {
+    if(sOptionsCommitJob.busy) return PortAsyncSave_Poll(&sOptionsCommitJob);
+    if(!Port_ZenkaiEnabled()) return 1;
+    if(Port_NetActive()) {
+        if(!Port_OptionsSaveCommit()) return 0;
+        Port_SettingsGameCommit();return 1;
+    }
+    if(!options_save_prepare(sOptionsCommitBytes)) return 0;
+    if(!PortAsyncSave_Start(&sOptionsCommitJob,options_commit_work,sOptionsCommitBytes)) return 0;
+    return -1;
+}
+
 extern "C" int Port_OptionsVideoGet(int row) {
     if(row<0 || row>=PORT_OPTION_SETTING_COUNT) return 0;
     SDL_LockSpinlock(&sNativeVideoLock);
