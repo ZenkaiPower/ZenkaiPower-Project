@@ -146,6 +146,43 @@ int main(void) {
         native_hud_filter_check(pixels,kind,sharp);
         SDL_UnmapGPUTransferBuffer(sDev,download);SDL_ReleaseGPUFence(sDev,fence);
     }
+    params.orig[3]=0;
+    paletteInfo.width=1280;
+    SDL_GPUTexture *fine=SDL_CreateGPUTexture(sDev,&paletteInfo);assert(fine);
+    paletteUploadInfo.size=1280*4;
+    SDL_GPUTransferBuffer *fineUpload=SDL_CreateGPUTransferBuffer(sDev,&paletteUploadInfo);assert(fineUpload);
+    uint32_t *pattern=SDL_MapGPUTransferBuffer(sDev,fineUpload,false);assert(pattern);
+    for(int x=0;x<1280;x++) pattern[x]=(x&1) ? 0x80000000u : 0x80ffffffu;
+    SDL_UnmapGPUTransferBuffer(sDev,fineUpload);
+    for(int phase=0;phase<3;phase++) {
+        cmd=SDL_AcquireGPUCommandBuffer(sDev);
+        if(phase==0) {
+            copy=SDL_BeginGPUCopyPass(cmd);
+            SDL_GPUTextureTransferInfo input={0};input.transfer_buffer=fineUpload;
+            SDL_GPUTextureRegion dest={0};dest.texture=fine;dest.w=1280;dest.h=1;dest.d=1;
+            SDL_UploadToGPUTexture(copy,&input,&dest,false);SDL_EndGPUCopyPass(copy);
+        }
+        params.mode[0]=phase==0 ? 4 : 1;
+        params.extra[2]=params.extra[3]=phase==1 ? 0 : 4;
+        int mixedPipe=pipe_get((2u<<10)|(1u<<12)|(15u<<16)|(phase==0 ? GS_PIPE_NATIVE_HUD : 0));
+        samplers[0].texture=phase==0 ? palette : fine;
+        pass=SDL_BeginGPURenderPass(cmd,ct,2,&dt);
+        SDL_BindGPUGraphicsPipeline(pass,sPipes[mixedPipe].p);
+        SDL_BindGPUVertexBuffers(pass,0,&binding,1);SDL_BindGPUFragmentSamplers(pass,0,samplers,2);
+        SDL_PushGPUFragmentUniformData(cmd,0,&params,sizeof(params));
+        SDL_Rect full={0,0,1280,720};SDL_SetGPUScissor(pass,&full);
+        SDL_DrawGPUPrimitives(pass,6,1,0,0);SDL_EndGPURenderPass(pass);
+        copy=SDL_BeginGPUCopyPass(cmd);
+        SDL_DownloadFromGPUTexture(copy,&source,&destination);SDL_EndGPUCopyPass(copy);
+        fence=SDL_SubmitGPUCommandBufferAndAcquireFence(cmd);
+        assert(fence && SDL_WaitForGPUFences(sDev,true,&fence,1));
+        pixels=SDL_MapGPUTransferBuffer(sDev,download,false);assert(pixels);
+        if(phase==0) assert(!memcmp(pixels+(80*1280+500)*4,pixels+(81*1280+500)*4,4));
+        else if(phase==1) assert(PIXEL(500,100,0)!=PIXEL(501,100,0));
+        else assert(PIXEL(500,100,0)==PIXEL(501,100,0));
+        SDL_UnmapGPUTransferBuffer(sDev,download);SDL_ReleaseGPUFence(sDev,fence);
+    }
+    puts("Vulkan mixed resolution: scene-grid native HUD/text and sharp info sampling passed");
     puts("Vulkan native HUD: timer panels, six palettes, atlas parts and transparent regions passed");
     SDL_DestroyGPUDevice(sDev);SDL_Quit();
     puts("GPU screen text: native subpixel detail, scene depth, panel ordering and clipping passed");

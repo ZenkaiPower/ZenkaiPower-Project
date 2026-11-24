@@ -31,6 +31,13 @@ with tempfile.TemporaryDirectory(prefix='screen-text-build-') as tmp:
     subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror', 'port/tests/render/screen_text.c', '-o', str(unit)],
                    cwd=root, check=True)
     subprocess.run([str(unit)], check=True)
+    for normal in range(2):
+        for info in range(2):
+            subprocess.run(['cc', '-std=c99', '-Wall', '-Wextra', '-Werror',
+                            '-DZENKAIPOWER_TEXT_FOLLOW_RES='+str(normal),
+                            '-DZENKAIPOWER_HUD_INFO_FOLLOW_RES='+str(info),
+                            'port/tests/render/text_resolution.c', '-o', str(unit)], cwd=root, check=True)
+            subprocess.run([str(unit)], check=True)
     if '--gpu' in sys.argv:
         libs = shlex.split(subprocess.check_output(['pkg-config', '--libs', 'sdl3'], text=True))
         for backend in ['gpu', 'gl']:

@@ -59,6 +59,12 @@ void main() {
     float a = vColor.a * k;
     if (p.mode.x != 0) {
         vec2 uv = vStq.xy / vStq.z;
+        if(p.extra.z>1.0 || p.extra.w>1.0) {
+            vec2 pixel=max(p.extra.zw,vec2(1));
+            vec2 offset=(floor(gl_FragCoord.xy/pixel)+0.5)*pixel-gl_FragCoord.xy;
+            uv+=dFdx(uv)*offset.x+dFdy(uv)*offset.y;
+            if(p.orig.w>0.5) uv=clamp(uv,p.rect.xy,p.rect.zw);
+        }
         if (p.misc.w != 0.0) {
             // A 2D sprite: take the texture coordinate where the GS takes it, at the whole GS pixel this fragment
             // belongs to (misc.w = output pixels per GS pixel). Every output pixel of that GS pixel then shows

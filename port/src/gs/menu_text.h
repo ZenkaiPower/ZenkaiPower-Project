@@ -17,10 +17,14 @@ int MenuText_IsBattleTexture(const uint8_t *rgba, int width, int height, int ind
 int MenuText_MayHaveBattleTexture(int width, int height, int indexed);
 /* Physical output pixels and the active picture aspect, supplied by either renderer. */
 void MenuText_OutputSize(int width, int height, int aspect);
-/* Text raster quality follows the display by default (2..8x). The internal
-   text_screen_size setting can restore the internal-resolution-based choice. */
+/* Raster quality follows the game Resolution option by default (2..8x).
+   The HUD-info scope has its own independent, default-screen policy. */
 int MenuText_RasterScale(int internalScale);
-uint32_t MenuText_RasterKey(void); /* screen raster scale for generated textures */
+int MenuText_RasterScaleFor(int internalScale,int hudInfo);
+void MenuText_SceneScale(int scale);
+int MenuText_IsGlyphTexture(int tbp,int cbp);
+int MenuText_TextureKind(const uint8_t *rgba,int width,int height,int indexed); /* bit 0 text, bit 1 Battle */
+uint32_t MenuText_RasterKey(void); /* effective raster scale for generated texture versions */
 /* For the renderer's texture cache: changes with font settings, raster scale, or a newly made label catalog.
    The catalog change refreshes Battle texture classification even when all fonts are Original. */
 uint32_t MenuText_TexKey(int width, int height, int indexed, int tbp, int cbp, int scale);

@@ -26,6 +26,7 @@
 #include "gs_internal.h"
 #include "gs_draw.h"
 #include "gs_native_elements.h"
+#include "text_resolution.h"
 #include "../../../include/menu/port_render_scale.h"
 #include "video_driver.h"
 #include "ui.h"         /* PortVideo and the window helpers */
@@ -110,6 +111,7 @@ static int sOutputWidth, sOutputHeight;
 void GsGpu_OutputSize(int width, int height) {
     extern int Port_PageAspectMilli(void);
     if (width > 0 && height > 0) { sOutputWidth = width; sOutputHeight = height; }
+    MenuText_SceneScale((int)ceilf(SCALE));
     MenuText_OutputSize(width, height, Port_PageAspectMilli());
 }
 int GsDraw_OutputSize(int *width, int *height) {
@@ -146,6 +148,7 @@ static int sNativeShape; /* isolated procedural HUD pipeline */
 static int sBlockSample; /* the draw being set up reads a work buffer at the GS's 1x (orig.x): pipeline_get, key bit 25 */
 static int sTexPackOn = 1; /* the setting: use the texture pack (if one was found) */
 int gsAnchor;
+static int sTextInfo;
 /* A fight's HUD in a picture wider than 4:3 (setting hud_layout, ZENKAIPOWER_HUD=<n> for a test):
      0  the side panels at the screen's edges (as since widescreen)
      1  the same, with the health bars drawn longer, up to the timer (hud_b.c, pull request #28)
@@ -184,6 +187,7 @@ typedef struct Tex {
     GsTex tex;
     unsigned last; /* frame last used */
     int replaced;  /* 1: texture pack, 2: vector menu labels, 3: packed shared glyphs */
+    int isText; /* timer lettering follows native HUD resolution */
     int nativeHud; /* procedural shape identity, 0 keeps the original texture */
     int battleText; /* the source texture has Battle font artwork, even with Original selected */
     uint32_t ow, oh, rw, rh; /* then: the original's size and the replacement's */
@@ -996,7 +1000,7 @@ static GsTex texture_get(int ctx) {
     uint64_t tex_t0;
     TexPackImage pack;
     uint32_t packMaxAlpha = 255, rw = tw, rh = th, *menuTextIdentity = NULL;
-    int replaced = 0, menuText = 0, sharedText = 0, battleText = 0, nativeHud = 0, packWait = -1;
+    int replaced = 0, menuText = 0, sharedText = 0, battleText = 0, nativeHud = 0, isText = 0, packWait = -1;
 
     if (tw > 1024) { tw = 1024; }
     if (th > 1024) { th = 1024; }
@@ -1012,7 +1016,12 @@ static GsTex texture_get(int ctx) {
     /* Font replacements follow their settings and resolution. A new label catalog also refreshes cached Battle
        texture identities when the artwork is still on "Original". */
     if (Port_TextureExportEnabled()) gen ^= 0x45585054u; /* export already-cached textures when enabled */
-    gen ^= MenuText_TexKey((int)tw, (int)th, bits <= 8, (int)tbp, (int)cbp, MenuText_RasterScale(SCALE));
+    /* Shared atlases serve both text domains. One stable raster prevents the
+       FPS glyphs and ordinary lettering from replacing each other's cache entry. */
+    int textScale=MenuText_RasterScaleFor((int)ceilf(SCALE),0);
+    int infoScale=MenuText_RasterScaleFor((int)ceilf(SCALE),1);
+    if(infoScale>textScale) textScale=infoScale;
+    gen ^= MenuText_TexKey((int)tw, (int)th, bits <= 8, (int)tbp, (int)cbp, textScale);
     gen ^= bits <= 8 ? MenuLabels_ArtKey() : 0; /* the chosen language's menu art ready: decoded again */
     if (sTexPackOn && TexPack_Count() != 0) {
         gen ^= 0x5BD1E995u; /* with the pack and without it are different textures: switching it takes effect at once */
@@ -1121,9 +1130,12 @@ static GsTex texture_get(int ctx) {
         }
     }
     if (px != NULL) {
-        battleText = MenuText_IsBattleTexture(menuTextIdentity != NULL ? (const uint8_t *)menuTextIdentity : (const uint8_t *)px,
-                                              (int)tw, (int)th, bits <= 8);
+        int textKind=MenuText_TextureKind(menuTextIdentity ? (const uint8_t *)menuTextIdentity : (const uint8_t *)px,
+                                         (int)tw,(int)th,bits<=8);
+        battleText=(textKind&2)!=0;
+        isText=(textKind&1)!=0;
     }
+    isText |= MenuText_IsGlyphTexture((int)tbp,(int)cbp);
     if (replaced) {
         free(px);
         px = NULL;
@@ -1133,7 +1145,6 @@ static GsTex texture_get(int ctx) {
     if (!nativeHud && !replaced && px != NULL) {
         int mw, mh;
         uint64_t font_t0 = gpu_now();
-        int textScale = MenuText_RasterScale(SCALE);
         uint8_t *text = MenuText_RenderSoundtrack((uint8_t *)px, (int)tw, (int)th, bits <= 8, textScale, &mw, &mh);
         sharedText = 0;
         if (text == NULL) {
@@ -1200,6 +1211,7 @@ static GsTex texture_get(int ctx) {
     t->replaced = replaced ? 1 : sharedText ? 3 : menuText ? 2 : 0;
     t->battleText = battleText;
     t->nativeHud = nativeHud;
+    t->isText = isText;
     t->ow = tw;
     t->oh = th;
     t->rw = rw;
@@ -1881,7 +1893,9 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
         (!d.tex_is_target && sLast != NULL && sLast->tex == d.tex && sLast->replaced >= 2);
     /* Battle announcements also keep their display-resolution pass when using
        original artwork or a texture-pack font instead of generated lettering. */
-    d.screenText = generatedText || battleText;
+    int textDraw=generatedText || battleText || (!d.tex_is_target && sLast && sLast->tex==d.tex && sLast->isText);
+    d.sceneResolution=textDraw && PortText_FollowsResolution(sTextInfo);
+    d.screenText=textDraw && !d.sceneResolution;
     if (type == 6 || fst) {
         d.sampler &= 7; /* 2D art: never the smaller copies of a replacement */
     }
@@ -2403,6 +2417,10 @@ void GsGpu_Native(int effect) {
     if (GS_NO_PICTURE) { /* a frame that is only being re-run, or one that is skipped: nothing is drawn */
         return;
     }
+    if(effect==PORT_TEXT_INFO_BEGIN || effect==PORT_TEXT_INFO_END) {
+        sTextInfo=effect==PORT_TEXT_INFO_BEGIN;
+        return;
+    }
     uint64_t sc = gGs.scissor[0];
     GsDraw d;
 
@@ -2785,7 +2803,7 @@ static unsigned gInterpTicks;
 static uint64_t sInterpBlendShown, sInterpBlendTook; /* when the in-between picture was handed to the screen; how long replaying its list took */
 static uint64_t sInterpRealTook; /* real frames do not pay the intermediate vertex reconstruction cost */
 static uint64_t sInterpPrepareTook; /* pairing/camera work before the first replay */
-static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
+static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor, textInfo; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
 unsigned gInterpShown, gInterpSkipped; /* in-between pictures shown / left out since the start */
 static unsigned gInterpCuts, gInterpStatic, gInterpNotMutual;
 static unsigned gInterpFollowed, gInterpThrough; /* ticks left without in-between pictures because the camera's way crossed the scenery */
@@ -4205,7 +4223,7 @@ static uint32_t interp_prims(InterpPrim *out) {
             out[count].kind = ((uint32_t)d->tex * 2654435761u) ^ ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (out[count].view * 0xC2B2AE35u);
             out[count].base = ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (out[count].view * 0xC2B2AE35u);
             out[count].first = d->first + k;
-            out[count].flat2d = d->misc[3] != 0.0f;
+            out[count].flat2d = d->misc[3] != 0.0f || d->screenText || d->sceneResolution;
             out[count].tris = (uint8_t)tris;
             count++;
             k += tris * 3;
@@ -5028,6 +5046,7 @@ static void interp_counts_restore(void) {
     gsVuUniCount = sInterpSaved.vuUni;
     gsDrawCount = sInterpSaved.draws;
     gsAnchor = sInterpSaved.anchor;
+    sTextInfo = sInterpSaved.textInfo;
     gsSkipped = sInterpSaved.skipped;
     gsNative = sInterpSaved.native;
     for (i = 0; i < gsTargetCount && i < MAX_TARGETS; i++) {
@@ -5420,6 +5439,7 @@ void GsGpu_FrameEnd(void) {
             sInterpSaved.vuUni = gsVuUniCount;
             sInterpSaved.draws = gsDrawCount;
             sInterpSaved.anchor = gsAnchor;
+            sInterpSaved.textInfo = sTextInfo;
             sInterpSaved.skipped = gsSkipped;
             sInterpSaved.native = gsNative;
             for (i = 0; i < gsTargetCount && i < MAX_TARGETS; i++) {
@@ -5467,6 +5487,7 @@ void GsGpu_FrameEnd(void) {
                 sInterpSaved.vuUni = gsVuUniCount;
                 sInterpSaved.draws = gsDrawCount;
                 sInterpSaved.anchor = gsAnchor;
+            sInterpSaved.textInfo = sTextInfo;
                 sInterpSaved.skipped = gsSkipped;
                 sInterpSaved.native = gsNative;
                 for (i = 0; i < gsTargetCount && i < MAX_TARGETS; i++) {

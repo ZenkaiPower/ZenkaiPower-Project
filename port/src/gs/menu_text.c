@@ -23,6 +23,7 @@
  * this file keeps is on the renderer's side (not saved by a rollback, not in the desync checksum). Texture-pack
  * replacements take precedence. */
 #include "menu_text.h"
+#include "text_resolution.h"
 #include "../../../include/menu/ui_text_filter.h"
 #include "menu_labels.h"
 #include "ui_text_extract.h" /* UiText_EuropeanOnStartup */
@@ -750,18 +751,21 @@ void MenuText_OutputSize(int width, int height, int aspect) {
     }
 }
 
-int MenuText_RasterScale(int internalScale) {
-    /* Internal setting: keep translated labels and shared UI glyphs at the
-       display's raster quality even when the scene resolution is reduced. */
-    int screen = Port_Setting("text_screen_size", 1);
-    int scale = screen ?
-        __atomic_load_n(&sTextOutputScale, __ATOMIC_ACQUIRE) : internalScale;
-    int maximum = screen ? 8 : 4;
-    return scale < 2 ? 2 : scale > maximum ? maximum : scale;
+static int sTextSceneScale=2;
+void MenuText_SceneScale(int scale) {
+    __atomic_store_n(&sTextSceneScale,scale<1 ? 1 : scale,__ATOMIC_RELEASE);
 }
-
+int MenuText_RasterScaleFor(int internalScale,int info) {
+    int scene=PortText_FollowsResolution(info);
+    int scale=scene ? internalScale : __atomic_load_n(&sTextOutputScale,__ATOMIC_ACQUIRE);
+    return scale<2 ? 2 : scale>8 ? 8 : scale;
+}
+int MenuText_RasterScale(int internalScale) {
+    return MenuText_RasterScaleFor(internalScale,0);
+}
 uint32_t MenuText_RasterKey(void) {
-    return (uint32_t)MenuText_RasterScale(2);
+    int scale=__atomic_load_n(&sTextSceneScale,__ATOMIC_ACQUIRE);
+    return (uint32_t)MenuText_RasterScale(scale);
 }
 
 /* ------------------------------------------------------------------------------------------- menu labels */
@@ -962,25 +966,26 @@ int MenuText_MayHaveBattleTexture(int width, int height, int indexed) {
     return result;
 }
 
-int MenuText_IsBattleTexture(const uint8_t *rgba, int width, int height, int indexed) {
-    uint64_t hash = UINT64_C(14695981039346656037);
-    size_t i, bytes;
-    int n;
-    if (!indexed || rgba == NULL || width < 1 || height < 1) { return 0; }
+int MenuText_TextureKind(const uint8_t *rgba,int width,int height,int indexed) {
+    if(!indexed || !rgba || width<1 || height<1) return 0;
+    int result=0,possible=0;
     pthread_mutex_lock(&sLock);
     menu_text_labels();
-    if (battle_texture_size_loaded(width, height)) {
-        bytes = (size_t)width * height * 4;
-        for (i = 0; i < bytes; i++) { hash = (hash ^ rgba[i]) * UINT64_C(1099511628211); }
-        for (n = 0; n < sCount; n++) {
-            if (sLabels[n].fontFace == 1 && sLabels[n].width == width && sLabels[n].height == height && sLabels[n].hash == hash) {
-                pthread_mutex_unlock(&sLock);
-                return 1;
-            }
-        }
+    for(int n=0;n<sCount;n++)
+        if(sLabels[n].width==width && sLabels[n].height==height) { possible=1;break; }
+    if(possible) {
+        uint64_t hash=UINT64_C(14695981039346656037);
+        size_t bytes=(size_t)width*height*4;
+        for(size_t i=0;i<bytes;i++) hash=(hash^rgba[i])*UINT64_C(1099511628211);
+        for(int n=0;n<sCount;n++)
+            if(sLabels[n].width==width && sLabels[n].height==height && sLabels[n].hash==hash)
+                result|=1|(sLabels[n].fontFace==1 ? 2 : 0);
     }
     pthread_mutex_unlock(&sLock);
-    return 0;
+    return result;
+}
+int MenuText_IsBattleTexture(const uint8_t *rgba,int width,int height,int indexed) {
+    return (MenuText_TextureKind(rgba,width,height,indexed)&2)!=0;
 }
 
 static void set_font(int choice) {
@@ -1991,6 +1996,13 @@ static SharedSheet *shared_sheet(int tbp, int cbp) {
 
 /* What of the settings here a decoded texture depends on, for the renderer's texture cache. A new catalog also
    changes the key so Battle artwork decoded before the catalog was ready can be identified on its next draw. */
+int MenuText_IsGlyphTexture(int tbp,int cbp) {
+    pthread_mutex_lock(&sLock);
+    int found=shared_sheet(tbp,cbp)!=NULL;
+    pthread_mutex_unlock(&sLock);
+    return found;
+}
+
 uint32_t MenuText_TexKey(int width, int height, int indexed, int tbp, int cbp, int scale) {
     uint32_t key = 0;
     if (sFontChoice == 0 && sBattleChoice == 0 && sSharedChoice == 0) {

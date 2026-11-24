@@ -14,6 +14,8 @@
  * Nothing here is game state: the screens are a menu of the PC's, before and outside an online match.
  */
 #include "menu_text.h"
+#include "gs_draw.h"
+#include <math.h>
 #include "menu_translation.h"
 #include "../../../include/menu/tbo_art.h"
 #include <SDL3/SDL.h>
@@ -240,7 +242,7 @@ uint32_t *TboText_Pixels(uint32_t id, uint32_t *version, uint32_t *w, uint32_t *
         return NULL;
     }
     if (l.kind >= 3 && l.kind <= 5) {
-        int scale = MenuText_RasterScale(2);
+        int scale = MenuText_RasterScale((int)ceilf(SCALE));
         px = (uint32_t *)(void *)MenuText_RenderWiiLabel(l.text, l.kind - 3, scale, &lw, &lh);
         if (px == NULL) return NULL;
         /* Layout stays measured at 2x; normalized UVs allow the actual caption

@@ -1,3 +1,7 @@
+#ifdef PORT
+#include "menu/port_text_resolution.h"
+extern void Port_GsMarker(int effect);
+#endif
 #include "common.h"
 #include "battle/hud_e.h"
 #include "battle/battle.h"
@@ -269,7 +273,13 @@ void HudTimer_Draw(HudENode *node) {
             Font_PrintAt(x, y, text);
         }
         Font_PopStyle();
+#ifdef PORT
+        Port_GsMarker(PORT_TEXT_INFO_BEGIN);
+#endif
         Font_Flush(first);
+#ifdef PORT
+        Port_GsMarker(PORT_TEXT_INFO_END);
+#endif
     }
 }
 

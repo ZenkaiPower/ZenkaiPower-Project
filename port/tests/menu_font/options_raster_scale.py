@@ -15,6 +15,9 @@ code=r'''
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+static int gsScale=2;
+#define SCALE gsScale
 #include <pthread.h>
 #define TEXT_MAX 128
 #define TBO_TEXT_BASE 100

@@ -79,6 +79,28 @@ int main(void) {
         if(!sharp) native_hud_check(pixels,kind);
         native_hud_filter_check(pixels,kind,sharp);tex_destroy(palette);
     }
+    params.orig[3]=0;
+    GsTex nativePalette=tex_create(48,1,GS_TEXFMT_RGBA8,1);
+    tex_upload(nativePalette,0,48,1,GS_TEXFMT_RGBA8,native_test_palette(7),48*4);
+    uint32_t *pattern=malloc(1280*4);assert(pattern);
+    for(int x=0;x<1280;x++) pattern[x]=(x&1) ? 0x80000000u : 0x80ffffffu;
+    GsTex fine=tex_create(1280,1,GS_TEXFMT_RGBA8,1);
+    tex_upload(fine,0,1280,1,GS_TEXFMT_RGBA8,pattern,1280*4);
+    glBindTexture(GL_TEXTURE_2D,(GLuint)fine);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    for(int phase=0;phase<3;phase++) {
+        params.mode[0]=phase==0 ? 4 : 1;
+        params.extra[2]=params.extra[3]=phase==1 ? 0 : 4;
+        set_pipe(pipe_get((2u<<10)|(1u<<12)|(15u<<16)|(phase==0 ? GS_PIPE_NATIVE_HUD : 0)));
+        glActiveTexture(GL_TEXTURE0);glBindTexture(GL_TEXTURE_2D,(GLuint)(phase==0 ? nativePalette : fine));
+        set_params(&params,sizeof(params));glDrawArrays(GL_TRIANGLES,0,6);
+        glReadPixels(0,0,1280,720,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+        if(phase==0) assert(!memcmp(pixels+(80*1280+500)*4,pixels+(81*1280+500)*4,4));
+        else if(phase==1) assert(PIXEL(500,100,0)!=PIXEL(501,100,0));
+        else assert(PIXEL(500,100,0)==PIXEL(501,100,0));
+    }
+    tex_destroy(fine);tex_destroy(nativePalette);
+    puts("OpenGL mixed resolution: scene-grid native HUD/text and sharp info sampling passed");
     puts("OpenGL native HUD: timer panels, six palettes, atlas parts and transparent regions passed");
     assert(glGetError()==GL_NO_ERROR);free(pixels);
     SDL_GL_DestroyContext(sCtx);SDL_DestroyWindow(sWindow);SDL_Quit();

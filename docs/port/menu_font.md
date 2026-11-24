@@ -240,18 +240,27 @@ Added song and stage names share the corresponding fill and outline colors.
 - `port/tests/menu_font/labels.c`: the maker of the list on its own (to compare its files), and against damaged
   menu archives, with the sanitizers.
 
-The internal `text_screen_size` setting defaults to `1` and chooses shared UI glyph and label raster quality
-from the displayed picture's physical pixel size, including letterboxing, independently of the Resolution option.
-Font raster quality uses the larger of the horizontal and vertical pixel ratios, with a 2–8x limit, and refreshes
-cached textures after resizing. Setting it to `0` restores the old resolution-based 2–4x raster quality.
-Generated in-game Options captions also use this raster scale while keeping their layout measurements fixed.
+The compile-time `ZENKAIPOWER_TEXT_FOLLOW_RES` flag defaults to `1`: game-rendered labels, shared glyphs, battle
+announcements, timer/Wins/Blast Stock counters, combo text, technique names and fighter-panel labels follow
+the game's Resolution option. Set it to `0` for physical-screen raster quality and sampling.
 
-Vulkan/SDL GPU and OpenGL compose the final UI draws containing generated text into a separate buffer at the
-displayed picture's physical resolution. Battle font announcements are included, both generated lettering and
-recognized original or texture-pack artwork. The selected Resolution still controls the scene. Scene color, depth
-and alpha are copied before the first eligible text draw; text and subsequent UI keep their original order and
-scissors. Announcement reveal masks and their destination-alpha snapshots are replayed at the same physical
-resolution as the lettering. Draws that read framebuffers, shadows and native effects keep their original passes. The regular framebuffer is also rendered normally for cross-fades, screenshots and game readbacks.
+`ZENKAIPOWER_HUD_INFO_FOLLOW_RES` overrides that decision for the FPS counter, connection percentage and online battle
+usernames. It defaults to `0`, keeping those informational labels at physical-screen resolution. Set it to
+`1` to make them follow game resolution too. The flags are independent of the native HUD collection and
+supersede the older internal `text_screen_size` control. Defaults live in
+`include/menu/port_build_flags.h`; override them with compiler `-DNAME=0/1` switches.
+These switches do not read environment variables or saved settings at runtime.
+
+Shared font atlases use the larger raster required by the two policies, with a stable cache key;
+the draw's target/sampling grid determines its displayed resolution. Switching between ordinary
+text and informational glyphs does not regenerate the atlas.
+
+Text layout stays fixed in game coordinates. Both OpenGL and Vulkan preserve draw order when the two
+policies are mixed: ordered suffix replay samples game-resolution text and native HUD shapes on the scene's pixel
+grid while leaving screen-resolution labels sharp. Raster scale changes refresh the generated text caches.
+The informational scopes travel in the GS display list, so render-thread timing and interpolation preserve
+the distinction. Fighter-panel ImGui text uses game-sized glyph rasters scaled back to its existing layout.
+Setup/settings/chat UI and Android's virtual buttons are separate platform interfaces.
 
 Generated text always uses smooth glyph coverage and linear sampling independently of the artwork's 2D filtering option.
 

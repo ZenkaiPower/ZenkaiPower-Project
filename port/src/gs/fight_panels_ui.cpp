@@ -19,6 +19,8 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "fight_panels.h"
+#include "gs_draw.h"
+#include "text_resolution.h"
 
 extern "C" int Port_HudSwap(void);                         // gs/net.c: the HUD's sides are swapped on this copy
 SDL_GPUTexture *Ui_Texture(uint8_t *pix, uint32_t w, uint32_t h); // ui.cpp (takes pix)
@@ -30,6 +32,25 @@ ImFont *Ui_FontBold(void);  // the first of the game's fonts, where one of those
 #define ART_W 256
 #define ART_H 512
 static const float kPi = 3.14159265f;
+
+static void panel_text(ImDrawList *dl,ImFont *font,float size,ImVec2 pos,ImU32 color,const char *text) {
+    float ratio=1.0f;
+    if(PortText_FollowsResolution(0)) {
+        float output=ImGui::GetIO().DisplaySize.y;
+        ratio=fmaxf(1.0f,output/(448.0f*SCALE));
+    }
+    if(ratio<=1.0f) { dl->AddText(font,size,pos,color,text);return; }
+    float raster=fmaxf(1.0f,floorf(size/ratio+0.5f));
+    float expected=font->CalcTextSizeA(size,FLT_MAX,0,text).x;
+    float measured=font->CalcTextSizeA(raster,FLT_MAX,0,text).x;
+    float sx=measured>0 ? expected/measured : size/raster, sy=size/raster;
+    int first=dl->VtxBuffer.Size;
+    dl->AddText(font,raster,pos,color,text);
+    for(int i=first;i<dl->VtxBuffer.Size;i++) {
+        ImVec2 &v=dl->VtxBuffer[i].pos;
+        v.x=pos.x+(v.x-pos.x)*sx;v.y=pos.y+(v.y-pos.y)*sy;
+    }
+}
 
 // The characters' names by id, in English (the order of the character table).
 static const char *const kCharaNames[] = {
@@ -522,11 +543,11 @@ static void text_fx(ImDrawList *dl, ImFont *f, float size, ImVec2 p, const char 
         int n = th > 2.5f ? 16 : 8;
         for (int i = 0; i < n; i++) {
             float a = i * 2.0f * kPi / n;
-            dl->AddText(f, size, ImVec2(p.x + cosf(a) * th, p.y + sinf(a) * th), line, t);
+            panel_text(dl,f, size, ImVec2(p.x + cosf(a) * th, p.y + sinf(a) * th), line, t);
         }
     }
     int v0 = dl->VtxBuffer.Size;
-    dl->AddText(f, size, p, C(255, 255, 255, (int)(255 * alpha)), t);
+    panel_text(dl,f, size, p, C(255, 255, 255, (int)(255 * alpha)), t);
     ImVec2 sz = f->CalcTextSizeA(size, FLT_MAX, 0.0f, t);
     ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, v0, dl->VtxBuffer.Size, ImVec2(p.x, p.y + sz.y * 0.2f),
                                                   ImVec2(p.x, p.y + sz.y * 0.85f), top, bot);
@@ -727,17 +748,17 @@ static void game_text(ImDrawList *dl, ImFont *f, float size, ImVec2 c, const cha
         ImU32 col = C(0, 0, 0, A * (ring == 0 ? 70 : 40) / 255);
         for (int i = 0; i < 12; i++) {
             float a = i * 2.0f * kPi / 12;
-            dl->AddText(f, size, ImVec2(pen.x + sh.x + cosf(a) * r, pen.y + sh.y + sinf(a) * r), col, t);
+            panel_text(dl,f, size, ImVec2(pen.x + sh.x + cosf(a) * r, pen.y + sh.y + sinf(a) * r), col, t);
         }
     }
     ImU32 line = C(0x2C, 0x15, 0x1B, A);
     int n = border > 2.5f ? 16 : 10;
     for (int i = 0; i < n; i++) {
         float a = i * 2.0f * kPi / n;
-        dl->AddText(f, size, ImVec2(pen.x + cosf(a) * border, pen.y + sinf(a) * border), line, t);
+        panel_text(dl,f, size, ImVec2(pen.x + cosf(a) * border, pen.y + sinf(a) * border), line, t);
     }
     int v0 = dl->VtxBuffer.Size;
-    dl->AddText(f, size, pen, C(255, 255, 255, A), t);
+    panel_text(dl,f, size, pen, C(255, 255, 255, A), t);
     ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, v0, dl->VtxBuffer.Size, ImVec2(pen.x, pen.y + oy), ImVec2(pen.x, pen.y + oy + h),
                                                   C(0xF4, 0xEF, 0x89), C(0xD2, 0x68, 0x4B));
 }

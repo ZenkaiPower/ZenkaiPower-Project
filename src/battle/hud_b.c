@@ -1,3 +1,6 @@
+#ifdef PORT
+#include "menu/port_text_resolution.h"
+#endif
 #include "common.h"
 #include "battle/hud_b.h"
 #ifdef PORT
@@ -1010,6 +1013,7 @@ static void HudGauge_DrawNameFrame(const HudNamePlate *plate) {
 }
 
 static void HudGauge_DrawPlayerName(const HudNamePlate *plate) {
+    Port_GsMarker(PORT_TEXT_INFO_BEGIN);
     s32 pass, id = plate->id;
     f32 x = plate->x, y = plate->y, width = plate->textWidth, height = plate->textHeight;
     /* Mask/env changes above can disturb the marker state; restore the normal
@@ -1020,6 +1024,7 @@ static void HudGauge_DrawPlayerName(const HudNamePlate *plate) {
         Ps_SpriteScreen(id, x, y, x+width, y+height, 0, 0, 1, 0.5f,
                         Ps_Tint(Ps_Rgba(160, 160, 160, 0)), 86);
         HudGfx_SetEnv();
+        Port_GsMarker(PORT_TEXT_INFO_END);
         return;
     }
     u32 rgb = Port_HudHealthColor(gHudGauge->side);
@@ -1034,6 +1039,7 @@ static void HudGauge_DrawPlayerName(const HudNamePlate *plate) {
     Ps_SpriteScreen(id, x, y, x+width, y+height, 0, 0.5f, 1, 1, 0, 64);
     Ps_SpriteScreen(id, x, y, x+width, y+height, 0, 0, 1, 0.5f, color, 104);
     HudGfx_SetEnv();
+    Port_GsMarker(PORT_TEXT_INFO_END);
 }
 
 #endif

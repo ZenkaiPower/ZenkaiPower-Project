@@ -256,6 +256,20 @@ recognized separately. Cropping, mirroring, game tint/opacity, animation, scisso
 still follow the game's draw commands. Native shapes retain game-resolution sampling and respect 2D filtering: smooth mode uses analytic edge coverage and interpolated gradients; sharp mode uses source-texel steps, nearest gradient stops and crisp silhouettes. A mixed-resolution UI pass keeps them on the game's pixel
 grid while allowing informational text to remain sharp, with the original draw order and masks preserved.
 
+The independent text controls apply to all game-rendered text, including timer/Wins/Blast Stock counters,
+combo hit/damage numbers and labels, technique names, announcements and fighter-panel labels:
+
+| Compilation flag | Default | Meaning |
+| --- | --- | --- |
+| `ZENKAIPOWER_TEXT_FOLLOW_RES` | `1` | Text follows the game's Resolution option; `0` uses the physical screen |
+| `ZENKAIPOWER_HUD_INFO_FOLLOW_RES` | `0` | Independent override for FPS, connection percentage and online battle usernames |
+
+Both flags accept `0` or `1`; the informational override does not inherit the main flag. These supersede the
+older `text_screen_size` setting. Changing game resolution updates font sampling/cache quality without changing
+label size or position. The controls remain active when the native HUD collection is disabled. Shared atlases
+use a stable raster across informational and ordinary draws, avoiding repeated texture regeneration.
+Setup, settings and chat interfaces, and Android virtual gamepad labels, remain platform UI.
+
 Native shapes use their own `nativehud.frag` pipeline (key bit 27). The ordinary GS, menu, VU/model and
 work-buffer shaders contain no native geometry or palette arrays. The native material is compiled lazily only
 when needed; palette lookup uses two texel fetches rather than indexing a large local GLSL constant array.

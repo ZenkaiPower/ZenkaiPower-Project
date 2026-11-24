@@ -20,6 +20,7 @@
 #include "gs_internal.h"
 #include "gs_draw.h"
 #include "gs_screen_text.h"
+#include "text_resolution.h"
 #include "shaders.h"
 #include "ui.h"
 
@@ -955,7 +956,7 @@ static void frame_end(void) {
       GsScreenText_Size(outputW, outputH, Port_PageAspectMilli(), &pictureW, &pictureH); }
     screenTarget = gGsMainFbp >= 0 ? GsDraw_TargetGet((uint32_t)gGsMainFbp, 0) : gsTargetCount ? 0 : -1;
     if (screenTarget < 0 && gsTargetCount) screenTarget = 0;
-    if (screenTarget >= 0 && Port_Setting("text_screen_size", 1) &&
+    if (screenTarget >= 0 && PortText_UsesScreen() &&
         (pictureW > 512*SCALE || pictureH > 448*SCALE)) {
         screenStart = GsScreenText_Start(screenTarget, screen_pipe_key);
         if (screenStart >= 0) {

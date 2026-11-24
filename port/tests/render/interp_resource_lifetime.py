@@ -28,11 +28,12 @@ prefix = r'''
 #define INTERP_MAX_PRIMS 4
 #define GS_NO_PICTURE 0
  typedef int Vu0Uniform, Vtx, InterpPrim;
+static int sTextInfo;
 static int sInGlowChain, gPortResim, gsSkipFrame, gsInterp = 2, gsAnchor;
 static unsigned gsVertCount, gsVuVertCount, gsVuIdxCount, gsVuUniCount, gsDrawCount, gsSkipped, gsNative;
 static int gsTargetCount = 1;
 static struct { unsigned draws; } gsTargets[MAX_TARGETS];
-static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
+static struct { uint32_t verts, vuVerts, vuIdx, vuUni, draws; int anchor, textInfo; unsigned skipped, native; unsigned tdraws[MAX_TARGETS]; } sInterpSaved;
 static unsigned sInterpPrevCount, sInterpPrevPrimCount, sInterpPrimCount, sInterpLastBlank, sInterpBlanks = 2;
 static unsigned gInterpTicks, gInterpShown, gInterpSkipped, gInterpPaired, gInterpUnpaired, gInterpCamera;
 static unsigned gInterpTris, gInterpTrisBlended, gInterpWhy[5], gInterpTrisCamera, gInterpStatic, gInterpThrough, gInterpCuts;
@@ -50,6 +51,8 @@ static unsigned tickBlanks = 2;
 static uint64_t fakeNow, lastCost, prepareCost = 1000000, vertexCost = 1000000;
 static unsigned vertexBuilds, signatureBuilds, remembers;
 static void render(void) {
+    assert(sTextInfo==1);
+    sTextInfo=0; /* consume a text scope along with the retained display list */
     assert(resourcesLive); /* A retained draw may never reference released targets. */
     presents++;
     gPortVBlanks += 17; /* game clock advances independently of the submitted frame */
@@ -78,7 +81,7 @@ static void GsGpu_InterpPump(uint64_t ahead, int all) { (void)ahead; (void)all; 
 '''
 suffix = r'''
 static void frame(int blend, int interpolation) {
-    canBlend = blend; gsInterp = interpolation;
+    canBlend = blend; gsInterp = interpolation; sTextInfo=1;
     resourcesLive = 1; gsTargetCount = 1;
     gsDrawCount = gsVertCount = 1;
     scalePending = 1; scaleCalls = labelCalls = presents = 0;
