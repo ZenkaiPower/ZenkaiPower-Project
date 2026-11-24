@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "plat_songs.h"
+#include "../../include/sys/port_original_fixes.h"
 
 char gPortSongNames[PORT_SONG_MAX][64];
 int gPortSongCount;
@@ -302,8 +303,16 @@ int PortSongs_SoundtrackSlot(const char *path) {
 int PortSongs_SoundtrackPath(const char *path, char *out, unsigned capacity) {
     int slot = PortSongs_SoundtrackSlot(path), count;
     FILE *fp;
-    if (slot < 0 || !PortSongs_JapaneseSoundtrack()) return 0;
-    count = snprintf(out, capacity, "%s/soundtrack/meteor/%02d.adx", data_root(), slot);
+    extern int Port_Setting(const char *name, int def);
+    if (slot < 0) return 0;
+    if (Port_OriginalFixesEnabled() && Port_Setting("game_version", 0) != 0 && (slot == 20 || slot == 21)) {
+        /* Mission 80/100 and Survival course 3 request the full opening slots.
+           The US opening is on the required disc; it stays outside music selection. */
+        count = snprintf(out, capacity, "%s/disc/DATA/ZS3USOP.ADX", data_root());
+    } else {
+        if (!PortSongs_JapaneseSoundtrack()) return 0;
+        count = snprintf(out, capacity, "%s/soundtrack/meteor/%02d.adx", data_root(), slot);
+    }
     if (count < 0 || (unsigned)count >= capacity) return 0;
     fp = Port_PackFopen(out, "rb");
     if (fp == NULL) return 0;

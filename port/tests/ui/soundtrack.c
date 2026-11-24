@@ -5,10 +5,12 @@
  * Real-disc integration: compares decoded artwork with the extracted Japanese sheets.
  * No copyrighted assets are embedded in this test. */
 #include <assert.h>
+#include "../../../include/sys/port_zenkai_features.h"
 #include "../../src/gs/menu_labels.c"
 #include "../../include/plat_songs.h"
 
-static int japanese;
+static int japanese, zenkai = 1;
+int Port_ZenkaiEnabled(void) { return zenkai; }
 int Port_Setting(const char *name, int fallback) {
     return strcmp(name, "game_version") == 0 ? !japanese : fallback;
 }
@@ -32,6 +34,25 @@ int main(int argc, char **argv) {
     assert(PortSongs_SoundtrackSlot("gamedata/mods/pzs3us2/64974.bin") == -1);
     assert(PortSongs_SoundtrackSlot("gamedata/pzs3us2/73000.bin") == -1);
     assert(!PortSongs_SoundtrackPath("gamedata/pzs3us2/64974.bin", path, sizeof(path)));
+    {
+        char opening[512];
+        int available;
+        snprintf(opening, sizeof(opening), "%s/disc/DATA/ZS3USOP.ADX", argv[1]);
+        available = PORT_ZENKAI_ORIGINAL_FIXES && Port_PackExists(opening);
+        for (index = 20; index <= 21; index++) {
+            char original[100];
+            snprintf(original, sizeof(original), "gamedata/pzs3us2/%05d.bin", 64974 + index);
+            assert(PortSongs_SoundtrackPath(original, path, sizeof(path)) == available);
+            if (available) assert(!strcmp(path, opening));
+            zenkai = 0;
+            assert(!PortSongs_SoundtrackPath(original, path, sizeof(path)));
+            zenkai = 1;
+            assert(!PortSongs_SoundtrackPath(original, path, 4));
+        }
+        assert(!PortSongs_SoundtrackPath("gamedata/pzs3us2/64996.bin", path, sizeof(path)));
+        assert(!PortSongs_SoundtrackPath("gamedata/mods/pzs3us2/64994.bin", path, sizeof(path)));
+        assert(!PortSongs_SoundtrackPath("gamedata/pzs3us2/73000.bin", path, sizeof(path)));
+    }
     japanese = 1;
     if (!PortSongs_SoundtrackAvailable()) {
         assert(!PortSongs_JapaneseSoundtrack());

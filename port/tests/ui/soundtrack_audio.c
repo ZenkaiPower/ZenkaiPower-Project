@@ -11,6 +11,7 @@ int gPortAdxCount, gPortResim;
 unsigned gGsFrame;
 PortAdxView gPortAdxView[MAX_PLAYERS];
 static int japanese;
+int Port_ZenkaiEnabled(void) { return 1; }
 int GsGpu_Enabled(void) { return 0; }
 int Port_Setting(const char *name, int fallback) { return !strcmp(name, "game_version") ? !japanese : fallback; }
 int Port_NetActive(void) { return 1; }
@@ -63,6 +64,17 @@ int main(int argc, char **argv) {
     ADXT_GetStat(p);
     assert(!strcmp(p->path, original) && p->total == usSamples);
     assert(!memcmp(&before, &gPortAdxView[0], sizeof(before)));
+    /* Fixed mission/course slots use the US movie's audio as looping battle music. */
+    for (int slot = 20; slot <= 21; slot++) {
+        snprintf(original, sizeof(original), "%s/pzs3us2/%05d.bin", argv[1], 64974 + slot);
+        start(p, original);
+        assert(p->stream && p->loop);
+        assert(strstr(p->path, "/disc/DATA/ZS3USOP.ADX"));
+    }
+    /* Playing the opening normally keeps its original one-shot behavior. */
+    snprintf(original, sizeof(original), "%s/disc/DATA/ZS3USOP.ADX", argv[1]);
+    start(p, original);
+    assert(p->stream && !p->loop);
     stop(p);
     SDL_CloseAudioDevice(sDevice);
     SDL_Quit();

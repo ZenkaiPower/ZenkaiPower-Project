@@ -19,6 +19,7 @@ behavior. Set the flag to `0` and rebuild to disable these corrections together.
 | Battle arena overflow | Bump allocations can extend into the following arena. | Check remaining capacity and use tracked, aligned heap blocks for overflow allocations. Free them individually or on arena reset/battle teardown. Heap exhaustion can still fail an allocation. |
 | File-request limit crash | Request 33 dereferences an empty free list. | Complete the current I/O batch before reserving another request, retaining the existing request layout and buffers. This can briefly block the caller while the batch completes. |
 | Stereo music collapsed to mono | BGM starts by centering both decoded input channels. | Use the port decoder's automatic channel routing for centered BGM: stereo retains left/right separation and mono remains centered. Explicit pan and non-BGM streams retain their existing behavior. |
+| Opening theme in special battles | Mission 80, Mission 100 and Survival course 3 request soundtrack slots 20/21, which are absent from the Western selectable catalog. | In Budokai Tenkaichi 3 edition mode, play the required US disc's `ZS3USOP.ADX` for those slots and loop it during battle. It is not added to music selection; the opening movie retains one-shot playback. No Japanese disc is required. |
 
 Implementation is in the corresponding original source modules; the shared mode
 gate is [`port_original_fixes.h`](../../include/sys/port_original_fixes.h).

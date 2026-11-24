@@ -509,9 +509,13 @@ static void start(Player *p, const char *path) {
     long size;
     uint32_t header, highpass;
     char own[512], soundtrack[512];
+    int openingBgm = 0;
 
     path = voice_own_path(path, own, sizeof(own));
-    if (PortSongs_SoundtrackPath(path, soundtrack, sizeof(soundtrack))) path = soundtrack;
+    if (PortSongs_SoundtrackPath(path, soundtrack, sizeof(soundtrack))) {
+        openingBgm = strstr(soundtrack, "/disc/DATA/ZS3USOP.ADX") != NULL;
+        path = soundtrack;
+    }
 
     if (gPortResim && (p->stream != NULL || p->ma != NULL) && strcmp(p->path, path) == 0) {
         return; /* a frame that is only being re-run starts the stream that is playing already: it plays on */
@@ -580,7 +584,7 @@ static void start(Player *p, const char *path) {
            the fight does; a file made from an mp3 has none and stopped after one play, leaving the rest of the fight
            silent. It is played again from its start. (A file that has loop points keeps them.) */
         extern int PortSongs_IsFile(const char *path); /* plat_songs.c */
-        if (PortSongs_IsFile(path)) {
+        if (PortSongs_IsFile(path) || openingBgm) {
             p->loopStart = 0;
             p->loopEnd = p->total & ~31u; /* (whole frames) */
             p->loop = 1;
