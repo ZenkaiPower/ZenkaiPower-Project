@@ -92,6 +92,7 @@ typedef struct GsDraw {
     float blendc;
     int scissor[4]; /* x, y, width, height, at SCALE */
     int wall;       /* triangles of the wall at the edge of the map (gs_draw.c, Port_WallMesh): in-between pictures draw it anew */
+    int flat2d; /* screen-space primitive, independent of texture/filtering policy */
     int sceneResolution; /* HUD graphics/digits that must stay at game resolution */
     int screenText; /* lettering or Battle artwork; display-resolution UI composition */
 } GsDraw;

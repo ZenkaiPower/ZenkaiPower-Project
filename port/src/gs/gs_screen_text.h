@@ -23,6 +23,41 @@ static int GsScreenText_Start(int target, uint32_t (*pipeKey)(int)) {
     return start >= 0 && masked ? first : start;
 }
 
+/* An independent text overlay can be omitted from the game pass and drawn once
+   over the finished picture. Reject dependencies and any later overlapping art;
+   transitions/masks keep the ordered suffix path above. Bounds are conservative. */
+static void GsScreenText_Bounds(const GsDraw *d, float b[4]) {
+    b[0]=b[1]=1e30f; b[2]=b[3]=-1e30f;
+    for (unsigned v=d->first; v<d->first+d->count; v++) {
+        const Vtx *p=&gsVerts[v];
+        if(p->x<b[0]) b[0]=p->x;
+        if(p->y<b[1]) b[1]=p->y;
+        if(p->x>b[2]) b[2]=p->x;
+        if(p->y>b[3]) b[3]=p->y;
+    }
+}
+static int GsScreenText_Overlay(int start, int target, uint32_t (*pipeKey)(int)) {
+    if(start<0) return 0;
+    for(unsigned n=(unsigned)start;n<gsDrawCount;n++) {
+        const GsDraw *d=&gsDraws[n];
+        uint32_t key=pipeKey(d->pipeline);
+        if(d->native==5) continue;
+        if(d->native || d->vu || d->target!=target || d->tex_is_target ||
+           d->misc[1]!=0 || (key & ((1u<<24)|(1u<<22)))) return 0;
+        if(!d->screenText) continue;
+        if(key & (1u<<12)) return 0; /* depth writes cannot be deferred */
+        float a[4]; GsScreenText_Bounds(d,a);
+        for(unsigned m=n+1;m<gsDrawCount;m++) {
+            const GsDraw *later=&gsDraws[m];
+            if(later->native==5 || later->screenText) continue;
+            if(later->native || later->vu || later->tex_is_target || later->target!=target) return 0;
+            float b[4]; GsScreenText_Bounds(later,b);
+            if(a[0]<=b[2] && b[0]<=a[2] && a[1]<=b[3] && b[1]<=a[3]) return 0;
+        }
+    }
+    return 1;
+}
+
 static void GsScreenText_Size(int sw, int sh, int aspect, int *w, int *h) {
     *w = *h = 0;
     if (sw <= 0 || sh <= 0 || aspect <= 0) return;

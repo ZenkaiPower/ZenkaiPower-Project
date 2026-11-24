@@ -871,6 +871,7 @@ static void frame_end(void) {
     uint32_t n;
     struct { int32_t mode[4]; float misc[4]; float rect[4]; float orig[4]; float extra[4]; } fu, lastFu;
     int haveFu = 0;
+    int screenOverlay = 0;
     int screenStart = -1, screenSaved = 0, screenTarget = -1, outputW = 0, outputH = 0, pictureW, pictureH;
     Vtx *screenVertices = NULL;
     sScreenReplay = 0;
@@ -959,6 +960,7 @@ static void frame_end(void) {
     if (screenTarget >= 0 && PortText_UsesScreen() &&
         (pictureW > 512*SCALE || pictureH > 448*SCALE)) {
         screenStart = GsScreenText_Start(screenTarget, screen_pipe_key);
+        screenOverlay = GsScreenText_Overlay(screenStart, screenTarget, screen_pipe_key);
         if (screenStart >= 0) {
             screenVertices = GsScreenText_Vertices();
             if (!screenVertices || !screen_target(pictureW, pictureH)) screenStart = -1;
@@ -985,8 +987,10 @@ static void frame_end(void) {
         cur = -1; sCurPipe = -1; haveFu = haveScissor = 0; lastBlendc = -1;
     }
     for (n = replay ? (unsigned)screenStart : 0; n < gsDrawCount; n++) {
+        if (screenOverlay && screenStart >= 0 && gsDraws[n].screenText && !replay) continue;
+        if (screenOverlay && replay && !gsDraws[n].screenText) continue;
         const GsDraw *d = &gsDraws[n];
-        if (!replay && (int)n == screenStart && gsTargets[screenTarget].cleared) {
+        if (!replay && !screenOverlay && (int)n == screenStart && gsTargets[screenTarget].cleared) {
             screen_capture(screenTarget);
             screenSaved = 1; cur = -1; haveScissor = 0;
         }
@@ -1118,6 +1122,10 @@ static void frame_end(void) {
         } else {
             glDrawArrays(sPipes[d->pipeline].topo == 0 ? GL_TRIANGLES : sPipes[d->pipeline].topo == 1 ? GL_LINES : GL_POINTS, (GLint)d->first, (GLsizei)d->count);
         }
+    }
+    if (!replay && screenOverlay && screenStart >= 0 && gsTargets[screenTarget].cleared) {
+        screen_capture(screenTarget);
+        screenSaved = 1; cur = -1; haveScissor = 0;
     }
     }
     free(screenVertices);

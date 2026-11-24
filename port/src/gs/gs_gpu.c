@@ -954,6 +954,7 @@ static void vk_frame_end(void) {
     int lastScissor[4];
     float lastBlend = -1.0f;
     uint32_t n;
+    int screenOverlay = 0;
     int screenStart = -1, screenSaved = 0, screenTarget = -1, outputW = 0, outputH = 0, pictureW, pictureH;
     Vtx *screenVertices = NULL;
 
@@ -1055,6 +1056,7 @@ static void vk_frame_end(void) {
     if (screenTarget >= 0 && PortText_UsesScreen() &&
         (pictureW > 512*SCALE || pictureH > 448*SCALE)) {
         screenStart = GsScreenText_Start(screenTarget, screen_pipe_key);
+        screenOverlay = GsScreenText_Overlay(screenStart, screenTarget, screen_pipe_key);
         if (screenStart >= 0) {
             screenVertices = GsScreenText_Vertices();
             if (!screenVertices || !screen_target(pictureW, pictureH)) screenStart = -1;
@@ -1196,8 +1198,10 @@ static void vk_frame_end(void) {
         cur = -1;
     }
     for (n = replay ? (unsigned)screenStart : 0; n < gsDrawCount; n++) {
+        if (screenOverlay && screenStart >= 0 && gsDraws[n].screenText && !replay) continue;
+        if (screenOverlay && replay && !gsDraws[n].screenText) continue;
         const GsDraw *d = &gsDraws[n];
-        if (!replay && (int)n == screenStart && gsTargets[screenTarget].cleared) {
+        if (!replay && !screenOverlay && (int)n == screenStart && gsTargets[screenTarget].cleared) {
             if (pass) { SDL_EndGPURenderPass(pass); pass = NULL; }
             screen_capture(cmd, screenTarget);
             screenSaved = 1; cur = -1;
@@ -1543,6 +1547,10 @@ static void vk_frame_end(void) {
     if (pass != NULL) {
         SDL_EndGPURenderPass(pass);
         pass = NULL;
+    }
+    if (!replay && screenOverlay && screenStart >= 0 && gsTargets[screenTarget].cleared) {
+        screen_capture(cmd, screenTarget);
+        screenSaved = 1; cur = -1;
     }
     }
     free(screenVertices);

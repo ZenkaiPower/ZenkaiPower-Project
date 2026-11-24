@@ -256,7 +256,8 @@ the draw's target/sampling grid determines its displayed resolution. Switching b
 text and informational glyphs does not regenerate the atlas.
 
 Text layout stays fixed in game coordinates. Both OpenGL and Vulkan preserve draw order when the two
-policies are mixed: ordered suffix replay samples game-resolution text and native HUD shapes on the scene's pixel
+policies are mixed: independent informational labels render once over the finished game picture.
+Overlapping later art or destination-alpha dependencies retain ordered suffix replay, which samples game-resolution text and native HUD shapes on the scene's pixel
 grid while leaving screen-resolution labels sharp. Raster scale changes refresh the generated text caches.
 The informational scopes travel in the GS display list, so render-thread timing and interpolation preserve
 the distinction. Fighter-panel ImGui text uses game-sized glyph rasters scaled back to its existing layout.

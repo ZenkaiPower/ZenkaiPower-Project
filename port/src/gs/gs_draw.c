@@ -144,7 +144,7 @@ int gsGlowPercent = GLOW_DEFAULT;
 int gsGlarePercent = GLOW_DEFAULT;
 int gsSharpBlur = 1; /* the setting "Sharp stage blur" (sharp_blur): see draw_state */
 static int sGlowIsGlare; /* the glow chain under way is the sky's glare (gfxm_a.c GfxPost_DrawGlow: see below) */
-static int sNativeShape; /* isolated procedural HUD pipeline */
+static int sNativeShape; /* dedicated native HUD fragment pipeline, never ordinary materials */
 static int sBlockSample; /* the draw being set up reads a work buffer at the GS's 1x (orig.x): pipeline_get, key bit 25 */
 static int sTexPackOn = 1; /* the setting: use the texture pack (if one was found) */
 int gsAnchor;
@@ -1754,7 +1754,7 @@ void Port_WallMesh(const void *key, int second, int culled, const float *screen,
 /* Two draws can be merged into one call when everything they need is the same. `scissor` is compared as
    four ints (the scissor a draw has recorded). */
 static int same_state(const GsDraw *a, const GsDraw *b) {
-    return !a->native && a->vu == b->vu && a->wall == b->wall && a->sceneResolution == b->sceneResolution && a->screenText == b->screenText && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
+    return !a->native && a->vu == b->vu && a->wall == b->wall && a->flat2d == b->flat2d && a->screenText == b->screenText && a->sceneResolution == b->sceneResolution && a->target == b->target && a->tex == b->tex && a->sampler == b->sampler && a->pipeline == b->pipeline &&
            memcmp(a->mode, b->mode, sizeof(a->mode)) == 0 && a->misc[0] == b->misc[0] && a->misc[1] == b->misc[1] &&
            a->misc[2] == b->misc[2] && a->misc[3] == b->misc[3] && a->blendc == b->blendc &&
            memcmp(a->rect, b->rect, sizeof(a->rect)) == 0 && memcmp(a->orig, b->orig, sizeof(a->orig)) == 0 &&
@@ -1885,6 +1885,7 @@ void GsGpu_Draw(int type, int ctx, const GsVertex *v) {
     if (!draw_state(ctx, type == 1 ? 1 : type == 0 ? 2 : 0, type == 6, 0, &d, &us, &vs)) {
         return;
     }
+    d.flat2d = type == 6 || fst;
     int battleText = !d.tex_is_target && sLast != NULL && sLast->tex == d.tex && sLast->battleText;
     int tbo = (prim >> 4) & 1 && ((t0 >> 20) & 0x3F) == TBO_PSM; /* an extracted Wii menu picture */
     int pauseHeading = tbo && TboText_IsPauseHeading((uint32_t)((t0 >> 37) & 0x3FFF));
@@ -4219,11 +4220,12 @@ static uint32_t interp_prims(InterpPrim *out) {
                 tris++;
             }
             out[count].view = INTERP_SCISSOR_ID(d);
-            out[count].sig = ((uint32_t)d->tex * 2654435761u) ^ ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (tris * 0x85EBCA6Bu) ^ (out[count].view * 0xC2B2AE35u);
-            out[count].kind = ((uint32_t)d->tex * 2654435761u) ^ ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (out[count].view * 0xC2B2AE35u);
-            out[count].base = ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (out[count].view * 0xC2B2AE35u);
+            out[count].flat2d = d->flat2d || d->misc[3] != 0.0f || d->screenText || d->sceneResolution;
+            uint32_t domain=out[count].flat2d ? 0xA24BAED5u : 0;
+            out[count].sig = ((uint32_t)d->tex * 2654435761u) ^ ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (tris * 0x85EBCA6Bu) ^ (out[count].view * 0xC2B2AE35u) ^ domain;
+            out[count].kind = ((uint32_t)d->tex * 2654435761u) ^ ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (out[count].view * 0xC2B2AE35u) ^ domain;
+            out[count].base = ((uint32_t)d->pipeline * 40503u) ^ (role * 0x9E3779B1u) ^ (out[count].view * 0xC2B2AE35u) ^ domain;
             out[count].first = d->first + k;
-            out[count].flat2d = d->misc[3] != 0.0f || d->screenText || d->sceneResolution;
             out[count].tris = (uint8_t)tris;
             count++;
             k += tris * 3;
@@ -4231,6 +4233,36 @@ static uint32_t interp_prims(InterpPrim *out) {
     }
     qsort(out, count, sizeof(InterpPrim), interp_prim_cmp);
     return count;
+}
+
+/* Reserve stationary screen-space pieces before moving pieces can claim their
+   neighbours. Masks, repeated digits and outline passes often share one atlas. */
+static int interp_stationary(const Vtx *a, const Vtx *b, int count) {
+    if(!interp_same_uv(a,b,count)) return 0;
+    for(int k=0;k<count;k++) {
+        if(fabsf(a[k].x-b[k].x)>1.0f/64 || fabsf(a[k].y-b[k].y)>1.0f/64 ||
+           a[k].z!=b[k].z) return 0;
+    }
+    return 1;
+}
+static void interp_reserve_flat(uint32_t begin,uint32_t end,uint32_t lo,uint32_t pEnd) {
+    uint32_t n=end-begin,m=pEnd-lo;
+    if(!m) return;
+    for(uint32_t r=0;r<n;r++) {
+        const InterpPrim *c=&sInterpPrims[begin+r];
+        if(!c->flat2d) continue;
+        uint32_t at=r<n/2 || n>m+r ? (r<m ? r : m-1) : m-(n-r);
+        uint32_t from=at>INTERP_WINDOW ? at-INTERP_WINDOW : 0;
+        uint32_t to=at+INTERP_WINDOW+1<m ? at+INTERP_WINDOW+1 : m;
+        for(uint32_t j=from;j<to;j++) {
+            const InterpPrim *p=&sInterpPrevPrims[lo+j];
+            if(!sInterpPrimUsed[lo+j] && p->flat2d && p->tris==c->tris && p->view==c->view &&
+               interp_stationary(&gsVerts[c->first],&sInterpPrevVerts[p->first],c->tris*3)) {
+                sInterpPrimUsed[lo+j]=2;
+                break;
+            }
+        }
+    }
 }
 
 /* Which kinds of piece stand still in the world, asked corner by corner and once a tick: a kind does if most of a
@@ -4829,6 +4861,7 @@ static void interp_build_verts(float t) {
                 }
             }
         }
+        interp_reserve_flat(i,end,lo,pEnd);
         for (r = 0; pEnd > lo && r < end - i; r++) {
             const InterpPrim *c = &sInterpPrims[i + r];
             const Vtx *cv = &gsVerts[c->first];
@@ -4888,11 +4921,12 @@ static void interp_build_verts(float t) {
             for (j = from; j < to; j++) {
                 const Vtx *pv;
                 float d = 0.0f, far = 0.0f;
-                if (sInterpPrimUsed[lo + j] || sInterpPrevPrims[lo + j].tris != c->tris ||
+                if (sInterpPrimUsed[lo + j] == 1 || sInterpPrevPrims[lo + j].tris != c->tris ||
                     sInterpPrevPrims[lo + j].flat2d != c->flat2d || sInterpPrevPrims[lo + j].view != c->view) {
                     continue;
                 }
                 pv = &sInterpPrevVerts[sInterpPrevPrims[lo + j].first];
+                if(sInterpPrimUsed[lo+j]==2 && !interp_stationary(pv,cv,nv)) continue;
                 if (!big) { /* (or the partner is such a sheet) */
                     float bx0 = pv[0].x, bx1 = bx0, by0 = pv[0].y, by1 = by0;
                     for (k = 1; k < nv; k++) {

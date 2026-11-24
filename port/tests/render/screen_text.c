@@ -43,6 +43,20 @@ int main(void) {
     gsDraws[2].tex_is_target=1;
     assert(GsScreenText_Start(0,key)==-1);
     gsDraws[2].tex_is_target=0;
+    Vtx bounds[4]={{.x=0,.y=0},{.x=10,.y=10},{.x=20,.y=20},{.x=30,.y=30}};
+    gsVerts=bounds;gsVertCount=4;
+    memset(draws,0,sizeof(draws));gsDrawCount=2;
+    draws[0].screenText=1;draws[0].count=2;
+    draws[1].first=2;draws[1].count=2;
+    assert(GsScreenText_Overlay(0,0,key)); /* disjoint later artwork */
+    bounds[2].x=5;bounds[2].y=5;
+    assert(!GsScreenText_Overlay(0,0,key)); /* overlapping fade/plate retains order */
+    bounds[2].x=20;bounds[2].y=20;draws[1].misc[1]=1;
+    assert(!GsScreenText_Overlay(0,0,key)); /* destination-alpha dependency */
+    draws[1].misc[1]=0;draws[0].pipeline=1<<12;
+    assert(!GsScreenText_Overlay(0,0,key)); /* cannot defer a depth writer */
+    draws[0].pipeline=0;draws[1].tex_is_target=1;
+    assert(!GsScreenText_Overlay(0,0,key)); /* framebuffer consumer */
     int w,h,sc[4],full[4]={0,0,512,448};
     GsScreenText_Size(1920,1080,1778,&w,&h);
     assert(w==1920 && h==1080);

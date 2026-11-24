@@ -268,6 +268,7 @@ Both flags accept `0` or `1`; the informational override does not inherit the ma
 older `text_screen_size` setting. Changing game resolution updates font sampling/cache quality without changing
 label size or position. The controls remain active when the native HUD collection is disabled. Shared atlases
 use a stable raster across informational and ordinary draws, avoiding repeated texture regeneration.
+Independent sharp labels render once over the final game image; overlapping art and masks retain ordered replay.
 Setup, settings and chat interfaces, and Android virtual gamepad labels, remain platform UI.
 
 Native shapes use their own `nativehud.frag` pipeline (key bit 27). The ordinary GS, menu, VU/model and
